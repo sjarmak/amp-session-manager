@@ -24,6 +24,40 @@ export interface IterationRecord {
   testResult?: 'pass' | 'fail';
   testExitCode?: number;
   tokenUsage?: number;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  model?: string;
+  ampVersion?: string;
+  exitCode?: number;
+}
+
+export interface ToolCall {
+  id: string;
+  sessionId: string;
+  iterationId: string;
+  timestamp: string;
+  toolName: string;
+  argsJson: string;
+  success: boolean;
+  durationMs?: number;
+  rawJson?: string;
+}
+
+export interface AmpTelemetry {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  model?: string;
+  ampVersion?: string;
+  exitCode: number;
+  toolCalls: Array<{
+    toolName: string;
+    args: Record<string, any>;
+    success: boolean;
+    durationMs?: number;
+    timestamp: string;
+  }>;
 }
 
 export interface SessionCreateOptions {

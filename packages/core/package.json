@@ -4,7 +4,9 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
@@ -13,7 +15,7 @@
   },
   "dependencies": {
     "@ampsm/types": "workspace:*",
-    "better-sqlite3": "^9.0.0"
+    "better-sqlite3": "^12.2.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.0",

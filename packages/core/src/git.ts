@@ -64,4 +64,22 @@ export class GitOps {
     const shaResult = await this.exec(['rev-parse', 'HEAD'], worktreePath);
     return shaResult.stdout.trim();
   }
+
+  async hasChanges(worktreePath: string): Promise<boolean> {
+    const result = await this.exec(['status', '--porcelain'], worktreePath);
+    return result.stdout.trim().length > 0;
+  }
+
+  async getChangedFiles(worktreePath: string): Promise<string[]> {
+    const result = await this.exec(['status', '--porcelain'], worktreePath);
+    if (!result.stdout.trim()) {
+      return [];
+    }
+    
+    return result.stdout
+      .trim()
+      .split('\n')
+      .map(line => line.substring(3)) // Remove status codes (first 3 characters)
+      .filter(filename => filename.length > 0);
+  }
 }

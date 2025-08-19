@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import type { Session, IterationRecord, SessionCreateOptions } from '@ampsm/types';
+import type { Session, IterationRecord, ToolCall, SessionCreateOptions, AmpTelemetry } from '@ampsm/types';
 import { randomUUID } from 'crypto';
 
 export class SessionStore {
@@ -38,7 +38,27 @@ export class SessionStore {
         testResult TEXT,
         testExitCode INTEGER,
         tokenUsage INTEGER,
+        promptTokens INTEGER,
+        completionTokens INTEGER,
+        totalTokens INTEGER,
+        model TEXT,
+        ampVersion TEXT,
+        exitCode INTEGER,
         FOREIGN KEY(sessionId) REFERENCES sessions(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS tool_calls (
+        id TEXT PRIMARY KEY,
+        sessionId TEXT NOT NULL,
+        iterationId TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        toolName TEXT NOT NULL,
+        argsJson TEXT NOT NULL,
+        success BOOLEAN NOT NULL,
+        durationMs INTEGER,
+        rawJson TEXT,
+        FOREIGN KEY(sessionId) REFERENCES sessions(id),
+        FOREIGN KEY(iterationId) REFERENCES iterations(id)
       );
     `);
   }
@@ -91,6 +111,130 @@ export class SessionStore {
   updateSessionStatus(id: string, status: Session['status']) {
     const stmt = this.db.prepare('UPDATE sessions SET status = ?, lastRun = ? WHERE id = ?');
     stmt.run(status, new Date().toISOString(), id);
+  }
+
+  createIteration(sessionId: string): IterationRecord {
+    const id = randomUUID();
+    const iteration: IterationRecord = {
+      id,
+      sessionId,
+      startTime: new Date().toISOString(),
+      changedFiles: 0
+    };
+
+    const stmt = this.db.prepare(`
+      INSERT INTO iterations (id, sessionId, startTime, changedFiles)
+      VALUES (?, ?, ?, ?)
+    `);
+    stmt.run(iteration.id, iteration.sessionId, iteration.startTime, iteration.changedFiles);
+
+    return iteration;
+  }
+
+  updateIteration(iterationId: string, updates: Partial<IterationRecord>) {
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    Object.entries(updates).forEach(([key, value]) => {
+      if (key !== 'id' && key !== 'sessionId' && value !== undefined) {
+        fields.push(`${key} = ?`);
+        values.push(value);
+      }
+    });
+
+    if (fields.length === 0) return;
+
+    values.push(iterationId);
+    const stmt = this.db.prepare(`UPDATE iterations SET ${fields.join(', ')} WHERE id = ?`);
+    stmt.run(...values);
+  }
+
+  finishIteration(iterationId: string, telemetry: AmpTelemetry, commitSha?: string, changedFiles?: number) {
+    const updates: Partial<IterationRecord> = {
+      endTime: new Date().toISOString(),
+      exitCode: telemetry.exitCode,
+      promptTokens: telemetry.promptTokens,
+      completionTokens: telemetry.completionTokens,
+      totalTokens: telemetry.totalTokens,
+      model: telemetry.model,
+      ampVersion: telemetry.ampVersion,
+      commitSha,
+      changedFiles: changedFiles || 0
+    };
+
+    this.updateIteration(iterationId, updates);
+
+    // Note: Tool calls will be saved separately by the caller with the correct sessionId
+  }
+
+  saveToolCall(toolCall: Omit<ToolCall, 'sessionId'> & { sessionId: string }) {
+    const stmt = this.db.prepare(`
+      INSERT INTO tool_calls (id, sessionId, iterationId, timestamp, toolName, argsJson, success, durationMs, rawJson)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    stmt.run(
+      toolCall.id,
+      toolCall.sessionId,
+      toolCall.iterationId,
+      toolCall.timestamp,
+      toolCall.toolName,
+      toolCall.argsJson,
+      toolCall.success,
+      toolCall.durationMs,
+      toolCall.rawJson
+    );
+  }
+
+  getIterations(sessionId: string, limit?: number): IterationRecord[] {
+    const sql = limit 
+      ? 'SELECT * FROM iterations WHERE sessionId = ? ORDER BY startTime DESC LIMIT ?' 
+      : 'SELECT * FROM iterations WHERE sessionId = ? ORDER BY startTime DESC';
+    const stmt = this.db.prepare(sql);
+    return limit ? stmt.all(sessionId, limit) as IterationRecord[] : stmt.all(sessionId) as IterationRecord[];
+  }
+
+  getToolCalls(sessionId: string, iterationId?: string, limit?: number): ToolCall[] {
+    let sql = 'SELECT * FROM tool_calls WHERE sessionId = ?';
+    const params: any[] = [sessionId];
+
+    if (iterationId) {
+      sql += ' AND iterationId = ?';
+      params.push(iterationId);
+    }
+
+    sql += ' ORDER BY timestamp DESC';
+    
+    if (limit) {
+      sql += ' LIMIT ?';
+      params.push(limit);
+    }
+
+    const stmt = this.db.prepare(sql);
+    return stmt.all(...params) as ToolCall[];
+  }
+
+  getTokenUsageStats(sessionId: string, limit?: number): Array<{
+    iterationId: string;
+    startTime: string;
+    model?: string;
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  }> {
+    const sql = limit
+      ? 'SELECT id as iterationId, startTime, model, promptTokens, completionTokens, totalTokens FROM iterations WHERE sessionId = ? ORDER BY startTime DESC LIMIT ?'
+      : 'SELECT id as iterationId, startTime, model, promptTokens, completionTokens, totalTokens FROM iterations WHERE sessionId = ? ORDER BY startTime DESC';
+    const stmt = this.db.prepare(sql);
+    const results = limit ? stmt.all(sessionId, limit) : stmt.all(sessionId);
+    return results as Array<{
+      iterationId: string;
+      startTime: string;
+      model?: string;
+      promptTokens?: number;
+      completionTokens?: number;
+      totalTokens?: number;
+    }>;
   }
 
   close() {
