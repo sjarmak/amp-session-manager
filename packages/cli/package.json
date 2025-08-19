@@ -1,0 +1,27 @@
+{
+  "name": "@ampsm/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "amp-sessions": "./dist/index.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "echo 'No linting configured'"
+  },
+  "dependencies": {
+    "@ampsm/core": "workspace:*",
+    "@ampsm/types": "workspace:*",
+    "commander": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}

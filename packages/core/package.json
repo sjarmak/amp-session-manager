@@ -1,0 +1,23 @@
+{
+  "name": "@ampsm/core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "echo 'No linting configured'"
+  },
+  "dependencies": {
+    "@ampsm/types": "workspace:*",
+    "better-sqlite3": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}

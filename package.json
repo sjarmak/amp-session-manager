@@ -1,0 +1,22 @@
+{
+  "name": "@ampsm/root",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @ampsm/desktop dev",
+    "build": "pnpm -r build",
+    "cli": "pnpm --filter @ampsm/cli dev",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}
