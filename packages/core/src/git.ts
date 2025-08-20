@@ -194,7 +194,7 @@ export class GitOps {
   }
 
   async isCommitReachableFromBase(baseBranch: string, worktreePath: string): Promise<boolean> {
-    const result = await this.exec(['merge-base', '--is-ancestor', 'HEAD', baseBranch], worktreePath);
+    const result = await this.exec(['merge-base', '--is-ancestor', baseBranch, 'HEAD'], worktreePath);
     return result.exitCode === 0;
   }
 
