@@ -139,6 +139,16 @@ ipcMain.handle('sessions:cleanup', async (_, sessionId: string) => {
   }
 });
 
+ipcMain.handle('sessions:thread', async (_, sessionId: string) => {
+  try {
+    const threadConversation = await worktreeManager.getThreadConversation(sessionId);
+    return { success: true, threadConversation };
+  } catch (error) {
+    console.error('Failed to get thread conversation:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to get thread conversation' };
+  }
+});
+
 ipcMain.handle('squash-session', async (_, sessionId: string, options: any) => {
   try {
     return await worktreeManager.squashCommits(sessionId, options);
