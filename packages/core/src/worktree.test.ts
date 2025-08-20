@@ -61,7 +61,7 @@ describe('WorktreeManager', () => {
     expect(session.repoRoot).toBe(tempDir);
     expect(session.baseBranch).toBe('main');
     expect(session.status).toBe('idle');
-    expect(session.branchName).toMatch(/^amp\/test-session\/\d{8}-\d{6}$/);
+    expect(session.branchName).toMatch(/^amp\/test-session\/\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}$/);
     
     // Verify worktree directory was created
     const worktreePath = session.worktreePath;

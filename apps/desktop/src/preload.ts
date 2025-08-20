@@ -44,6 +44,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     offEvent: (callback: (event: any) => void) => {
       ipcRenderer.removeListener('batch:event', callback);
     }
+  },
+
+  notifications: {
+    getSettings: () => ipcRenderer.invoke('notifications:getSettings'),
+    updateSettings: (settings: any) => ipcRenderer.invoke('notifications:updateSettings', settings),
+    test: (type: string) => ipcRenderer.invoke('notifications:test', type),
+    onAction: (callback: (action: string) => void) => {
+      const handler = (_: any, action: string) => callback(action);
+      ipcRenderer.on('notification:action', handler);
+    },
+    offAction: (callback: (action: string) => void) => {
+      const handler = (_: any, action: string) => callback(action);
+      ipcRenderer.removeListener('notification:action', handler);
+    }
   }
 });
 

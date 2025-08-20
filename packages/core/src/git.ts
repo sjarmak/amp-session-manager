@@ -3,35 +3,87 @@ import { spawn } from 'child_process';
 export class GitOps {
   constructor(private repoRoot: string) {}
 
-  async exec(args: string[], cwd?: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  async exec(args: string[], cwd?: string, timeoutMs?: number): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     return new Promise((resolve, reject) => {
       const gitPath = process.env.GIT_PATH || 'git';
+      const workingDir = cwd || this.repoRoot;
+      const timeout = timeoutMs || 30000; // 30 second default timeout
+      
+      // Validate working directory exists
+      try {
+        const fs = require('fs');
+        if (!fs.existsSync(workingDir)) {
+          throw new Error(`Working directory does not exist: ${workingDir}`);
+        }
+      } catch (error) {
+        reject(new Error(`Invalid working directory ${workingDir}: ${error instanceof Error ? error.message : String(error)}`));
+        return;
+      }
+      
       const child = spawn(gitPath, args, { 
-        cwd: cwd || this.repoRoot,
+        cwd: workingDir,
         stdio: ['inherit', 'pipe', 'pipe'],
         env: { ...process.env, PATH: process.env.PATH || '' }
       });
       
       let stdout = '';
       let stderr = '';
+      let timedOut = false;
       
       // Add timeout to prevent hanging
-      const timeout = setTimeout(() => {
+      const timeoutHandle = setTimeout(() => {
+        timedOut = true;
         child.kill('SIGTERM');
-        reject(new Error(`Git command timed out: git ${args.join(' ')}`));
-      }, 30000); // 30 second timeout
+        
+        // If SIGTERM doesn't work after 5 seconds, use SIGKILL
+        setTimeout(() => {
+          if (!child.killed) {
+            child.kill('SIGKILL');
+          }
+        }, 5000);
+        
+        reject(new Error(`Git command timed out after ${timeout}ms: git ${args.join(' ')}\nWorking directory: ${workingDir}`));
+      }, timeout);
       
       child.stdout?.on('data', (data) => stdout += data.toString());
       child.stderr?.on('data', (data) => stderr += data.toString());
       
       child.on('error', (error) => {
-        clearTimeout(timeout);
-        reject(new Error(`Failed to spawn git process: ${error.message}`));
+        clearTimeout(timeoutHandle);
+        if (!timedOut) {
+          const errorMessage = (error as any).code === 'ENOENT' 
+            ? `Git executable not found. Make sure git is installed and available in PATH.`
+            : `Failed to spawn git process: ${error.message}`;
+          reject(new Error(`${errorMessage}\nCommand: git ${args.join(' ')}\nWorking directory: ${workingDir}`));
+        }
       });
       
       child.on('close', (exitCode) => {
-        clearTimeout(timeout);
-        resolve({ stdout, stderr, exitCode: exitCode || 0 });
+        clearTimeout(timeoutHandle);
+        if (!timedOut) {
+          const result = { stdout, stderr, exitCode: exitCode || 0 };
+          
+          // Add context to common error scenarios
+          if (result.exitCode !== 0) {
+            const command = `git ${args.join(' ')}`;
+            const context = `Command: ${command}\nWorking directory: ${workingDir}\nExit code: ${result.exitCode}`;
+            
+            // Common git error scenarios
+            if (stderr.includes('not a git repository')) {
+              result.stderr += `\n\nThis appears to not be a git repository. ${context}`;
+            } else if (stderr.includes('could not read config file')) {
+              result.stderr += `\n\nGit configuration issue. ${context}`;
+            } else if (stderr.includes('Permission denied')) {
+              result.stderr += `\n\nPermission denied. Check file permissions and access rights. ${context}`;
+            } else if (stderr.includes('No such file or directory')) {
+              result.stderr += `\n\nFile or directory not found. ${context}`;
+            } else {
+              result.stderr += `\n\n${context}`;
+            }
+          }
+          
+          resolve(result);
+        }
       });
     });
   }
@@ -46,14 +98,47 @@ export class GitOps {
   }
 
   async createWorktree(branchName: string, worktreePath: string, baseBranch: string = 'main'): Promise<void> {
-    // Ensure clean base
-    await this.exec(['fetch', '--all', '--prune']);
-    await this.exec(['checkout', baseBranch]);
-    await this.exec(['pull', '--ff-only']);
-    
-    // Create branch and worktree
-    await this.exec(['branch', branchName, baseBranch]);
-    await this.exec(['worktree', 'add', worktreePath, branchName]);
+    try {
+      // Check if we have any remotes
+      const remotesResult = await this.exec(['remote']);
+      const hasRemotes = remotesResult.exitCode === 0 && remotesResult.stdout.trim().length > 0;
+      
+      if (hasRemotes) {
+        // Ensure clean base only if we have remotes
+        const fetchResult = await this.exec(['fetch', '--all', '--prune']);
+        if (fetchResult.exitCode !== 0) {
+          throw new Error(`Failed to fetch: ${fetchResult.stderr}`);
+        }
+      }
+      
+      const checkoutResult = await this.exec(['checkout', baseBranch]);
+      if (checkoutResult.exitCode !== 0) {
+        throw new Error(`Failed to checkout ${baseBranch}: ${checkoutResult.stderr}`);
+      }
+      
+      if (hasRemotes) {
+        // Only try to pull if we have remotes
+        const pullResult = await this.exec(['pull', '--ff-only']);
+        if (pullResult.exitCode !== 0) {
+          throw new Error(`Failed to pull ${baseBranch}: ${pullResult.stderr}`);
+        }
+      }
+      
+      // Create branch and worktree
+      const branchResult = await this.exec(['branch', branchName, baseBranch]);
+      if (branchResult.exitCode !== 0) {
+        throw new Error(`Failed to create branch ${branchName}: ${branchResult.stderr}`);
+      }
+      
+      const worktreeResult = await this.exec(['worktree', 'add', worktreePath, branchName]);
+      if (worktreeResult.exitCode !== 0) {
+        // Cleanup the branch if worktree creation failed
+        await this.exec(['branch', '-D', branchName]).catch(() => {});
+        throw new Error(`Failed to create worktree: ${worktreeResult.stderr}`);
+      }
+    } catch (error) {
+      throw new Error(`Worktree creation failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   async removeWorktree(worktreePath: string, branchName: string): Promise<void> {
@@ -128,6 +213,22 @@ export class GitOps {
   }
 
   async isBaseUpToDate(baseBranch: string): Promise<boolean> {
+    // Check if we have any remotes
+    const remotesResult = await this.exec(['remote']);
+    const hasRemotes = remotesResult.exitCode === 0 && remotesResult.stdout.trim().length > 0;
+    
+    if (!hasRemotes) {
+      // No remotes, consider base up to date
+      return true;
+    }
+    
+    // Check if origin exists specifically
+    const originCheck = await this.exec(['remote', 'get-url', 'origin']);
+    if (originCheck.exitCode !== 0) {
+      // Origin doesn't exist, consider base up to date
+      return true;
+    }
+    
     await this.exec(['fetch', '--all', '--prune']);
     const result = await this.exec(['rev-list', '--count', `${baseBranch}..origin/${baseBranch}`]);
     return parseInt(result.stdout.trim()) === 0;
@@ -206,7 +307,8 @@ export class GitOps {
   }
 
   async isCommitReachableFromBase(baseBranch: string, worktreePath: string): Promise<boolean> {
-    const result = await this.exec(['merge-base', '--is-ancestor', baseBranch, 'HEAD'], worktreePath);
+    // Check if HEAD is reachable from baseBranch (i.e., the session has been merged)
+    const result = await this.exec(['merge-base', '--is-ancestor', 'HEAD', baseBranch], worktreePath);
     return result.exitCode === 0;
   }
 

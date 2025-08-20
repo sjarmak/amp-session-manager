@@ -4,6 +4,8 @@ This document instructs a coding agent (Amp) how to work inside this repository 
 
 Note: DO NOT RUN SERVERS DIRECTLY WHILE TESTING IMPLEMENTATION, IF YOU WANT TO RUN THE SERVER TO TEST TELL THE USER TO RUN THE COMMAND TO START UP THE SERVER.
 
+DO NOT EVER RUN pnpm dev!!!
+
 ---
 
 ## Mission

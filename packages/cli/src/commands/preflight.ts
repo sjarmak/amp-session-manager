@@ -1,7 +1,7 @@
-import { SessionStore, WorktreeManager } from '@ampsm/core';
+import { SessionStore, WorktreeManager, getDbPath } from '@ampsm/core';
 
 export async function preflightCommand(sessionId: string, options: { json?: boolean }) {
-  const dbPath = process.env.SESSIONS_DB_PATH || './sessions.sqlite';
+  const dbPath = process.env.AMPSM_DB_PATH || getDbPath();
   const store = new SessionStore(dbPath);
   const manager = new WorktreeManager(store);
 

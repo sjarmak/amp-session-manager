@@ -84,7 +84,7 @@ export class TelemetryParser {
       }
     }
 
-    // Token usage (either dedicated tokens field or inline)
+    // Token usage (either dedicated tokens field or inline) - also extract model if present
     if (json.tokens || json.token_usage || (json.prompt && json.completion)) {
       const tokens = json.tokens || json.token_usage || json;
       return {
@@ -94,12 +94,13 @@ export class TelemetryParser {
           completion: tokens.completion || tokens.completion_tokens,
           total: tokens.total || tokens.total_tokens
         },
+        model: json.model, // Extract model from same event
         type: 'token_usage'
       };
     }
 
-    // Model info (can be in same event as tokens)
-    if (json.model && !json.tokens) {
+    // Model info (standalone model events)
+    if (json.model && !json.tokens && !json.prompt && !json.completion) {
       return {
         timestamp: json.timestamp,
         model: json.model,
@@ -180,15 +181,21 @@ export class TelemetryParser {
         telemetry.promptTokens = event.tokens.prompt;
         telemetry.completionTokens = event.tokens.completion;
         telemetry.totalTokens = event.tokens.total;
+        // Also extract model if it's in the same event
+        if (event.model) {
+          telemetry.model = event.model;
+        }
         break;
       }
     }
     events.reverse(); // Restore original order
 
-    // Extract model info from any event that has it
-    const modelEvent = events.find(e => e.model);
-    if (modelEvent) {
-      telemetry.model = modelEvent.model;
+    // Extract model info from any event that has it (if not already set)
+    if (!telemetry.model) {
+      const modelEvent = events.find(e => e.model);
+      if (modelEvent) {
+        telemetry.model = modelEvent.model;
+      }
     }
 
     // Build tool calls by matching start/finish events

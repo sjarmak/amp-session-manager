@@ -11,13 +11,32 @@
     "test:e2e-amp": "pnpm --filter @ampsm/core test:e2e-amp",
     "lint": "pnpm -r lint"
   },
+  "dependencies": {
+    "yaml": "2.8.1",
+    "better-sqlite3": "12.2.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "concurrently": "^8.0.0",
+    "tsx": "^4.0.0",
     "typescript": "^5.0.0",
     "vitest": "^1.0.0"
   },
   "engines": {
     "node": ">=18.0.0",
     "pnpm": ">=8.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "yaml": "2.8.1",
+      "react": "18.3.1",
+      "react-dom": "18.3.1",
+      "typescript": "5.9.2",
+      "better-sqlite3": "12.2.0"
+    }
   }
 }

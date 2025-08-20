@@ -39,6 +39,13 @@ declare global {
         onEvent: (callback: (event: any) => void) => void;
         offEvent: (callback: (event: any) => void) => void;
       };
+      notifications: {
+        getSettings: () => Promise<any>;
+        updateSettings: (settings: any) => Promise<{ success: boolean; error?: string }>;
+        test: (type: string) => Promise<{ success: boolean; error?: string }>;
+        onAction: (callback: (action: string) => void) => void;
+        offAction: (callback: (action: string) => void) => void;
+      };
     };
   }
 }

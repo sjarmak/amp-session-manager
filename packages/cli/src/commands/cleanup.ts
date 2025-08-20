@@ -1,8 +1,8 @@
-import { SessionStore, WorktreeManager } from '@ampsm/core';
+import { SessionStore, WorktreeManager, getDbPath, releaseLock } from '@ampsm/core';
 import { readLine } from '../utils/readline.js';
 
 export async function cleanupCommand(sessionId: string, options: { yes?: boolean; json?: boolean }) {
-  const dbPath = process.env.SESSIONS_DB_PATH || './sessions.sqlite';
+  const dbPath = process.env.AMPSM_DB_PATH || getDbPath();
   const store = new SessionStore(dbPath);
   const manager = new WorktreeManager(store);
 
@@ -26,6 +26,9 @@ export async function cleanupCommand(sessionId: string, options: { yes?: boolean
     }
 
     await manager.cleanup(sessionId);
+    
+    // Clean up any lock files for this session
+    releaseLock(sessionId);
     
     if (options.json) {
       console.log(JSON.stringify({

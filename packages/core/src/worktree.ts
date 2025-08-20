@@ -7,6 +7,7 @@ import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { spawn } from 'child_process';
 import { homedir } from 'os';
+import { isLocked, acquireLock, releaseLock } from './lock.js';
 
 export class WorktreeManager {
   private ampAdapter: AmpAdapter;
@@ -86,6 +87,14 @@ export class WorktreeManager {
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
+
+    // Check if session is already locked by another process
+    if (isLocked(sessionId)) {
+      throw new Error(`Session ${sessionId} is already locked by another process`);
+    }
+
+    // Acquire lock for this session
+    acquireLock(sessionId);
 
     // Create iteration record
     const iteration = this.store.createIteration(sessionId);
@@ -234,6 +243,9 @@ export class WorktreeManager {
     } catch (error) {
       this.store.updateSessionStatus(sessionId, 'error');
       throw error;
+    } finally {
+      // Always release the lock
+      releaseLock(sessionId);
     }
   }
 

@@ -1,4 +1,4 @@
-import { SessionStore, WorktreeManager } from '@ampsm/core';
+import { SessionStore, WorktreeManager, getDbPath } from '@ampsm/core';
 import { spawn } from 'child_process';
 import { randomUUID } from 'crypto';
 
@@ -15,7 +15,7 @@ interface MergeOptions {
 }
 
 export async function mergeCommand(sessionId: string, options: MergeOptions) {
-  const dbPath = process.env.SESSIONS_DB_PATH || './sessions.sqlite';
+  const dbPath = process.env.AMPSM_DB_PATH || getDbPath();
   const store = new SessionStore(dbPath);
   const manager = new WorktreeManager(store);
   

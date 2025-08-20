@@ -2,13 +2,22 @@
   "name": "@ampsm/core",
   "version": "0.1.0",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "sideEffects": false,
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsup src/index.ts --dts --format esm,cjs --target node20",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e-amp": "vitest run test/e2e.amp.real.test.ts",
@@ -16,13 +25,10 @@
   },
   "dependencies": {
     "@ampsm/types": "workspace:*",
-    "better-sqlite3": "^12.2.0",
-    "yaml": "^2.6.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.0",
-    "typescript": "^5.0.0",
-    "vitest": "^1.0.0"
+    "tsup": "^8.3.5"
   }
 }

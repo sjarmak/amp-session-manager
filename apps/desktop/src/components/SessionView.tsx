@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Session } from '@ampsm/types';
 import { MergeWizard } from './MergeWizard';
+import { DiffViewer } from './DiffViewer';
 
 interface SessionViewProps {
   session: Session;
@@ -292,12 +293,27 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
               <p className="text-gray-800 whitespace-pre-wrap">{session.ampPrompt}</p>
             </div>
           </div>
+
+          {/* Delete Session Button */}
+          <div className="bg-white p-6 rounded-lg border border-red-200">
+            <h3 className="text-lg font-semibold mb-4 text-red-800">Delete Session</h3>
+            <p className="text-gray-600 mb-4">
+              Permanently remove this session, including its worktree and branch. This cannot be undone.
+            </p>
+            <button
+              onClick={handleDelete}
+              disabled={loading}
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Delete Session
+            </button>
+          </div>
         </div>
       )}
 
       {activeTab === 'diff' && (
         <div className="bg-white p-6 rounded-lg border">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold">Session Changes</h3>
             <button
               onClick={loadDiff}
@@ -308,31 +324,12 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
             </button>
           </div>
           
-          {diffError && (
-            <div className="p-3 mb-4 bg-red-50 border border-red-200 rounded text-red-700">
-              Error: {diffError}
-            </div>
-          )}
-          
-          {diffLoading && (
-            <div className="flex items-center justify-center py-8">
-              <div className="text-gray-500">Loading diff...</div>
-            </div>
-          )}
-          
-          {!diffLoading && diff && (
-            <div className="bg-gray-50 rounded-lg overflow-hidden">
-              {diff.trim() === 'No changes found' || diff.trim() === '' ? (
-                <div className="p-4 text-gray-600 text-center">
-                  No changes found in this session
-                </div>
-              ) : (
-                <pre className="p-4 text-sm font-mono overflow-x-auto whitespace-pre-wrap bg-gray-900 text-green-400">
-                  {diff}
-                </pre>
-              )}
-            </div>
-          )}
+          <DiffViewer
+            diff={diff || ''}
+            loading={diffLoading}
+            error={diffError || undefined}
+            onRefresh={loadDiff}
+          />
         </div>
       )}
 
@@ -381,7 +378,7 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
               <button
                 onClick={handleSquash}
                 disabled={loading}
-                className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Squashing...' : 'Squash Commits'}
               </button>
@@ -406,7 +403,7 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
               <button
                 onClick={handleRebase}
                 disabled={loading}
-                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Rebasing...' : 'Rebase onto Target'}
               </button>
@@ -421,25 +418,14 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
             <button
               onClick={() => setShowMergeWizard(true)}
               disabled={loading}
-              className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+              className="px-6 py-3 text-white rounded-md hover:bg-opacity-80 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+              style={{ backgroundColor: '#F34E3F' }}
             >
               🚀 Start Merge Wizard
             </button>
           </div>
           
-          <div className="bg-red-50 p-6 rounded-lg border border-red-200">
-            <h3 className="text-lg font-semibold mb-4 text-red-800">Delete Session</h3>
-            <p className="text-gray-600 mb-4">
-              Permanently remove this session, including its worktree and branch. This cannot be undone.
-            </p>
-            <button
-              onClick={handleDelete}
-              disabled={loading}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              🗑️ Delete Session
-            </button>
-          </div>
+
         </div>
       )}
 

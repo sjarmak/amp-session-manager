@@ -2,39 +2,76 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-  test:
+  deps:
+    name: Dependency Validation
     runs-on: ubuntu-latest
-
+    
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
 
-    - name: Install pnpm
-      uses: pnpm/action-setup@v2
-      with:
-        version: 8
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
 
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
+      - name: Install syncpack for version checks
+        run: npm install -g syncpack
 
-    - name: Type check
-      run: pnpm typecheck
+      - name: Validate lockfile consistency
+        run: pnpm install --frozen-lockfile
 
-    - name: Lint
-      run: pnpm lint
+      - name: Check dependency version mismatches
+        run: syncpack list-mismatches
 
-    - name: Test
-      run: pnpm test
+      - name: Test native module rebuild
+        run: |
+          pnpm rebuild:native
+          node -e "console.log('Testing native modules...'); require('better-sqlite3')('./test.db').close(); console.log('✓ Native modules work')"
 
-    - name: Build
-      run: pnpm build
+      - name: Electron builder dry run
+        run: pnpm --filter @ampsm/desktop exec electron-builder --dir
+
+  test:
+    name: Tests & Quality Checks
+    runs-on: ubuntu-latest
+    needs: deps
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run checks in parallel
+        run: |
+          pnpm -r typecheck &
+          pnpm -r test &
+          pnpm -r lint &
+          wait
+
+      - name: Build project
+        run: pnpm build

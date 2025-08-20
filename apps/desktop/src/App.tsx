@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Session } from '@ampsm/types';
 import { SessionList } from './components/SessionList';
@@ -7,6 +7,7 @@ import { NewSessionModal } from './components/NewSessionModal';
 import { BatchesView } from './components/BatchesView';
 import { BatchRunDetail } from './components/BatchRunDetail';
 import { NewBatchModal } from './components/NewBatchModal';
+import NotificationSettingsModal from './components/NotificationSettingsModal';
 import './App.css';
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
   const [selectedBatchRun, setSelectedBatchRun] = useState<string | null>(null);
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [showNewBatchModal, setShowNewBatchModal] = useState(false);
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const handleSessionSelect = (session: Session) => {
@@ -49,10 +51,52 @@ function App() {
     setRefreshKey(prev => prev + 1);
   };
 
+  // Handle notification actions
+  useEffect(() => {
+    const handleNotificationAction = async (action: string) => {
+      const [type, sessionName] = action.split(':');
+      
+      switch (type) {
+        case 'view':
+          // Find session by name and navigate to it
+          try {
+            const sessions = await window.electronAPI.sessions.list();
+            const session = sessions.find(s => s.name === sessionName);
+            if (session) {
+              handleSessionSelect(session);
+            }
+          } catch (error) {
+            console.error('Failed to find session:', error);
+          }
+          break;
+        case 'conflicts':
+        case 'tests':
+          // Navigate to session and maybe specific tab
+          try {
+            const sessions = await window.electronAPI.sessions.list();
+            const session = sessions.find(s => s.name === sessionName);
+            if (session) {
+              handleSessionSelect(session);
+            }
+          } catch (error) {
+            console.error('Failed to find session:', error);
+          }
+          break;
+        default:
+          console.log('Unknown notification action:', action);
+      }
+    };
+
+    window.electronAPI.notifications.onAction(handleNotificationAction);
+    return () => {
+      window.electronAPI.notifications.offAction(handleNotificationAction);
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="container mx-auto py-8 px-4 max-w-6xl">
-        <header className="text-center mb-8">
+        <header className="text-center mb-8 relative">
           <div className="flex items-center justify-center gap-2 mb-4">
             <img 
               src="/images/Amp_Style_Light.png" 
@@ -63,9 +107,21 @@ function App() {
               Session Manager
             </h1>
           </div>
-          <p className="text-gray-600">
-            Manage isolated Git worktree sessions with Amp's autonomous coding agent
+          <p className="text-gray-600 font-header italic font-thin">
+            Orchestrate parallel Amp sessions and batch experiments in isolated worktrees
           </p>
+          
+          {/* Settings Button */}
+          <button
+            onClick={() => setShowNotificationSettings(true)}
+            className="absolute top-0 right-0 p-2 text-gray-500 hover:text-gray-700 transition-colors"
+            title="Notification Settings"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
         </header>
 
         {/* Navigation tabs */}
@@ -134,6 +190,11 @@ function App() {
           isOpen={showNewBatchModal}
           onClose={() => setShowNewBatchModal(false)}
           onBatchCreated={handleBatchCreated}
+        />
+
+        <NotificationSettingsModal
+          isOpen={showNotificationSettings}
+          onClose={() => setShowNotificationSettings(false)}
         />
       </div>
     </div>

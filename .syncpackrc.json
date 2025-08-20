@@ -1,0 +1,38 @@
+{
+  "$schema": "https://unpkg.com/syncpack@12/dist/schema.json",
+  "source": [
+    "package.json",
+    "packages/*/package.json",
+    "apps/*/package.json"
+  ],
+  "versionGroups": [
+    {
+      "label": "Ensure consistent React versions",
+      "packages": ["**"],
+      "dependencies": ["react", "react-dom", "@types/react", "@types/react-dom"]
+    },
+    {
+      "label": "Ensure consistent TypeScript versions",
+      "packages": ["**"],
+      "dependencies": ["typescript"]
+    },
+    {
+      "label": "Ensure consistent SQLite versions",
+      "packages": ["**"],
+      "dependencies": ["better-sqlite3", "@types/better-sqlite3"]
+    },
+    {
+      "label": "Ensure consistent Node types",
+      "packages": ["**"],
+      "dependencies": ["@types/node"]
+    }
+  ],
+  "semverGroups": [
+    {
+      "range": "",
+      "dependencyTypes": ["prod", "dev"],
+      "packages": ["**"],
+      "dependencies": ["**"]
+    }
+  ]
+}

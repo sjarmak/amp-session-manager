@@ -1,13 +1,22 @@
 import Database from 'better-sqlite3';
 import type { Session, IterationRecord, ToolCall, SessionCreateOptions, AmpTelemetry, BatchRecord, BatchItem, ExportOptions } from '@ampsm/types';
 import { randomUUID } from 'crypto';
+import { getDbPath } from './config.js';
 
 export class SessionStore {
   private db: Database.Database;
 
-  constructor(dbPath: string = './sessions.sqlite') {
+  constructor(dbPath?: string) {
     try {
-      this.db = new Database(dbPath);
+      const finalDbPath = dbPath || getDbPath();
+      this.db = new Database(finalDbPath);
+      
+      // Enable WAL mode for better concurrency and preventing reader/writer conflicts
+      this.db.pragma('journal_mode = WAL');
+      this.db.pragma('synchronous = NORMAL');
+      this.db.pragma('cache_size = 1000');
+      this.db.pragma('temp_store = memory');
+      
       this.initTables();
     } catch (error) {
       console.error('Failed to initialize SQLite database:', error);
@@ -501,6 +510,18 @@ export class SessionStore {
     }
 
     return result;
+  }
+
+  // Recovery operations
+  getHangingSessions(): Session[] {
+    const stmt = this.db.prepare('SELECT * FROM sessions WHERE status = "running" ORDER BY lastRun ASC');
+    return stmt.all() as Session[];
+  }
+
+  repairHangingSessions(): number {
+    const stmt = this.db.prepare('UPDATE sessions SET status = "idle" WHERE status = "running"');
+    const result = stmt.run();
+    return result.changes;
   }
 
   close() {

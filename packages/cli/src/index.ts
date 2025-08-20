@@ -22,6 +22,9 @@ import { cleanupCommand } from './commands/cleanup.js';
 import { batchCommand, abortRunCommand } from './commands/batch.js';
 import { exportCommand } from './commands/export.js';
 import { reportCommand } from './commands/report.js';
+import { lockCommand } from './commands/lock.js';
+import { repairCommand } from './commands/repair.js';
+import { cleanupDanglingCommand } from './commands/cleanup-dangling.js';
 
 const program = new Command();
 
@@ -209,5 +212,31 @@ program
   .option('--out <file>', 'Save report to file')
   .option('--format <format>', 'Report format: md|html', 'md')
   .action(reportCommand);
+
+// Lock command
+program
+  .command('lock <sessionId>')
+  .description('Manage advisory locks for sessions')
+  .option('--command <command>', 'Run command while holding lock')
+  .option('--unlock', 'Release lock for session')
+  .option('--status', 'Check lock status for session')
+  .option('--cleanup', 'Clean up all stale locks')
+  .option('--json', 'Output as JSON')
+  .action(lockCommand);
+
+// Recovery commands
+program
+  .command('repair')
+  .description('Fix hanging sessions (status stuck as "running")')
+  .option('--yes', 'Skip confirmation prompt')
+  .option('--json', 'Output as JSON')
+  .action(repairCommand);
+
+program
+  .command('cleanup-dangling')
+  .description('Clean up orphaned worktrees and branches')
+  .option('--yes', 'Skip confirmation prompt')
+  .option('--json', 'Output as JSON')
+  .action(cleanupDanglingCommand);
 
 program.parse();

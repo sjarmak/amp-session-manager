@@ -1,12 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog, Notification } from 'electron';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import { SessionStore, WorktreeManager, BatchController, getCurrentAmpThreadId } from '@ampsm/core';
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { join } = require('path');
+const { SessionStore, WorktreeManager, BatchController, getCurrentAmpThreadId, getDbPath, Notifier } = require('@ampsm/core');
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-let mainWindow: BrowserWindow;
+let mainWindow: any;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -46,391 +42,210 @@ app.on('activate', () => {
   }
 });
 
-// Initialize session store
-let store: SessionStore;
-let manager: WorktreeManager;
-let batchController: BatchController;
-let isInitialized = false;
+// Initialize services
+let store: any;
+let worktreeManager: any;
+let batchController: any;
+let notifier: any;
 
-// Register IPC handlers immediately to avoid race conditions
+async function initializeServices() {
+  try {
+    const dbPath = getDbPath();
+    store = new SessionStore(dbPath);
+    worktreeManager = new WorktreeManager(store);
+    batchController = new BatchController(store, worktreeManager);
+    notifier = new Notifier();
+
+    notifier.setCallback(async (options: any) => {
+      console.log('Notification:', options.title, '-', options.message);
+      // Native notifications will be added later when Electron issues are resolved
+    });
+
+    console.log('Services initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize services:', error);
+  }
+}
+
+app.whenReady().then(initializeServices);
+
+// IPC handlers
 ipcMain.handle('sessions:list', async () => {
   try {
-    if (!store) {
-      console.error('SessionStore not initialized');
-      return [];
-    }
     return store.getAllSessions();
   } catch (error) {
-    console.error('Error getting sessions:', error);
+    console.error('Failed to get sessions:', error);
     return [];
   }
 });
 
-ipcMain.handle('sessions:get', async (_, sessionId: string) => {
-  if (!store) {
-    console.error('SessionStore not initialized');
+ipcMain.handle('get-session', async (_, sessionId: string) => {
+  try {
+    return store.getSession(sessionId);
+  } catch (error) {
+    console.error('Failed to get session:', error);
     return null;
   }
-  return store.getSession(sessionId);
 });
 
-ipcMain.handle('sessions:diff', async (_, sessionId: string) => {
+ipcMain.handle('create-session', async (_, options: any) => {
   try {
-    if (!isInitialized || !manager) {
-      return { success: false, error: 'Application not initialized yet. Please wait...' };
-    }
-    const diff = await manager.getDiff(sessionId);
-    return { success: true, diff };
+    return await worktreeManager.createSession(options);
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Failed to get diff' };
+    console.error('Failed to create session:', error);
+    throw error;
   }
 });
 
-ipcMain.handle('sessions:thread', async (_, sessionId: string) => {
+ipcMain.handle('iterate-session', async (_, sessionId: string) => {
   try {
-    if (!isInitialized || !manager) {
-      return { success: false, error: 'Application not initialized yet. Please wait...' };
-    }
-    const threadConversation = await manager.getThreadConversation(sessionId);
-    return { success: true, threadConversation };
+    return await worktreeManager.iterate(sessionId);
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Failed to get thread conversation' };
+    console.error('Failed to iterate session:', error);
+    throw error;
   }
 });
 
-ipcMain.handle('sessions:create', async (_, options) => {
+ipcMain.handle('get-session-diff', async (_, sessionId: string) => {
   try {
-    if (!isInitialized || !manager) {
-      return { success: false, error: 'Application not initialized yet. Please wait...' };
-    }
+    const session = store.getSession(sessionId);
+    if (!session) throw new Error('Session not found');
     
-    // Auto-detect current Amp thread ID if not provided
-    if (!options.threadId) {
-      const threadId = await getCurrentAmpThreadId();
-      options.threadId = threadId || undefined;
-    }
-    
-    const session = await manager.createSession(options);
-    new Notification({
-      title: 'Session Created',
-      body: `Session "${session.name}" created successfully`,
-    }).show();
-    return { success: true, session };
+    return worktreeManager.getDiff(sessionId);
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    console.error('Failed to get session diff:', error);
+    return '';
   }
 });
 
-ipcMain.handle('sessions:iterate', async (_, sessionId: string, notes?: string) => {
+ipcMain.handle('squash-session', async (_, sessionId: string, options: any) => {
   try {
-    if (!isInitialized || !manager) {
-      return { success: false, error: 'Application not initialized yet. Please wait...' };
-    }
-    await manager.iterate(sessionId, notes);
-    new Notification({
-      title: 'Iteration Complete',
-      body: 'Session iteration completed successfully',
-    }).show();
-    return { success: true };
+    return await worktreeManager.squashCommits(sessionId, options);
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    console.error('Failed to squash session:', error);
+    throw error;
   }
 });
 
-ipcMain.handle('sessions:squash', async (_, sessionId: string, message: string) => {
+ipcMain.handle('rebase-session', async (_, sessionId: string, options: any) => {
   try {
-    if (!isInitialized || !manager) {
-      return { success: false, error: 'Application not initialized yet. Please wait...' };
-    }
-    await manager.squash(sessionId, message);
-    new Notification({
-      title: 'Commits Squashed',
-      body: 'Session commits squashed successfully',
-    }).show();
-    return { success: true };
+    return await worktreeManager.rebase(sessionId, options);
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    console.error('Failed to rebase session:', error);
+    throw error;
   }
 });
 
-ipcMain.handle('sessions:rebase', async (_, sessionId: string, onto: string) => {
+ipcMain.handle('cleanup-session', async (_, sessionId: string) => {
   try {
-    if (!isInitialized || !manager) {
-      return { success: false, error: 'Application not initialized yet. Please wait...' };
-    }
-    await manager.rebase(sessionId, onto);
-    new Notification({
-      title: 'Rebase Complete',
-      body: 'Session rebased successfully',
-    }).show();
-    return { success: true };
+    return await worktreeManager.cleanup(sessionId);
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    console.error('Failed to cleanup session:', error);
+    throw error;
   }
 });
 
-// New merge flow handlers
-ipcMain.handle('sessions:preflight', async (_, sessionId: string) => {
+ipcMain.handle('get-batches', async () => {
   try {
-    if (!isInitialized || !manager) {
-      return { success: false, error: 'Application not initialized yet. Please wait...' };
-    }
-    const result = await manager.preflight(sessionId);
-    return { success: true, result };
+    return store.getAllBatches();
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-});
-
-ipcMain.handle('sessions:squash-session', async (_, sessionId: string, mergeMessage: string, preserveManual: boolean = false) => {
-  try {
-    if (!isInitialized || !manager) {
-      return { success: false, error: 'Application not initialized yet. Please wait...' };
-    }
-    const result = await manager.squashSession(sessionId, {
-      message: mergeMessage,
-      includeManual: preserveManual ? 'include' : 'exclude'
-    });
-    return { success: true, result };
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-});
-
-ipcMain.handle('sessions:rebase-onto-base', async (_, sessionId: string) => {
-  try {
-    if (!isInitialized || !manager) {
-      return { success: false, error: 'Application not initialized yet. Please wait...' };
-    }
-    const result = await manager.rebaseOntoBase(sessionId);
-    return { success: true, result };
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-});
-
-ipcMain.handle('sessions:continue-merge', async (_, sessionId: string) => {
-  try {
-    if (!isInitialized || !manager) {
-      return { success: false, error: 'Application not initialized yet. Please wait...' };
-    }
-    const result = await manager.continueMerge(sessionId);
-    return { success: true, result };
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-});
-
-ipcMain.handle('sessions:abort-merge', async (_, sessionId: string) => {
-  try {
-    if (!isInitialized || !manager) {
-      return { success: false, error: 'Application not initialized yet. Please wait...' };
-    }
-    const result = await manager.abortMerge(sessionId);
-    return { success: true, result };
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-});
-
-ipcMain.handle('sessions:fast-forward-merge', async (_, sessionId: string) => {
-  try {
-    if (!isInitialized || !manager) {
-      return { success: false, error: 'Application not initialized yet. Please wait...' };
-    }
-    const result = await manager.fastForwardMerge(sessionId);
-    return { success: true, result };
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-});
-
-ipcMain.handle('sessions:export-patch', async (_, sessionId: string, outputPath: string) => {
-  try {
-    if (!isInitialized || !manager) {
-      return { success: false, error: 'Application not initialized yet. Please wait...' };
-    }
-    await manager.exportPatch(sessionId, outputPath);
-    new Notification({
-      title: 'Patch Exported',
-      body: `Patch exported to ${outputPath}`,
-    }).show();
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-});
-
-ipcMain.handle('sessions:cleanup', async (_, sessionId: string) => {
-  try {
-    if (!isInitialized || !manager) {
-      return { success: false, error: 'Application not initialized yet. Please wait...' };
-    }
-    await manager.cleanup(sessionId);
-    new Notification({
-      title: 'Session Cleaned Up',
-      body: 'Worktree and branch removed successfully',
-    }).show();
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-});
-
-ipcMain.handle('dialog:selectDirectory', async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openDirectory'],
-    title: 'Select Repository Directory'
-  });
-  return result;
-});
-
-// Batch IPC handlers
-ipcMain.handle('batch:listRuns', async () => {
-  try {
-    if (!batchController) {
-      console.error('BatchController not initialized');
-      return [];
-    }
-    return await batchController.listRuns();
-  } catch (error) {
-    console.error('Error listing batch runs:', error);
+    console.error('Failed to get batches:', error);
     return [];
   }
 });
 
-ipcMain.handle('batch:getRun', async (_, runId: string) => {
+ipcMain.handle('get-batch', async (_, batchId: string) => {
   try {
-    if (!batchController) {
-      console.error('BatchController not initialized');
-      return null;
-    }
-    return await batchController.getRun(runId);
+    return store.getBatch(batchId);
   } catch (error) {
-    console.error('Error getting batch run:', error);
+    console.error('Failed to get batch:', error);
     return null;
   }
 });
 
-ipcMain.handle('batch:listItems', async (_, options) => {
+ipcMain.handle('create-batch', async (_, options: any) => {
   try {
-    if (!batchController) {
-      console.error('BatchController not initialized');
-      return { items: [], total: 0 };
-    }
-    return await batchController.listItems(options);
+    return await batchController.createBatch(options);
   } catch (error) {
-    console.error('Error listing batch items:', error);
-    return { items: [], total: 0 };
+    console.error('Failed to create batch:', error);
+    throw error;
   }
 });
 
-ipcMain.handle('batch:start', async (_, options) => {
+ipcMain.handle('run-batch', async (_, batchId: string) => {
   try {
-    if (!batchController) {
-      return { success: false, error: 'BatchController not initialized' };
-    }
-    const runId = await batchController.start(options);
-    new Notification({
-      title: 'Batch Started',
-      body: `Batch run ${runId.slice(0, 8)} started`,
-    }).show();
-    return { success: true, runId };
+    return await batchController.runBatch(batchId);
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    console.error('Failed to run batch:', error);
+    throw error;
   }
 });
 
-ipcMain.handle('batch:abort', async (_, runId: string) => {
+ipcMain.handle('get-amp-thread-id', async () => {
   try {
-    if (!batchController) {
-      return { success: false, error: 'BatchController not initialized' };
-    }
-    await batchController.abort(runId);
-    new Notification({
-      title: 'Batch Aborted',
-      body: `Batch run ${runId.slice(0, 8)} aborted`,
-    }).show();
-    return { success: true };
+    return getCurrentAmpThreadId();
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    console.error('Failed to get Amp thread ID:', error);
+    return null;
   }
 });
 
-ipcMain.handle('batch:export', async (_, options) => {
+ipcMain.handle('show-notification', async (_, options: any) => {
   try {
-    if (!batchController) {
-      return { success: false, error: 'BatchController not initialized' };
-    }
-    const filePaths = await batchController.export(options);
-    new Notification({
-      title: 'Export Complete',
-      body: `Data exported to ${options.outDir}`,
-    }).show();
-    return { success: true, filePaths };
+    notifier.notify(options);
+    return true;
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    console.error('Failed to show notification:', error);
+    return false;
   }
 });
 
-ipcMain.handle('batch:report', async (_, options) => {
+ipcMain.handle('get-notification-settings', async () => {
   try {
-    if (!batchController) {
-      return { success: false, error: 'BatchController not initialized' };
-    }
-    const outputPath = await batchController.report(options);
-    new Notification({
-      title: 'Report Generated',
-      body: `Report saved to ${outputPath}`,
-    }).show();
-    return { success: true, outputPath };
+    return notifier.getSettings();
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    console.error('Failed to get notification settings:', error);
+    return {};
   }
 });
 
-// Initialize core components when app is ready
-app.whenReady().then(async () => {
+ipcMain.handle('update-notification-settings', async (_, settings: any) => {
   try {
-    console.log('Initializing SessionStore...');
-    const dbPath = join(__dirname, 'sessions.sqlite');
-    console.log('Database path:', dbPath);
-    store = new SessionStore(dbPath);
-    console.log('Initializing WorktreeManager...');
-    manager = new WorktreeManager(store);
-    console.log('Initializing BatchController...');
-    batchController = new BatchController(store);
-    isInitialized = true;
-    console.log('All components initialized successfully');
+    notifier.updateSettings(settings);
+    return true;
+  } catch (error) {
+    console.error('Failed to update notification settings:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('test-notification', async (_, type: string) => {
+  try {
+    const testNotifications = {
+      sessionComplete: { type: 'success', title: 'Session Complete', message: 'Session "test-session" completed successfully' },
+      sessionFailed: { type: 'error', title: 'Session Failed', message: 'Session "test-session" failed with error' },
+      awaitingInput: { type: 'warning', title: 'Awaiting Input', message: 'Session "test-session" needs manual intervention' },
+      testPassed: { type: 'success', title: 'Tests Passed', message: 'All tests passed for session "test-session"' },
+      testFailed: { type: 'error', title: 'Tests Failed', message: 'Tests failed for session "test-session"' }
+    };
     
-    // Setup batch event forwarding after initialization
-    batchController.on('run-started', (data: any) => {
-      mainWindow?.webContents.send('batch:event', { type: 'run-started', ...data });
-    });
-
-    batchController.on('run-updated', (data: any) => {
-      mainWindow?.webContents.send('batch:event', { type: 'run-updated', ...data });
-    });
-
-    batchController.on('run-finished', (data: any) => {
-      mainWindow?.webContents.send('batch:event', { type: 'run-finished', ...data });
-    });
-
-    batchController.on('run-aborted', (data: any) => {
-      mainWindow?.webContents.send('batch:event', { type: 'run-aborted', ...data });
-    });
+    const notification = testNotifications[type as keyof typeof testNotifications];
+    if (notification) {
+      notifier.notify(notification);
+    }
+    return true;
   } catch (error) {
-    console.error('Failed to initialize components:', error);
-    // Show dialog to user about initialization failure
-    dialog.showErrorBox('Initialization Error', 
-      `Failed to initialize application components: ${error instanceof Error ? error.message : String(error)}`);
+    console.error('Failed to test notification:', error);
+    return false;
   }
-}).catch(error => {
-  console.error('Unhandled error during app initialization:', error);
 });
 
-app.on('before-quit', () => {
-  if (store) {
-    store.close();
-  }
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception:', error);
+  app.quit();
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled rejection at:', promise, 'reason:', reason);
+  app.quit();
 });

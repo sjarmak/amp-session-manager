@@ -1,8 +1,8 @@
-import { SessionStore, GitOps } from '@ampsm/core';
+import { SessionStore, GitOps, getDbPath } from '@ampsm/core';
 
 export async function diffCommand(sessionId: string, options: { staged?: boolean; nameOnly?: boolean }) {
   try {
-    const dbPath = process.env.SESSIONS_DB_PATH || './sessions.sqlite';
+    const dbPath = process.env.AMPSM_DB_PATH || getDbPath();
     const store = new SessionStore(dbPath);
     const session = store.getSession(sessionId);
     

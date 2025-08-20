@@ -162,7 +162,11 @@ The desktop app provides:
 
 ### SQLite Database
 
-- By default, the session database is stored as `./sessions.sqlite`
+- By default, the session database is stored in the user's config directory:
+  - macOS: `~/Library/Application Support/ampsm/sessions.sqlite`
+  - Linux: `~/.config/ampsm/sessions.sqlite`  
+  - Windows: `%APPDATA%\ampsm\sessions.sqlite`
+- Override with environment variable: `AMPSM_DB_PATH=/path/to/custom/sessions.sqlite`
 - The database is automatically created on first use
 - Sessions persist across CLI and desktop app usage
 

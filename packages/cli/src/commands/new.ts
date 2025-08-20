@@ -1,4 +1,4 @@
-import { SessionStore, WorktreeManager, getCurrentAmpThreadId } from '@ampsm/core';
+import { SessionStore, WorktreeManager, getCurrentAmpThreadId, getDbPath } from '@ampsm/core';
 import type { SessionCreateOptions } from '@ampsm/types';
 
 export async function newCommand(options: {
@@ -10,7 +10,7 @@ export async function newCommand(options: {
   model?: string;
 }): Promise<void> {
   try {
-    const dbPath = process.env.SESSIONS_DB_PATH || './sessions.sqlite';
+    const dbPath = process.env.AMPSM_DB_PATH || getDbPath();
     const store = new SessionStore(dbPath);
     const manager = new WorktreeManager(store);
 

@@ -1,8 +1,8 @@
-import { SessionStore, WorktreeManager } from '@ampsm/core';
+import { SessionStore, WorktreeManager, getDbPath } from '@ampsm/core';
 
 export async function iterateCommand(sessionId: string, options: { notes?: string }) {
   try {
-    const dbPath = process.env.SESSIONS_DB_PATH || './sessions.sqlite';
+    const dbPath = process.env.AMPSM_DB_PATH || getDbPath();
     const store = new SessionStore(dbPath);
     const manager = new WorktreeManager(store);
 

@@ -18,13 +18,8 @@
   "dependencies": {
     "@ampsm/core": "workspace:*",
     "@ampsm/types": "workspace:*",
-    "commander": "^11.0.0",
-    "yaml": "^2.8.1"
+    "commander": "^11.0.0"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "tsx": "^4.0.0",
-    "typescript": "^5.0.0",
-    "vitest": "^1.0.0"
   }
 }

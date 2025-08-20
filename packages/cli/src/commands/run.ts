@@ -1,9 +1,9 @@
-import { SessionStore } from '@ampsm/core';
+import { SessionStore, getDbPath } from '@ampsm/core';
 import { spawn } from 'child_process';
 
 export async function runCommand(sessionId: string) {
   try {
-    const dbPath = process.env.SESSIONS_DB_PATH || './sessions.sqlite';
+    const dbPath = process.env.AMPSM_DB_PATH || getDbPath();
     const store = new SessionStore(dbPath);
     const session = store.getSession(sessionId);
     
