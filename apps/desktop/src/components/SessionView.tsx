@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Session } from '@ampsm/types';
+import { MergeWizard } from './MergeWizard';
 
 interface SessionViewProps {
   session: Session;
@@ -14,6 +15,66 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
   const [iterationNotes, setIterationNotes] = useState('');
   const [squashMessage, setSquashMessage] = useState('');
   const [rebaseTarget, setRebaseTarget] = useState(session.baseBranch);
+  const [showMergeWizard, setShowMergeWizard] = useState(false);
+  const [diff, setDiff] = useState<string | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
+
+  const loadDiff = async () => {
+    setDiffLoading(true);
+    setDiffError(null);
+    
+    try {
+      const result = await window.electronAPI.sessions.diff(session.id);
+      if (result.success) {
+        setDiff(result.diff || 'No changes found');
+      } else {
+        setDiffError(result.error || 'Failed to load diff');
+      }
+    } catch (err) {
+      setDiffError(err instanceof Error ? err.message : 'Failed to load diff');
+    } finally {
+      setDiffLoading(false);
+    }
+  };
+
+  // Load diff when diff tab becomes active
+  useEffect(() => {
+    if (activeTab === 'diff' && !diff && !diffLoading) {
+      loadDiff();
+    }
+  }, [activeTab, diff, diffLoading]);
+
+  const handleDelete = async () => {
+    console.log('Delete button clicked');
+    if (!window.confirm(`Are you sure you want to delete session "${session.name}"? This will remove the worktree and branch. UNMERGED CHANGES WILL BE LOST.`)) {
+      console.log('Delete cancelled by user');
+      return;
+    }
+    console.log('Delete confirmed, proceeding...');
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Calling cleanup for session:', session.id);
+      const result = await window.electronAPI.sessions.cleanup(session.id);
+      console.log('Cleanup result:', result);
+      if (result.success) {
+        console.log('Cleanup successful, going back to session list');
+        onSessionUpdated(); // Refresh session list
+        onBack(); // Go back to session list
+      } else {
+        console.log('Cleanup failed:', result.error);
+        setError(result.error || 'Failed to delete session');
+      }
+    } catch (err) {
+      console.log('Cleanup threw error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete session');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleIterate = async () => {
     setLoading(true);
@@ -208,11 +269,42 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
 
       {activeTab === 'diff' && (
         <div className="bg-white p-6 rounded-lg border">
-          <h3 className="text-lg font-semibold mb-4">Session Changes</h3>
-          <div className="text-gray-600">
-            Diff view not implemented yet. Use CLI command: 
-            <code className="ml-2 px-2 py-1 bg-gray-100 rounded">amp-sessions diff {session.id}</code>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Session Changes</h3>
+            <button
+              onClick={loadDiff}
+              disabled={diffLoading}
+              className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            >
+              {diffLoading ? 'Loading...' : 'Refresh'}
+            </button>
           </div>
+          
+          {diffError && (
+            <div className="p-3 mb-4 bg-red-50 border border-red-200 rounded text-red-700">
+              Error: {diffError}
+            </div>
+          )}
+          
+          {diffLoading && (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-gray-500">Loading diff...</div>
+            </div>
+          )}
+          
+          {!diffLoading && diff && (
+            <div className="bg-gray-50 rounded-lg overflow-hidden">
+              {diff.trim() === 'No changes found' || diff.trim() === '' ? (
+                <div className="p-4 text-gray-600 text-center">
+                  No changes found in this session
+                </div>
+              ) : (
+                <pre className="p-4 text-sm font-mono overflow-x-auto whitespace-pre-wrap bg-gray-900 text-green-400">
+                  {diff}
+                </pre>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -292,7 +384,43 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
               </button>
             </div>
           </div>
+
+          <div className="bg-white p-6 rounded-lg border border-green-200">
+            <h3 className="text-lg font-semibold mb-4 text-green-800">Merge to Main</h3>
+            <p className="text-gray-600 mb-4">
+              Use the merge wizard to squash commits, rebase, and merge to the base branch in one guided flow.
+            </p>
+            <button
+              onClick={() => setShowMergeWizard(true)}
+              disabled={loading}
+              className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+            >
+              🚀 Start Merge Wizard
+            </button>
+          </div>
+          
+          <div className="bg-red-50 p-6 rounded-lg border border-red-200">
+            <h3 className="text-lg font-semibold mb-4 text-red-800">Delete Session</h3>
+            <p className="text-gray-600 mb-4">
+              Permanently remove this session, including its worktree and branch. This cannot be undone.
+            </p>
+            <button
+              onClick={handleDelete}
+              disabled={loading}
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              🗑️ Delete Session
+            </button>
+          </div>
         </div>
+      )}
+
+      {showMergeWizard && (
+        <MergeWizard
+          session={session}
+          onClose={() => setShowMergeWizard(false)}
+          onComplete={onSessionUpdated}
+        />
       )}
     </div>
   );

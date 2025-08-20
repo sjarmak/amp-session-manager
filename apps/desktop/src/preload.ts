@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { Session, SessionCreateOptions } from '@ampsm/types';
+import type { Session, SessionCreateOptions, PreflightResult, SquashOptions, RebaseResult, MergeOptions } from '@ampsm/types';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -11,7 +11,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     create: (options: SessionCreateOptions) => ipcRenderer.invoke('sessions:create', options) as Promise<{ success: boolean; session?: Session; error?: string }>,
     iterate: (sessionId: string, notes?: string) => ipcRenderer.invoke('sessions:iterate', sessionId, notes) as Promise<{ success: boolean; error?: string }>,
     squash: (sessionId: string, message: string) => ipcRenderer.invoke('sessions:squash', sessionId, message) as Promise<{ success: boolean; error?: string }>,
-    rebase: (sessionId: string, onto: string) => ipcRenderer.invoke('sessions:rebase', sessionId, onto) as Promise<{ success: boolean; error?: string }>
+    rebase: (sessionId: string, onto: string) => ipcRenderer.invoke('sessions:rebase', sessionId, onto) as Promise<{ success: boolean; error?: string }>,
+    
+    // New merge flow methods
+    preflight: (sessionId: string) => ipcRenderer.invoke('sessions:preflight', sessionId) as Promise<{ success: boolean; result?: PreflightResult; error?: string }>,
+    squashSession: (sessionId: string, options: SquashOptions) => ipcRenderer.invoke('sessions:squash-session', sessionId, options) as Promise<{ success: boolean; error?: string }>,
+    rebaseOntoBase: (sessionId: string) => ipcRenderer.invoke('sessions:rebase-onto-base', sessionId) as Promise<{ success: boolean; result?: RebaseResult; error?: string }>,
+    continueMerge: (sessionId: string) => ipcRenderer.invoke('sessions:continue-merge', sessionId) as Promise<{ success: boolean; result?: RebaseResult; error?: string }>,
+    abortMerge: (sessionId: string) => ipcRenderer.invoke('sessions:abort-merge', sessionId) as Promise<{ success: boolean; error?: string }>,
+    fastForwardMerge: (sessionId: string, options?: MergeOptions) => ipcRenderer.invoke('sessions:fast-forward-merge', sessionId, options) as Promise<{ success: boolean; error?: string }>,
+    exportPatch: (sessionId: string, outPath: string) => ipcRenderer.invoke('sessions:export-patch', sessionId, outPath) as Promise<{ success: boolean; error?: string }>,
+    cleanup: (sessionId: string) => ipcRenderer.invoke('sessions:cleanup', sessionId) as Promise<{ success: boolean; error?: string }>,
+    diff: (sessionId: string) => ipcRenderer.invoke('sessions:diff', sessionId) as Promise<{ success: boolean; diff?: string; error?: string }>
   },
   
   dialog: {
@@ -19,22 +30,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
   }
 });
 
-declare global {
-  interface Window {
-    electronAPI: {
-      platform: string;
-      versions: NodeJS.ProcessVersions;
-      sessions: {
-        list: () => Promise<Session[]>;
-        get: (sessionId: string) => Promise<Session | null>;
-        create: (options: SessionCreateOptions) => Promise<{ success: boolean; session?: Session; error?: string }>;
-        iterate: (sessionId: string, notes?: string) => Promise<{ success: boolean; error?: string }>;
-        squash: (sessionId: string, message: string) => Promise<{ success: boolean; error?: string }>;
-        rebase: (sessionId: string, onto: string) => Promise<{ success: boolean; error?: string }>;
-      };
-      dialog: {
-        selectDirectory: () => Promise<Electron.OpenDialogReturnValue>;
-      };
-    };
-  }
-}
+export {};

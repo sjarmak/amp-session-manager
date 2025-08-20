@@ -60,6 +60,19 @@ export class SessionStore {
         FOREIGN KEY(sessionId) REFERENCES sessions(id),
         FOREIGN KEY(iterationId) REFERENCES iterations(id)
       );
+
+      CREATE TABLE IF NOT EXISTS merge_history (
+        id TEXT PRIMARY KEY,
+        sessionId TEXT NOT NULL,
+        startedAt TEXT NOT NULL,
+        finishedAt TEXT,
+        baseBranch TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        result TEXT NOT NULL,
+        conflictFiles TEXT,
+        squashMessage TEXT,
+        FOREIGN KEY(sessionId) REFERENCES sessions(id)
+      );
     `);
   }
 
@@ -111,6 +124,14 @@ export class SessionStore {
   updateSessionStatus(id: string, status: Session['status']) {
     const stmt = this.db.prepare('UPDATE sessions SET status = ?, lastRun = ? WHERE id = ?');
     stmt.run(status, new Date().toISOString(), id);
+  }
+
+  deleteSession(id: string): void {
+    // Delete in reverse order of foreign keys
+    this.db.prepare('DELETE FROM tool_calls WHERE sessionId = ?').run(id);
+    this.db.prepare('DELETE FROM iterations WHERE sessionId = ?').run(id);
+    this.db.prepare('DELETE FROM merge_history WHERE sessionId = ?').run(id);
+    this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
   }
 
   createIteration(sessionId: string): IterationRecord {
@@ -235,6 +256,80 @@ export class SessionStore {
       completionTokens?: number;
       totalTokens?: number;
     }>;
+  }
+
+  saveMergeHistory(record: {
+    id: string;
+    sessionId: string;
+    startedAt: string;
+    finishedAt?: string;
+    baseBranch: string;
+    mode: string;
+    result: string;
+    conflictFiles?: string[];
+    squashMessage?: string;
+  }) {
+    const stmt = this.db.prepare(`
+      INSERT INTO merge_history (id, sessionId, startedAt, finishedAt, baseBranch, mode, result, conflictFiles, squashMessage)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    stmt.run(
+      record.id,
+      record.sessionId,
+      record.startedAt,
+      record.finishedAt,
+      record.baseBranch,
+      record.mode,
+      record.result,
+      record.conflictFiles ? JSON.stringify(record.conflictFiles) : null,
+      record.squashMessage
+    );
+  }
+
+  updateMergeHistory(id: string, updates: {
+    finishedAt?: string;
+    result?: string;
+    conflictFiles?: string[];
+  }) {
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value !== undefined) {
+        fields.push(`${key} = ?`);
+        if (key === 'conflictFiles' && Array.isArray(value)) {
+          values.push(JSON.stringify(value));
+        } else {
+          values.push(value);
+        }
+      }
+    });
+
+    if (fields.length === 0) return;
+
+    values.push(id);
+    const stmt = this.db.prepare(`UPDATE merge_history SET ${fields.join(', ')} WHERE id = ?`);
+    stmt.run(...values);
+  }
+
+  getMergeHistory(sessionId: string): Array<{
+    id: string;
+    sessionId: string;
+    startedAt: string;
+    finishedAt?: string;
+    baseBranch: string;
+    mode: string;
+    result: string;
+    conflictFiles?: string[];
+    squashMessage?: string;
+  }> {
+    const stmt = this.db.prepare('SELECT * FROM merge_history WHERE sessionId = ? ORDER BY startedAt DESC');
+    const results = stmt.all(sessionId) as any[];
+    return results.map(row => ({
+      ...row,
+      conflictFiles: row.conflictFiles ? JSON.parse(row.conflictFiles) : undefined
+    }));
   }
 
   close() {

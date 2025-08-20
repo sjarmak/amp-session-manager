@@ -4,10 +4,28 @@ import { join } from 'path';
 import type { AmpTelemetry } from '@ampsm/types';
 import { TelemetryParser } from './telemetry-parser.js';
 
+/**
+ * Redacts secrets from text based on environment variable keys
+ */
+function redactSecrets(text: string, env?: Record<string, string>): string {
+  if (!env) return text;
+  
+  let redacted = text;
+  Object.entries(env).forEach(([key, value]) => {
+    if (/TOKEN|KEY|SECRET/i.test(key) && value) {
+      redacted = redacted.split(value).join('[REDACTED]');
+    }
+  });
+  
+  return redacted;
+}
+
 export interface AmpAdapterConfig {
   ampPath?: string;
   ampArgs?: string[];
   enableJSONLogs?: boolean;
+  env?: Record<string, string>;
+  extraArgs?: string[];
 }
 
 export interface AmpIterationResult {
@@ -25,7 +43,9 @@ export class AmpAdapter {
     this.config = {
       ampPath: config.ampPath || process.env.AMP_BIN || 'amp',
       ampArgs: config.ampArgs || [],
-      enableJSONLogs: config.enableJSONLogs !== false
+      enableJSONLogs: config.enableJSONLogs || false, // Default to false for compatibility
+      env: config.env,
+      extraArgs: config.extraArgs || []
     };
   }
 
@@ -39,7 +59,7 @@ export class AmpAdapter {
     const fullPrompt = await this.buildIterationPrompt(prompt, workingDir, sessionId);
     
     return new Promise((resolve) => {
-      const args = [...(this.config.ampArgs || [])];
+      const args = ['-x', ...(this.config.ampArgs || []), ...(this.config.extraArgs || [])];
       
       // Add model override
       if (modelOverride === 'gpt-5') {
@@ -54,9 +74,16 @@ export class AmpAdapter {
       }
 
       // Add the prompt (use stdin for long prompts)
+      console.log('Amp environment check:', {
+        AMP_API_KEY: process.env.AMP_API_KEY ? '***exists***' : 'MISSING',
+        ampPath: this.config.ampPath,
+        args
+      });
+      
       const child = spawn(this.config.ampPath!, args, {
         cwd: workingDir,
-        stdio: ['pipe', 'pipe', 'pipe']
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: this.config.env ? { ...process.env, ...this.config.env } : process.env
       });
       
       let output = '';
@@ -73,6 +100,8 @@ export class AmpAdapter {
       
       child.on('close', (exitCode) => {
         const fullOutput = output + stderr;
+        console.log('Amp process output:', { exitCode, stderr: stderr.slice(0, 200) }); // Log first 200 chars of stderr
+        const redactedOutput = redactSecrets(fullOutput, this.config.env);
         const telemetry = this.telemetryParser.parseOutput(fullOutput);
         telemetry.exitCode = exitCode || 0;
 
@@ -81,16 +110,17 @@ export class AmpAdapter {
 
         resolve({
           success: exitCode === 0,
-          output: fullOutput,
+          output: redactedOutput,
           telemetry,
           awaitingInput
         });
       });
       
       child.on('error', (error) => {
+        const errorOutput = `Failed to spawn amp: ${error.message}`;
         resolve({
           success: false,
-          output: `Failed to spawn amp: ${error.message}`,
+          output: redactSecrets(errorOutput, this.config.env),
           telemetry: {
             exitCode: -1,
             toolCalls: []
@@ -109,11 +139,12 @@ export class AmpAdapter {
     const oraclePrompt = this.buildOraclePrompt(query, context);
     
     return new Promise((resolve) => {
-      const args = [...(this.config.ampArgs || []), '--oracle'];
+      const args = [...(this.config.ampArgs || []), ...(this.config.extraArgs || []), '--oracle'];
       
       const child = spawn(this.config.ampPath!, args, {
         cwd: workingDir,
-        stdio: ['pipe', 'pipe', 'pipe']
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: this.config.env ? { ...process.env, ...this.config.env } : process.env
       });
       
       let output = '';
@@ -129,21 +160,23 @@ export class AmpAdapter {
       
       child.on('close', (exitCode) => {
         const fullOutput = output + stderr;
+        const redactedOutput = redactSecrets(fullOutput, this.config.env);
         const telemetry = this.telemetryParser.parseOutput(fullOutput);
         telemetry.exitCode = exitCode || 0;
 
         resolve({
           success: exitCode === 0,
-          output: fullOutput,
+          output: redactedOutput,
           telemetry,
           awaitingInput: false
         });
       });
       
       child.on('error', (error) => {
+        const errorOutput = `Failed to spawn amp oracle: ${error.message}`;
         resolve({
           success: false,
-          output: `Failed to spawn amp oracle: ${error.message}`,
+          output: redactSecrets(errorOutput, this.config.env),
           telemetry: {
             exitCode: -1,
             toolCalls: []

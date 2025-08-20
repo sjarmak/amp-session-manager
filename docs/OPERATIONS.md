@@ -79,12 +79,21 @@ amp-sessions config set ampArgs "--verbose --timeout 300"
 # Enable/disable JSON logs
 amp-sessions config set enableJSONLogs true
 
-# View current configuration
+# Configure Amp environment variables
+amp-sessions config set ampEnv.AMP_BIN /path/to/amp
+amp-sessions config set ampEnv.AMP_ARGS "--verbose --timeout 300"
+amp-sessions config set ampEnv.AMP_ENABLE_JSONL true
+amp-sessions config set ampEnv.AMP_TOKEN your_token_here
+
+# View current configuration (secrets will be redacted)
 amp-sessions config get
 amp-sessions config get ampPath
+amp-sessions config get ampEnv.AMP_BIN
 ```
 
 ### Finalizing Sessions
+
+#### Traditional Workflow (Individual Steps)
 
 ```bash
 # Squash all commits into one
@@ -92,6 +101,29 @@ amp-sessions squash <session-id> --message "feat: implement user authentication"
 
 # Rebase onto target branch
 amp-sessions rebase <session-id> --onto main
+```
+
+#### Merge-to-Main Workflow (Guided Process)
+
+```bash
+# Run preflight checks before merging
+amp-sessions preflight <session-id>
+amp-sessions preflight <session-id> --json
+
+# Complete merge flow (squash + rebase + merge)
+amp-sessions merge <session-id> \
+  --message "feat: implement user authentication" \
+  --include-manual include \
+  --onto main \
+  --push \
+  --export-patch ./auth-feature.patch
+
+# Handle conflicts during merge
+amp-sessions continue-merge <session-id>
+amp-sessions abort-merge <session-id>
+
+# Clean up after successful merge
+amp-sessions cleanup <session-id> --yes
 ```
 
 ## Desktop App
@@ -107,6 +139,7 @@ The desktop app provides:
 - Session list with status indicators
 - New session creation modal with repository picker
 - Session detail view with iteration, squash, and rebase controls
+- **Merge Wizard**: Guided merge-to-main flow with conflict handling
 - Real-time notifications for operations
 - Iteration console with live Amp logs
 - Tool calls panel showing all tool usage
@@ -186,6 +219,11 @@ git branch -D <branch-name>
 - Install Amp CLI globally or ensure it's in your PATH
 - Configure custom Amp path: `amp-sessions config set ampPath /path/to/amp`
 - For testing, use the fake amp fixture included in the tests
+
+### Amp Setup and Authentication Issues
+- Run the smoke check to verify your Amp setup: `amp-sessions verify-amp`
+- See [AUTHENTICATED_TESTS.md](./AUTHENTICATED_TESTS.md) for detailed auth setup
+- Configure authentication with environment variables or config commands
 
 ## Telemetry and Token Tracking
 

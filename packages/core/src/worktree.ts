@@ -1,7 +1,7 @@
 import { SessionStore } from './store.js';
 import { GitOps } from './git.js';
 import { AmpAdapter, type AmpAdapterConfig } from './amp.js';
-import type { Session, SessionCreateOptions, IterationRecord } from '@ampsm/types';
+import type { Session, SessionCreateOptions, IterationRecord, PreflightResult, SquashOptions, RebaseResult, MergeOptions } from '@ampsm/types';
 import { mkdir, writeFile, readFile } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
@@ -314,17 +314,237 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
     });
   }
 
+  async preflight(sessionId: string): Promise<PreflightResult> {
+    const session = this.store.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    const git = new GitOps(session.repoRoot);
+    const issues: string[] = [];
+
+    // Check if repo is clean
+    const repoClean = await git.isRepoClean(session.worktreePath);
+    if (!repoClean) {
+      issues.push('Repository has uncommitted changes');
+    }
+
+    // Check if base is up to date
+    let baseUpToDate = false;
+    try {
+      baseUpToDate = await git.isBaseUpToDate(session.baseBranch);
+      if (!baseUpToDate) {
+        issues.push(`Base branch ${session.baseBranch} is behind origin`);
+      }
+    } catch (error) {
+      issues.push(`Failed to check base branch status: ${error}`);
+    }
+
+    // Get branch info
+    const branchInfo = await git.getBranchInfo(session.worktreePath, session.baseBranch);
+    
+    // Count amp commits
+    const ampCommitsCount = await git.getAmpCommitsCount(session.worktreePath, branchInfo.branchpointSha);
+
+    // Run tests if configured
+    let testsPass: boolean | undefined;
+    if (session.scriptCommand) {
+      try {
+        const testResult = await this.runScript(session.scriptCommand, session.worktreePath);
+        testsPass = testResult.exitCode === 0;
+        if (!testsPass) {
+          issues.push(`Tests failed with exit code ${testResult.exitCode}`);
+        }
+      } catch (error) {
+        testsPass = false;
+        issues.push(`Failed to run tests: ${error}`);
+      }
+    }
+
+    // Check typecheck (if monorepo detected)
+    let typecheckPasses: boolean | undefined;
+    try {
+      const packageJsonPath = join(session.repoRoot, 'package.json');
+      const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
+      
+      if (packageJson.workspaces) {
+        const typecheckResult = await this.runScript('pnpm -w typecheck', session.repoRoot);
+        typecheckPasses = typecheckResult.exitCode === 0;
+        if (!typecheckPasses) {
+          issues.push('TypeScript compilation failed');
+        }
+      }
+    } catch {
+      // No package.json or not a monorepo
+    }
+
+    return {
+      repoClean,
+      baseUpToDate,
+      testsPass,
+      typecheckPasses,
+      aheadBy: branchInfo.aheadBy,
+      behindBy: branchInfo.behindBy,
+      branchpointSha: branchInfo.branchpointSha,
+      ampCommitsCount,
+      issues
+    };
+  }
+
+  async squashSession(sessionId: string, options: SquashOptions): Promise<void> {
+    const session = this.store.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    const git = new GitOps(session.repoRoot);
+    await git.squashCommits(session.baseBranch, options.message, session.worktreePath, options.includeManual);
+    
+    console.log(`✓ Squashed session commits: ${options.message}`);
+  }
+
+  async rebaseOntoBase(sessionId: string): Promise<RebaseResult> {
+    const session = this.store.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    const git = new GitOps(session.repoRoot);
+    const result = await git.rebaseOntoBase(session.baseBranch, session.worktreePath);
+    
+    if (result.status === 'conflict') {
+      // Write conflict help
+      const contextDir = join(session.worktreePath, 'AGENT_CONTEXT');
+      await writeFile(
+        join(contextDir, 'REBASE_HELP.md'),
+        `# Rebase Conflicts\n\nRebase onto ${session.baseBranch} failed with conflicts.\n\nConflicted files:\n${result.files?.map(f => `- ${f}`).join('\n')}\n\nResolve conflicts manually and run:\n\`\`\`\namp-sessions continue-merge ${sessionId}\n\`\`\`\n`
+      );
+      
+      console.log(`✗ Rebase conflicts detected in ${result.files?.length} files`);
+      console.log('See AGENT_CONTEXT/REBASE_HELP.md for guidance');
+    } else {
+      console.log(`✓ Successfully rebased onto ${session.baseBranch}`);
+    }
+    
+    return result;
+  }
+
+  async continueMerge(sessionId: string): Promise<RebaseResult> {
+    const session = this.store.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    const git = new GitOps(session.repoRoot);
+    const result = await git.continueRebase(session.worktreePath);
+    
+    if (result.status === 'ok') {
+      console.log('✓ Rebase completed successfully');
+    } else {
+      console.log(`✗ Additional conflicts detected in ${result.files?.length} files`);
+    }
+    
+    return result;
+  }
+
+  async abortMerge(sessionId: string): Promise<void> {
+    const session = this.store.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    const git = new GitOps(session.repoRoot);
+    await git.abortRebase(session.worktreePath);
+    
+    console.log('✓ Rebase aborted, session returned to previous state');
+  }
+
+  async fastForwardMerge(sessionId: string, options: MergeOptions = {}): Promise<void> {
+    const session = this.store.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    const git = new GitOps(session.repoRoot);
+    await git.fastForwardMerge(session.branchName, session.baseBranch, options.noFF);
+    
+    console.log(`✓ Merged ${session.branchName} into ${session.baseBranch}`);
+  }
+
+  async exportPatch(sessionId: string, outPath: string): Promise<void> {
+    const session = this.store.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    const git = new GitOps(session.repoRoot);
+    await git.exportPatch(outPath, session.worktreePath);
+    
+    console.log(`✓ Exported patch to ${outPath}`);
+  }
+
+  async getDiff(sessionId: string): Promise<string> {
+    const session = this.store.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    const git = new GitOps(session.repoRoot);
+    // Get diff against base branch to show all session changes
+    const result = await git.exec(['diff', session.baseBranch], session.worktreePath);
+    return result.stdout;
+  }
+
+  async cleanup(sessionId: string, force: boolean = false): Promise<void> {
+    const session = this.store.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    const git = new GitOps(session.repoRoot);
+    
+    if (force) {
+      // Force cleanup - bypass safety checks
+      await git.forceRemoveWorktreeAndBranch(session.worktreePath, session.branchName);
+    } else {
+      await git.safeRemoveWorktreeAndBranch(session.worktreePath, session.branchName, session.baseBranch);
+    }
+    
+    // Remove session from database after successful git cleanup
+    this.store.deleteSession(sessionId);
+    
+    console.log(`✓ Cleaned up session worktree, branch, and database record`);
+  }
+
   private loadAmpConfig(): AmpAdapterConfig {
     try {
       const configPath = join(homedir(), '.amp-session-manager', 'config.json');
       const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+      
+      // Merge process env with config, giving priority to process env
+      const env = config.ampEnv ? { ...config.ampEnv } : {};
+      
+      // Always inherit AMP_API_KEY from process environment if available
+      if (process.env.AMP_API_KEY) {
+        env.AMP_API_KEY = process.env.AMP_API_KEY;
+      }
+      
       return {
         ampPath: config.ampPath,
         ampArgs: config.ampArgs ? config.ampArgs.split(' ') : undefined,
-        enableJSONLogs: config.enableJSONLogs !== false
+        enableJSONLogs: config.enableJSONLogs !== false,
+        env: Object.keys(env).length > 0 ? env : undefined,
+        extraArgs: config.ampEnv?.AMP_ARGS ? config.ampEnv.AMP_ARGS.split(/\s+/).filter(Boolean) : undefined
       };
     } catch {
-      return {}; // Use defaults
+      // If no config file, still pass through AMP_API_KEY
+      const env: Record<string, string> = {};
+      if (process.env.AMP_API_KEY) {
+        env.AMP_API_KEY = process.env.AMP_API_KEY;
+      }
+      return {
+        env: Object.keys(env).length > 0 ? env : undefined
+      };
     }
   }
 }

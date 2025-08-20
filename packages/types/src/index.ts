@@ -68,3 +68,41 @@ export interface SessionCreateOptions {
   scriptCommand?: string;
   modelOverride?: string;
 }
+
+export interface PreflightResult {
+  repoClean: boolean;
+  baseUpToDate: boolean;
+  testsPass?: boolean;
+  typecheckPasses?: boolean;
+  aheadBy: number;
+  behindBy: number;
+  branchpointSha: string;
+  ampCommitsCount: number;
+  issues: string[];
+}
+
+export interface SquashOptions {
+  includeManual?: 'include' | 'exclude';
+  message: string;
+}
+
+export interface RebaseResult {
+  status: 'ok' | 'conflict';
+  files?: string[];
+}
+
+export interface MergeOptions {
+  noFF?: boolean;
+}
+
+export interface MergeRecord {
+  id: string;
+  sessionId: string;
+  startedAt: string;
+  finishedAt?: string;
+  baseBranch: string;
+  mode: string;
+  result: string;
+  conflictFiles?: string[];
+  squashMessage?: string;
+}

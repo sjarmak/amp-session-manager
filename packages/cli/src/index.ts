@@ -13,6 +13,12 @@ import { configSetCommand, configGetCommand, configListCommand } from './command
 import { toolsCommand } from './commands/tools.js';
 import { usageCommand } from './commands/usage.js';
 import { logsCommand } from './commands/logs.js';
+import { verifyAmpCommand } from './commands/verify-amp.js';
+import { preflightCommand } from './commands/preflight.js';
+import { mergeCommand } from './commands/merge.js';
+import { continueMergeCommand } from './commands/continue-merge.js';
+import { abortMergeCommand } from './commands/abort-merge.js';
+import { cleanupCommand } from './commands/cleanup.js';
 
 const program = new Command();
 
@@ -116,5 +122,50 @@ program
   .option('--follow', 'Follow logs in real-time')
   .option('--lines <n>', 'Show last N lines', parseInt)
   .action(logsCommand);
+
+program
+  .command('verify-amp')
+  .description('Verify Amp setup and authentication')
+  .action(verifyAmpCommand);
+
+// Merge flow commands
+program
+  .command('preflight <sessionId>')
+  .description('Run preflight checks before merge')
+  .option('--json', 'Output as JSON')
+  .action(preflightCommand);
+
+program
+  .command('merge <sessionId>')
+  .description('Merge session to main (squash + rebase + merge)')
+  .requiredOption('--message <message>', 'Squash commit message')
+  .option('--include-manual <mode>', 'Include manual commits: include|exclude', 'include')
+  .option('--onto <branch>', 'Target branch to merge onto')
+  .option('--no-ff', 'Use --no-ff merge instead of --ff-only')
+  .option('--push', 'Push to remote after merge')
+  .option('--remote <remote>', 'Remote to push to', 'origin')
+  .option('--export-patch <file>', 'Export patch file before merge')
+  .option('--pr', 'Create pull request using gh CLI')
+  .option('--json', 'Output as JSON')
+  .action(mergeCommand);
+
+program
+  .command('continue-merge <sessionId>')
+  .description('Continue merge after resolving conflicts')
+  .option('--json', 'Output as JSON')
+  .action(continueMergeCommand);
+
+program
+  .command('abort-merge <sessionId>')
+  .description('Abort merge and return to previous state')
+  .option('--json', 'Output as JSON')
+  .action(abortMergeCommand);
+
+program
+  .command('cleanup <sessionId>')
+  .description('Safely remove session worktree and branch')
+  .option('--yes', 'Skip confirmation prompt')
+  .option('--json', 'Output as JSON')
+  .action(cleanupCommand);
 
 program.parse();
