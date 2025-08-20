@@ -97,7 +97,7 @@ ipcMain.handle('get-session', async (_, sessionId: string) => {
   }
 });
 
-ipcMain.handle('create-session', async (_, options: any) => {
+ipcMain.handle('sessions:create', async (_, options: any) => {
   try {
     return await worktreeManager.createSession(options);
   } catch (error) {
