@@ -79,6 +79,15 @@ ipcMain.handle('sessions:list', async () => {
   }
 });
 
+// Dialog handlers
+ipcMain.handle('dialog:selectDirectory', async () => {
+  const { dialog } = require('electron');
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory']
+  });
+  return result;
+});
+
 ipcMain.handle('get-session', async (_, sessionId: string) => {
   try {
     return store.getSession(sessionId);
