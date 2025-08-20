@@ -50,6 +50,7 @@ app.on('activate', () => {
 let store: SessionStore;
 let manager: WorktreeManager;
 let batchController: BatchController;
+let isInitialized = false;
 
 // Register IPC handlers immediately to avoid race conditions
 ipcMain.handle('sessions:list', async () => {
@@ -75,8 +76,8 @@ ipcMain.handle('sessions:get', async (_, sessionId: string) => {
 
 ipcMain.handle('sessions:diff', async (_, sessionId: string) => {
   try {
-    if (!manager) {
-      return { success: false, error: 'WorktreeManager not initialized' };
+    if (!isInitialized || !manager) {
+      return { success: false, error: 'Application not initialized yet. Please wait...' };
     }
     const diff = await manager.getDiff(sessionId);
     return { success: true, diff };
@@ -87,8 +88,8 @@ ipcMain.handle('sessions:diff', async (_, sessionId: string) => {
 
 ipcMain.handle('sessions:create', async (_, options) => {
   try {
-    if (!manager) {
-      return { success: false, error: 'WorktreeManager not initialized' };
+    if (!isInitialized || !manager) {
+      return { success: false, error: 'Application not initialized yet. Please wait...' };
     }
     const session = await manager.createSession(options);
     new Notification({
@@ -103,8 +104,8 @@ ipcMain.handle('sessions:create', async (_, options) => {
 
 ipcMain.handle('sessions:iterate', async (_, sessionId: string, notes?: string) => {
   try {
-    if (!manager) {
-      return { success: false, error: 'WorktreeManager not initialized' };
+    if (!isInitialized || !manager) {
+      return { success: false, error: 'Application not initialized yet. Please wait...' };
     }
     await manager.iterate(sessionId, notes);
     new Notification({
@@ -119,8 +120,8 @@ ipcMain.handle('sessions:iterate', async (_, sessionId: string, notes?: string) 
 
 ipcMain.handle('sessions:squash', async (_, sessionId: string, message: string) => {
   try {
-    if (!manager) {
-      return { success: false, error: 'WorktreeManager not initialized' };
+    if (!isInitialized || !manager) {
+      return { success: false, error: 'Application not initialized yet. Please wait...' };
     }
     await manager.squash(sessionId, message);
     new Notification({
@@ -135,8 +136,8 @@ ipcMain.handle('sessions:squash', async (_, sessionId: string, message: string) 
 
 ipcMain.handle('sessions:rebase', async (_, sessionId: string, onto: string) => {
   try {
-    if (!manager) {
-      return { success: false, error: 'WorktreeManager not initialized' };
+    if (!isInitialized || !manager) {
+      return { success: false, error: 'Application not initialized yet. Please wait...' };
     }
     await manager.rebase(sessionId, onto);
     new Notification({
@@ -152,8 +153,8 @@ ipcMain.handle('sessions:rebase', async (_, sessionId: string, onto: string) => 
 // New merge flow handlers
 ipcMain.handle('sessions:preflight', async (_, sessionId: string) => {
   try {
-    if (!manager) {
-      return { success: false, error: 'WorktreeManager not initialized' };
+    if (!isInitialized || !manager) {
+      return { success: false, error: 'Application not initialized yet. Please wait...' };
     }
     const result = await manager.preflight(sessionId);
     return { success: true, result };
@@ -164,8 +165,8 @@ ipcMain.handle('sessions:preflight', async (_, sessionId: string) => {
 
 ipcMain.handle('sessions:squash-session', async (_, sessionId: string, mergeMessage: string, preserveManual: boolean = false) => {
   try {
-    if (!manager) {
-      return { success: false, error: 'WorktreeManager not initialized' };
+    if (!isInitialized || !manager) {
+      return { success: false, error: 'Application not initialized yet. Please wait...' };
     }
     const result = await manager.squashSession(sessionId, {
       message: mergeMessage,
@@ -179,8 +180,8 @@ ipcMain.handle('sessions:squash-session', async (_, sessionId: string, mergeMess
 
 ipcMain.handle('sessions:rebase-onto-base', async (_, sessionId: string) => {
   try {
-    if (!manager) {
-      return { success: false, error: 'WorktreeManager not initialized' };
+    if (!isInitialized || !manager) {
+      return { success: false, error: 'Application not initialized yet. Please wait...' };
     }
     const result = await manager.rebaseOntoBase(sessionId);
     return { success: true, result };
@@ -191,8 +192,8 @@ ipcMain.handle('sessions:rebase-onto-base', async (_, sessionId: string) => {
 
 ipcMain.handle('sessions:continue-merge', async (_, sessionId: string) => {
   try {
-    if (!manager) {
-      return { success: false, error: 'WorktreeManager not initialized' };
+    if (!isInitialized || !manager) {
+      return { success: false, error: 'Application not initialized yet. Please wait...' };
     }
     const result = await manager.continueMerge(sessionId);
     return { success: true, result };
@@ -203,8 +204,8 @@ ipcMain.handle('sessions:continue-merge', async (_, sessionId: string) => {
 
 ipcMain.handle('sessions:abort-merge', async (_, sessionId: string) => {
   try {
-    if (!manager) {
-      return { success: false, error: 'WorktreeManager not initialized' };
+    if (!isInitialized || !manager) {
+      return { success: false, error: 'Application not initialized yet. Please wait...' };
     }
     const result = await manager.abortMerge(sessionId);
     return { success: true, result };
@@ -215,8 +216,8 @@ ipcMain.handle('sessions:abort-merge', async (_, sessionId: string) => {
 
 ipcMain.handle('sessions:fast-forward-merge', async (_, sessionId: string) => {
   try {
-    if (!manager) {
-      return { success: false, error: 'WorktreeManager not initialized' };
+    if (!isInitialized || !manager) {
+      return { success: false, error: 'Application not initialized yet. Please wait...' };
     }
     const result = await manager.fastForwardMerge(sessionId);
     return { success: true, result };
@@ -227,8 +228,8 @@ ipcMain.handle('sessions:fast-forward-merge', async (_, sessionId: string) => {
 
 ipcMain.handle('sessions:export-patch', async (_, sessionId: string, outputPath: string) => {
   try {
-    if (!manager) {
-      return { success: false, error: 'WorktreeManager not initialized' };
+    if (!isInitialized || !manager) {
+      return { success: false, error: 'Application not initialized yet. Please wait...' };
     }
     await manager.exportPatch(sessionId, outputPath);
     new Notification({
@@ -243,8 +244,8 @@ ipcMain.handle('sessions:export-patch', async (_, sessionId: string, outputPath:
 
 ipcMain.handle('sessions:cleanup', async (_, sessionId: string) => {
   try {
-    if (!manager) {
-      return { success: false, error: 'WorktreeManager not initialized' };
+    if (!isInitialized || !manager) {
+      return { success: false, error: 'Application not initialized yet. Please wait...' };
     }
     await manager.cleanup(sessionId);
     new Notification({
@@ -370,27 +371,43 @@ ipcMain.handle('batch:report', async (_, options) => {
 });
 
 // Initialize core components when app is ready
-app.whenReady().then(() => {
-  store = new SessionStore();
-  manager = new WorktreeManager(store);
-  batchController = new BatchController(store);
-  
-  // Setup batch event forwarding after initialization
-  batchController.on('run-started', (data: any) => {
-    mainWindow?.webContents.send('batch:event', { type: 'run-started', ...data });
-  });
+app.whenReady().then(async () => {
+  try {
+    console.log('Initializing SessionStore...');
+    const dbPath = join(__dirname, 'sessions.sqlite');
+    console.log('Database path:', dbPath);
+    store = new SessionStore(dbPath);
+    console.log('Initializing WorktreeManager...');
+    manager = new WorktreeManager(store);
+    console.log('Initializing BatchController...');
+    batchController = new BatchController(store);
+    isInitialized = true;
+    console.log('All components initialized successfully');
+    
+    // Setup batch event forwarding after initialization
+    batchController.on('run-started', (data: any) => {
+      mainWindow?.webContents.send('batch:event', { type: 'run-started', ...data });
+    });
 
-  batchController.on('run-updated', (data: any) => {
-    mainWindow?.webContents.send('batch:event', { type: 'run-updated', ...data });
-  });
+    batchController.on('run-updated', (data: any) => {
+      mainWindow?.webContents.send('batch:event', { type: 'run-updated', ...data });
+    });
 
-  batchController.on('run-finished', (data: any) => {
-    mainWindow?.webContents.send('batch:event', { type: 'run-finished', ...data });
-  });
+    batchController.on('run-finished', (data: any) => {
+      mainWindow?.webContents.send('batch:event', { type: 'run-finished', ...data });
+    });
 
-  batchController.on('run-aborted', (data: any) => {
-    mainWindow?.webContents.send('batch:event', { type: 'run-aborted', ...data });
-  });
+    batchController.on('run-aborted', (data: any) => {
+      mainWindow?.webContents.send('batch:event', { type: 'run-aborted', ...data });
+    });
+  } catch (error) {
+    console.error('Failed to initialize components:', error);
+    // Show dialog to user about initialization failure
+    dialog.showErrorBox('Initialization Error', 
+      `Failed to initialize application components: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}).catch(error => {
+  console.error('Unhandled error during app initialization:', error);
 });
 
 app.on('before-quit', () => {

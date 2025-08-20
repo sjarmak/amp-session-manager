@@ -6,8 +6,13 @@ export class SessionStore {
   private db: Database.Database;
 
   constructor(dbPath: string = './sessions.sqlite') {
-    this.db = new Database(dbPath);
-    this.initTables();
+    try {
+      this.db = new Database(dbPath);
+      this.initTables();
+    } catch (error) {
+      console.error('Failed to initialize SQLite database:', error);
+      throw new Error(`Database initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   private initTables() {
