@@ -95,7 +95,26 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
         onBack(); // Go back to session list
       } else {
         console.log('Cleanup failed:', result.error);
-        setError(result.error || 'Failed to delete session');
+        // If it's the reachability error, offer force cleanup
+        if (result.error?.includes('not reachable from base branch')) {
+          const forceConfirm = window.confirm(
+            'Session has unmerged commits. Force delete anyway? This will permanently lose the changes.'
+          );
+          if (forceConfirm) {
+            const forceResult = await window.electronAPI.sessions.cleanup(session.id, true);
+            if (forceResult.success) {
+              onSessionUpdated();
+              onBack();
+              return;
+            } else {
+              setError(forceResult.error || 'Failed to force delete session');
+            }
+          } else {
+            setError('Delete cancelled. Session has unmerged commits.');
+          }
+        } else {
+          setError(result.error || 'Failed to delete session');
+        }
       }
     } catch (err) {
       console.log('Cleanup threw error:', err);

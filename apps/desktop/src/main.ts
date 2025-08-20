@@ -129,9 +129,9 @@ ipcMain.handle('sessions:diff', async (_, sessionId: string) => {
   }
 });
 
-ipcMain.handle('sessions:cleanup', async (_, sessionId: string) => {
+ipcMain.handle('sessions:cleanup', async (_, sessionId: string, force?: boolean) => {
   try {
-    await worktreeManager.cleanup(sessionId);
+    await worktreeManager.cleanup(sessionId, force);
     return { success: true };
   } catch (error) {
     console.error('Failed to cleanup session:', error);
