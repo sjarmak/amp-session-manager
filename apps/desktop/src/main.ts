@@ -116,15 +116,16 @@ ipcMain.handle('iterate-session', async (_, sessionId: string) => {
   }
 });
 
-ipcMain.handle('get-session-diff', async (_, sessionId: string) => {
+ipcMain.handle('sessions:diff', async (_, sessionId: string) => {
   try {
     const session = store.getSession(sessionId);
     if (!session) throw new Error('Session not found');
     
-    return worktreeManager.getDiff(sessionId);
+    const diff = worktreeManager.getDiff(sessionId);
+    return { success: true, diff };
   } catch (error) {
     console.error('Failed to get session diff:', error);
-    return '';
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to get diff' };
   }
 });
 
