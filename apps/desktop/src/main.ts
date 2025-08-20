@@ -121,11 +121,21 @@ ipcMain.handle('sessions:diff', async (_, sessionId: string) => {
     const session = store.getSession(sessionId);
     if (!session) throw new Error('Session not found');
     
-    const diff = worktreeManager.getDiff(sessionId);
+    const diff = await worktreeManager.getDiff(sessionId);
     return { success: true, diff };
   } catch (error) {
     console.error('Failed to get session diff:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Failed to get diff' };
+  }
+});
+
+ipcMain.handle('sessions:cleanup', async (_, sessionId: string) => {
+  try {
+    await worktreeManager.cleanup(sessionId);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to cleanup session:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to cleanup session' };
   }
 });
 
