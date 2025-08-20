@@ -97,10 +97,12 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
         console.log('Cleanup failed:', result.error);
         // If it's the reachability error, offer force cleanup
         if (result.error?.includes('not reachable from base branch')) {
+          setLoading(false); // Clear loading state before showing dialog
           const forceConfirm = window.confirm(
             'Session has unmerged commits. Force delete anyway? This will permanently lose the changes.'
           );
           if (forceConfirm) {
+            setLoading(true); // Resume loading for force delete
             const forceResult = await window.electronAPI.sessions.cleanup(session.id, true);
             if (forceResult.success) {
               onSessionUpdated();
