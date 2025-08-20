@@ -223,6 +223,14 @@ export class WorktreeManager {
         console.log('    Tool breakdown:', Object.entries(toolSummary).map(([tool, count]) => `${tool}(${count})`).join(', '));
       }
 
+      // Update thread ID if it changed during iteration
+      const { getCurrentAmpThreadId } = await import('./amp-utils.js');
+      const currentThreadId = await getCurrentAmpThreadId();
+      if (currentThreadId && currentThreadId !== session.threadId) {
+        this.store.updateSessionThreadId(sessionId, currentThreadId);
+        console.log(`  Updated thread ID: ${currentThreadId}`);
+      }
+
     } catch (error) {
       this.store.updateSessionStatus(sessionId, 'error');
       throw error;
@@ -494,6 +502,61 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
     // Get diff against base branch to show all session changes
     const result = await git.exec(['diff', session.baseBranch], session.worktreePath);
     return result.stdout;
+  }
+
+  async getThreadConversation(sessionId: string): Promise<string> {
+    const session = this.store.getSession(sessionId);
+    if (!session?.threadId) {
+      return 'No thread conversation available for this session.';
+    }
+
+    try {
+      const { readdir, readFile } = await import('fs/promises');
+      const { join } = await import('path');
+      const { homedir } = await import('os');
+      
+      const threadDir = join(homedir(), '.amp', 'file-changes', session.threadId);
+      const files = await readdir(threadDir).catch(() => []);
+      
+      if (files.length === 0) {
+        return 'Thread conversation files not found.';
+      }
+
+      // Parse and format file changes
+      const changes: string[] = [];
+      
+      for (const file of files.sort()) {
+        try {
+          const content = await readFile(join(threadDir, file), 'utf-8');
+          const data = JSON.parse(content);
+          
+          if (data.uri && data.diff) {
+            // Extract filename from URI
+            const filename = data.uri.replace(/^file:\/\/.*\//, '');
+            const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Unknown time';
+            
+            changes.push(`## ${filename} ${data.isNewFile ? '(new file)' : '(modified)'}`);
+            changes.push(`*${timestamp}*\n`);
+            
+            if (data.diff) {
+              changes.push('```diff');
+              changes.push(data.diff);
+              changes.push('```\n');
+            }
+          }
+        } catch {
+          // Skip invalid JSON files
+        }
+      }
+
+      if (changes.length === 0) {
+        return 'No file changes found in thread conversation.';
+      }
+
+      return `# Amp Thread Changes\n\n${changes.join('\n')}`;
+    } catch (error) {
+      return `Error reading thread conversation: ${error}`;
+    }
   }
 
   async cleanup(sessionId: string, force: boolean = false): Promise<void> {

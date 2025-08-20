@@ -21,7 +21,7 @@ matrix:
     prompt: "Add comprehensive unit tests"
   - repo: /path/to/repo2
     prompt: "Implement error handling"
-    model: gpt-4  # Override default model for this item
+    model: gpt-5  # Override default model for this item
     timeoutSec: 1200  # Override timeout for this item`;
 
 export function NewBatchModal({ isOpen, onClose, onBatchCreated }: NewBatchModalProps) {

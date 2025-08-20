@@ -28,6 +28,7 @@ export class SessionStore {
         status TEXT NOT NULL,
         scriptCommand TEXT,
         modelOverride TEXT,
+        threadId TEXT,
         createdAt TEXT NOT NULL,
         lastRun TEXT,
         notes TEXT
@@ -103,6 +104,13 @@ export class SessionStore {
         FOREIGN KEY(sessionId) REFERENCES sessions(id)
       );
     `);
+    
+    // Migration: Add threadId column if it doesn't exist
+    try {
+      this.db.exec(`ALTER TABLE sessions ADD COLUMN threadId TEXT;`);
+    } catch (error) {
+      // Column already exists, ignore error
+    }
   }
 
   createSession(options: SessionCreateOptions): Session {
@@ -121,20 +129,21 @@ export class SessionStore {
       status: 'idle',
       scriptCommand: options.scriptCommand,
       modelOverride: options.modelOverride,
+      threadId: options.threadId,
       createdAt: new Date().toISOString()
     };
 
     const stmt = this.db.prepare(`
       INSERT INTO sessions (id, name, ampPrompt, repoRoot, baseBranch, branchName, 
-        worktreePath, status, scriptCommand, modelOverride, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        worktreePath, status, scriptCommand, modelOverride, threadId, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
       session.id, session.name, session.ampPrompt, session.repoRoot,
       session.baseBranch, session.branchName, session.worktreePath,
       session.status, session.scriptCommand, session.modelOverride,
-      session.createdAt
+      session.threadId, session.createdAt
     );
 
     return session;
@@ -153,6 +162,11 @@ export class SessionStore {
   updateSessionStatus(id: string, status: Session['status']) {
     const stmt = this.db.prepare('UPDATE sessions SET status = ?, lastRun = ? WHERE id = ?');
     stmt.run(status, new Date().toISOString(), id);
+  }
+
+  updateSessionThreadId(id: string, threadId: string) {
+    const stmt = this.db.prepare('UPDATE sessions SET threadId = ? WHERE id = ?');
+    stmt.run(threadId, id);
   }
 
   deleteSession(id: string): void {

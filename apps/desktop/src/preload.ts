@@ -22,7 +22,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     fastForwardMerge: (sessionId: string, options?: MergeOptions) => ipcRenderer.invoke('sessions:fast-forward-merge', sessionId, options) as Promise<{ success: boolean; error?: string }>,
     exportPatch: (sessionId: string, outPath: string) => ipcRenderer.invoke('sessions:export-patch', sessionId, outPath) as Promise<{ success: boolean; error?: string }>,
     cleanup: (sessionId: string) => ipcRenderer.invoke('sessions:cleanup', sessionId) as Promise<{ success: boolean; error?: string }>,
-    diff: (sessionId: string) => ipcRenderer.invoke('sessions:diff', sessionId) as Promise<{ success: boolean; diff?: string; error?: string }>
+    diff: (sessionId: string) => ipcRenderer.invoke('sessions:diff', sessionId) as Promise<{ success: boolean; diff?: string; error?: string }>,
+    thread: (sessionId: string) => ipcRenderer.invoke('sessions:thread', sessionId) as Promise<{ success: boolean; threadConversation?: string; error?: string }>
   },
   
   dialog: {

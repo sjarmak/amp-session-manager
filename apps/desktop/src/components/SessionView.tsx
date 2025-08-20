@@ -9,7 +9,7 @@ interface SessionViewProps {
 }
 
 export function SessionView({ session, onBack, onSessionUpdated }: SessionViewProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'diff' | 'actions'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'diff' | 'actions' | 'thread'>('overview');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [iterationNotes, setIterationNotes] = useState('');
@@ -19,6 +19,9 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
   const [diff, setDiff] = useState<string | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
+  const [threadConversation, setThreadConversation] = useState<string | null>(null);
+  const [threadLoading, setThreadLoading] = useState(false);
+  const [threadError, setThreadError] = useState<string | null>(null);
 
   const loadDiff = async () => {
     setDiffLoading(true);
@@ -38,12 +41,37 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
     }
   };
 
+  const loadThreadConversation = async () => {
+    setThreadLoading(true);
+    setThreadError(null);
+    
+    try {
+      const result = await window.electronAPI.sessions.thread(session.id);
+      if (result.success) {
+        setThreadConversation(result.threadConversation || 'No thread conversation found');
+      } else {
+        setThreadError(result.error || 'Failed to load thread conversation');
+      }
+    } catch (err) {
+      setThreadError(err instanceof Error ? err.message : 'Failed to load thread conversation');
+    } finally {
+      setThreadLoading(false);
+    }
+  };
+
   // Load diff when diff tab becomes active
   useEffect(() => {
     if (activeTab === 'diff' && !diff && !diffLoading) {
       loadDiff();
     }
   }, [activeTab, diff, diffLoading]);
+
+  // Load thread conversation when thread tab becomes active
+  useEffect(() => {
+    if (activeTab === 'thread' && !threadConversation && !threadLoading) {
+      loadThreadConversation();
+    }
+  }, [activeTab, threadConversation, threadLoading]);
 
   const handleDelete = async () => {
     console.log('Delete button clicked');
@@ -189,7 +217,7 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
       )}
 
       <div className="flex space-x-1 border-b border-gray-200">
-        {['overview', 'diff', 'actions'].map((tab) => (
+        {['overview', 'diff', 'actions', 'thread'].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as any)}
@@ -411,6 +439,36 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
             >
               🗑️ Delete Session
             </button>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'thread' && (
+        <div className="space-y-4">
+          <div className="bg-white p-6 rounded-lg border">
+            <h3 className="text-lg font-semibold mb-4">Thread Conversation</h3>
+            {threadLoading && (
+              <div className="text-center py-8">
+                <div className="text-gray-500">Loading thread conversation...</div>
+              </div>
+            )}
+            {threadError && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                <p className="text-red-800">{threadError}</p>
+              </div>
+            )}
+            {threadConversation && !threadLoading && (
+              <div className="bg-gray-50 rounded-lg p-4 overflow-auto max-h-96">
+                <pre className="text-sm whitespace-pre-wrap font-mono">
+                  {threadConversation}
+                </pre>
+              </div>
+            )}
+            {!threadConversation && !threadLoading && !threadError && (
+              <div className="text-center py-8 text-gray-500">
+                No thread conversation available for this session.
+              </div>
+            )}
           </div>
         </div>
       )}

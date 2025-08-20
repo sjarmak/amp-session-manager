@@ -1,4 +1,4 @@
-import { SessionStore, WorktreeManager } from '@ampsm/core';
+import { SessionStore, WorktreeManager, getCurrentAmpThreadId } from '@ampsm/core';
 import type { SessionCreateOptions } from '@ampsm/types';
 
 export async function newCommand(options: {
@@ -14,13 +14,16 @@ export async function newCommand(options: {
     const store = new SessionStore(dbPath);
     const manager = new WorktreeManager(store);
 
+    const threadId = await getCurrentAmpThreadId();
+    
     const createOptions: SessionCreateOptions = {
       name: options.name,
       ampPrompt: options.prompt,
       repoRoot: options.repo,
       baseBranch: options.base || 'main',
       scriptCommand: options.script,
-      modelOverride: options.model
+      modelOverride: options.model,
+      threadId: threadId || undefined
     };
 
     console.log(`Creating session "${options.name}"...`);

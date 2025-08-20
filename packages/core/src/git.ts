@@ -4,7 +4,7 @@ export class GitOps {
   constructor(private repoRoot: string) {}
 
   async exec(args: string[], cwd?: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const gitPath = process.env.GIT_PATH || 'git';
       const child = spawn(gitPath, args, { 
         cwd: cwd || this.repoRoot,
@@ -15,10 +15,22 @@ export class GitOps {
       let stdout = '';
       let stderr = '';
       
+      // Add timeout to prevent hanging
+      const timeout = setTimeout(() => {
+        child.kill('SIGTERM');
+        reject(new Error(`Git command timed out: git ${args.join(' ')}`));
+      }, 30000); // 30 second timeout
+      
       child.stdout?.on('data', (data) => stdout += data.toString());
       child.stderr?.on('data', (data) => stderr += data.toString());
       
+      child.on('error', (error) => {
+        clearTimeout(timeout);
+        reject(new Error(`Failed to spawn git process: ${error.message}`));
+      });
+      
       child.on('close', (exitCode) => {
+        clearTimeout(timeout);
         resolve({ stdout, stderr, exitCode: exitCode || 0 });
       });
     });

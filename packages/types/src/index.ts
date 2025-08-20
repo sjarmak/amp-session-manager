@@ -9,6 +9,7 @@ export interface Session {
   status: 'idle' | 'running' | 'awaiting-input' | 'error' | 'done';
   scriptCommand?: string;
   modelOverride?: string;
+  threadId?: string;
   createdAt: string;
   lastRun?: string;
   notes?: string;
@@ -67,6 +68,7 @@ export interface SessionCreateOptions {
   baseBranch?: string;
   scriptCommand?: string;
   modelOverride?: string;
+  threadId?: string;
 }
 
 export interface PreflightResult {

@@ -53,13 +53,13 @@ function App() {
     <div className="min-h-screen bg-gray-100">
       <div className="container mx-auto py-8 px-4 max-w-6xl">
         <header className="text-center mb-8">
-          <div className="flex items-center justify-center gap-4 mb-4">
+          <div className="flex items-center justify-center gap-2 mb-4">
             <img 
               src="/images/Amp_Style_Light.png" 
               alt="Amp Logo" 
               className="h-12 w-auto"
             />
-            <h1 className="text-4xl font-bold text-gray-800">
+            <h1 className="text-5xl font-bold text-black">
               Session Manager
             </h1>
           </div>

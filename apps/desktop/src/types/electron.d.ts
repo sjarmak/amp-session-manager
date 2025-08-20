@@ -23,6 +23,7 @@ declare global {
         exportPatch: (sessionId: string, outPath: string) => Promise<{ success: boolean; error?: string }>;
         cleanup: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
         diff: (sessionId: string) => Promise<{ success: boolean; diff?: string; error?: string }>;
+        thread: (sessionId: string) => Promise<{ success: boolean; threadConversation?: string; error?: string }>;
       };
       dialog: {
         selectDirectory: () => Promise<Electron.OpenDialogReturnValue>;

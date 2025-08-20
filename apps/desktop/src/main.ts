@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, Notification } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { SessionStore, WorktreeManager, BatchController } from '@ampsm/core';
+import { SessionStore, WorktreeManager, BatchController, getCurrentAmpThreadId } from '@ampsm/core';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -86,11 +86,30 @@ ipcMain.handle('sessions:diff', async (_, sessionId: string) => {
   }
 });
 
+ipcMain.handle('sessions:thread', async (_, sessionId: string) => {
+  try {
+    if (!isInitialized || !manager) {
+      return { success: false, error: 'Application not initialized yet. Please wait...' };
+    }
+    const threadConversation = await manager.getThreadConversation(sessionId);
+    return { success: true, threadConversation };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to get thread conversation' };
+  }
+});
+
 ipcMain.handle('sessions:create', async (_, options) => {
   try {
     if (!isInitialized || !manager) {
       return { success: false, error: 'Application not initialized yet. Please wait...' };
     }
+    
+    // Auto-detect current Amp thread ID if not provided
+    if (!options.threadId) {
+      const threadId = await getCurrentAmpThreadId();
+      options.threadId = threadId || undefined;
+    }
+    
     const session = await manager.createSession(options);
     new Notification({
       title: 'Session Created',

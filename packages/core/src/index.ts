@@ -6,3 +6,4 @@ export { Notifier } from './notifier.js';
 export { BatchRunner } from './batch.js';
 export { BatchController } from './batch-controller.js';
 export { Exporter } from './exporter.js';
+export { getCurrentAmpThreadId } from './amp-utils.js';
