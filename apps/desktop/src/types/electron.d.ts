@@ -21,7 +21,7 @@ declare global {
         abortMerge: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
         fastForwardMerge: (sessionId: string, options?: MergeOptions) => Promise<{ success: boolean; error?: string }>;
         exportPatch: (sessionId: string, outPath: string) => Promise<{ success: boolean; error?: string }>;
-        cleanup: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+        cleanup: (sessionId: string, force?: boolean) => Promise<{ success: boolean; error?: string }>;
         diff: (sessionId: string) => Promise<{ success: boolean; diff?: string; error?: string }>;
         thread: (sessionId: string) => Promise<{ success: boolean; threadConversation?: string; error?: string }>;
       };
