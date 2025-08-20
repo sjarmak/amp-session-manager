@@ -1,6 +1,7 @@
 import { SessionStore } from './store.js';
 import { GitOps } from './git.js';
 import { AmpAdapter, type AmpAdapterConfig } from './amp.js';
+import { getCurrentAmpThreadId } from './amp-utils.js';
 import type { Session, SessionCreateOptions, IterationRecord, PreflightResult, SquashOptions, RebaseResult, MergeOptions } from '@ampsm/types';
 import { mkdir, writeFile, readFile } from 'fs/promises';
 import { join } from 'path';
@@ -518,8 +519,20 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
 
   async getThreadConversation(sessionId: string): Promise<string> {
     const session = this.store.getSession(sessionId);
-    if (!session?.threadId) {
-      return 'No thread conversation available for this session.';
+    if (!session) {
+      return 'Session not found.';
+    }
+    
+    // If session doesn't have threadId, try to get current one and update
+    if (!session.threadId) {
+      const currentThreadId = await getCurrentAmpThreadId();
+      if (currentThreadId) {
+        console.log(`Updating session ${sessionId} with threadId: ${currentThreadId}`);
+        this.store.updateSessionThreadId(sessionId, currentThreadId);
+        session.threadId = currentThreadId;
+      } else {
+        return 'No thread conversation available for this session.';
+      }
     }
 
     try {
