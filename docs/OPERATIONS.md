@@ -248,6 +248,23 @@ The system automatically captures detailed telemetry from Amp iterations:
 - **Text logs**: Fallback parsing with regex patterns
 - **Mixed output**: Robust handling of both structured and unstructured logs
 
+## Desktop UI
+
+The desktop app provides an intuitive interface for both individual sessions and batch operations:
+
+### Batch Management
+- **Batches Tab**: Access all batch functionality from the main navigation
+- **Live Progress**: Real-time updates of batch run status and item completion
+- **Plan Editor**: Built-in YAML editor with validation for batch plans
+- **Export/Report**: One-click generation of data exports and analysis reports
+- **Run Control**: Start, monitor, and abort batch runs from the UI
+
+### Integration with CLI
+The desktop UI uses the same core functionality as the CLI:
+- Identical batch runs and exports between CLI and UI
+- Shared database and telemetry collection
+- Same session management and Git operations
+
 ### Configuration Options
 ```bash
 # Set custom Amp binary path
@@ -282,3 +299,9 @@ Sessions are designed to be:
 - **Reviewable**: All changes are committed and can be diffed
 - **Mergeable**: Sessions can be squashed and rebased cleanly
 - **Observable**: Full telemetry and token tracking for analysis
+
+## See Also
+
+- [Batch Evaluations Guide](BATCH_EVALS.md) - Running multiple sessions in parallel for evaluation
+- [Merge Flow Documentation](MERGE_FLOW.md) - Squashing and merging session changes
+- [Authenticated Tests](AUTHENTICATED_TESTS.md) - Running tests with real Amp authentication

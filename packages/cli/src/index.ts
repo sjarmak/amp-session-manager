@@ -19,6 +19,9 @@ import { mergeCommand } from './commands/merge.js';
 import { continueMergeCommand } from './commands/continue-merge.js';
 import { abortMergeCommand } from './commands/abort-merge.js';
 import { cleanupCommand } from './commands/cleanup.js';
+import { batchCommand, abortRunCommand } from './commands/batch.js';
+import { exportCommand } from './commands/export.js';
+import { reportCommand } from './commands/report.js';
 
 const program = new Command();
 
@@ -167,5 +170,44 @@ program
   .option('--yes', 'Skip confirmation prompt')
   .option('--json', 'Output as JSON')
   .action(cleanupCommand);
+
+// Batch commands
+program
+  .command('batch <plan>')
+  .description('Execute batch sessions from YAML plan')
+  .option('--dry-run', 'Show what would be done without executing')
+  .option('--json', 'Output as JSON')
+  .action(batchCommand);
+
+program
+  .command('abort-run <runId>')
+  .description('Abort a running batch execution')
+  .option('--json', 'Output as JSON')
+  .action(abortRunCommand);
+
+// Export command
+program
+  .command('export')
+  .description('Export session data in various formats')
+  .requiredOption('--out <path>', 'Output directory or file path')
+  .option('--run <runId>', 'Export data for specific batch run')
+  .option('--sessions <sessionIds>', 'Export data for specific sessions (comma-separated)')
+  .option('--start-date <date>', 'Start date filter (ISO format)')
+  .option('--end-date <date>', 'End date filter (ISO format)')
+  .option('--tables <tables>', 'Tables to export (comma-separated)', 'sessions,iterations,tool_calls,merge_history,batches,batch_items')
+  .option('--format <format>', 'Export format: json|ndjson|csv', 'json')
+  .action(exportCommand);
+
+// Report command
+program
+  .command('report')
+  .description('Generate reports across sessions')
+  .option('--run <runId>', 'Generate report for specific batch run')
+  .option('--sessions <sessionIds>', 'Generate report for specific sessions (comma-separated)')
+  .option('--start-date <date>', 'Start date filter (ISO format)')
+  .option('--end-date <date>', 'End date filter (ISO format)')
+  .option('--out <file>', 'Save report to file')
+  .option('--format <format>', 'Report format: md|html', 'md')
+  .action(reportCommand);
 
 program.parse();

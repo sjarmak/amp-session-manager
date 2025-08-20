@@ -106,3 +106,68 @@ export interface MergeRecord {
   conflictFiles?: string[];
   squashMessage?: string;
 }
+
+export interface Plan {
+  runId?: string;
+  concurrency: number;
+  defaults: {
+    baseBranch: string;
+    scriptCommand?: string;
+    model?: string;
+    jsonLogs?: boolean;
+    timeoutSec?: number;
+    retries?: number;
+    mergeOnPass?: boolean;
+  };
+  matrix: PlanItem[];
+}
+
+export interface PlanItem {
+  repo: string;
+  prompt: string;
+  baseBranch?: string;
+  scriptCommand?: string;
+  model?: string;
+  timeoutSec?: number;
+  mergeOnPass?: boolean;
+}
+
+export interface BatchRecord {
+  runId: string;
+  createdAt: string;
+  defaultsJson: string;
+}
+
+export interface BatchItem {
+  id: string;
+  runId: string;
+  sessionId?: string;
+  repo: string;
+  prompt: string;
+  status: 'queued' | 'running' | 'success' | 'fail' | 'timeout' | 'error';
+  error?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  model?: string;
+  iterSha?: string;
+  tokensTotal?: number;
+  toolCalls?: number;
+}
+
+export interface ExportOptions {
+  runId?: string;
+  sessionIds?: string[];
+  startDate?: string;
+  endDate?: string;
+  tables: string[];
+  format: 'json' | 'ndjson' | 'csv';
+  outDir: string;
+}
+
+export interface ReportOptions {
+  runId?: string;
+  sessionIds?: string[];
+  startDate?: string;
+  endDate?: string;
+  format: 'md' | 'html';
+}

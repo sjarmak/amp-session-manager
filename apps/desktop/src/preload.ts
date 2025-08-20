@@ -27,6 +27,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   dialog: {
     selectDirectory: () => ipcRenderer.invoke('dialog:selectDirectory') as Promise<Electron.OpenDialogReturnValue>
+  },
+
+  batch: {
+    listRuns: () => ipcRenderer.invoke('batch:listRuns'),
+    getRun: (runId: string) => ipcRenderer.invoke('batch:getRun', runId),
+    listItems: (options: any) => ipcRenderer.invoke('batch:listItems', options),
+    start: (options: any) => ipcRenderer.invoke('batch:start', options),
+    abort: (runId: string) => ipcRenderer.invoke('batch:abort', runId),
+    export: (options: any) => ipcRenderer.invoke('batch:export', options),
+    report: (options: any) => ipcRenderer.invoke('batch:report', options),
+    onEvent: (callback: (event: any) => void) => {
+      ipcRenderer.on('batch:event', (_, event) => callback(event));
+    },
+    offEvent: (callback: (event: any) => void) => {
+      ipcRenderer.removeListener('batch:event', callback);
+    }
   }
 });
 

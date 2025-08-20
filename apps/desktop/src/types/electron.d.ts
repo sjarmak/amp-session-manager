@@ -1,4 +1,4 @@
-import type { Session, SessionCreateOptions, PreflightResult, SquashOptions, RebaseResult, MergeOptions } from '@ampsm/types';
+import type { Session, SessionCreateOptions, PreflightResult, SquashOptions, RebaseResult, MergeOptions, Plan } from '@ampsm/types';
 
 declare global {
   interface Window {
@@ -26,6 +26,17 @@ declare global {
       };
       dialog: {
         selectDirectory: () => Promise<Electron.OpenDialogReturnValue>;
+      };
+      batch: {
+        listRuns: () => Promise<any[]>;
+        getRun: (runId: string) => Promise<any>;
+        listItems: (options: any) => Promise<{ items: any[]; total: number }>;
+        start: (options: any) => Promise<{ success: boolean; runId?: string; error?: string }>;
+        abort: (runId: string) => Promise<{ success: boolean; error?: string }>;
+        export: (options: any) => Promise<{ success: boolean; filePaths?: string[]; error?: string }>;
+        report: (options: any) => Promise<{ success: boolean; outputPath?: string; error?: string }>;
+        onEvent: (callback: (event: any) => void) => void;
+        offEvent: (callback: (event: any) => void) => void;
       };
     };
   }

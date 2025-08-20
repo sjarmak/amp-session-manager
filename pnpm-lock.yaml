@@ -32,6 +32,9 @@ importers:
       react-dom:
         specifier: ^18.0.0
         version: 18.3.1(react@18.3.1)
+      yaml:
+        specifier: ^2.3.4
+        version: 2.8.1
     devDependencies:
       '@types/react':
         specifier: ^18.0.0
@@ -41,7 +44,7 @@ importers:
         version: 18.3.7(@types/react@18.3.23)
       '@vitejs/plugin-react':
         specifier: ^4.0.0
-        version: 4.7.0(vite@5.4.19(@types/node@20.19.11))
+        version: 4.7.0(vite@5.4.19(@types/node@22.17.2))
       autoprefixer:
         specifier: ^10.0.0
         version: 10.4.21(postcss@8.5.6)
@@ -49,8 +52,8 @@ importers:
         specifier: ^8.0.0
         version: 8.2.2
       electron:
-        specifier: ^28.0.0
-        version: 28.3.3
+        specifier: ^37.3.1
+        version: 37.3.1
       electron-builder:
         specifier: ^24.0.0
         version: 24.13.3(electron-builder-squirrel-windows@24.13.3)
@@ -65,10 +68,10 @@ importers:
         version: 5.9.2
       vite:
         specifier: ^5.0.0
-        version: 5.4.19(@types/node@20.19.11)
+        version: 5.4.19(@types/node@22.17.2)
       vitest:
         specifier: ^1.0.0
-        version: 1.6.1(@types/node@20.19.11)
+        version: 1.6.1(@types/node@22.17.2)
 
   packages/cli:
     dependencies:
@@ -81,6 +84,9 @@ importers:
       commander:
         specifier: ^11.0.0
         version: 11.1.0
+      yaml:
+        specifier: ^2.8.1
+        version: 2.8.1
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -103,6 +109,12 @@ importers:
       better-sqlite3:
         specifier: ^12.2.0
         version: 12.2.0
+      yaml:
+        specifier: ^2.6.1
+        version: 2.8.1
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.0
@@ -112,7 +124,7 @@ importers:
         version: 5.9.2
       vitest:
         specifier: ^1.0.0
-        version: 1.6.1(@types/node@20.19.11)
+        version: 1.6.1(@types/node@22.17.2)
 
   packages/types:
     devDependencies:
@@ -121,7 +133,7 @@ importers:
         version: 5.9.2
       vitest:
         specifier: ^1.0.0
-        version: 1.6.1(@types/node@20.19.11)
+        version: 1.6.1(@types/node@22.17.2)
 
 packages:
 
@@ -742,11 +754,11 @@ packages:
   '@types/ms@2.1.0':
     resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
 
-  '@types/node@18.19.123':
-    resolution: {integrity: sha512-K7DIaHnh0mzVxreCR9qwgNxp3MH9dltPNIEddW9MYUlcKAzm+3grKNSTe2vCJHI1FaLpvpL5JGJrz1UZDKYvDg==}
-
   '@types/node@20.19.11':
     resolution: {integrity: sha512-uug3FEEGv0r+jrecvUUpbY8lLisvIjg6AAic6a2bSP5OEOLeJsDSnvhCDov7ipFFMXS3orMpzlmi0ZcuGkBbow==}
+
+  '@types/node@22.17.2':
+    resolution: {integrity: sha512-gL6z5N9Jm9mhY+U2KXZpteb+09zyffliRkZyZOHODGATyC5B1Jt/7TzuuiLkFsSUMLbS1OLmlj/E+/3KF4Q/4w==}
 
   '@types/plist@3.0.5':
     resolution: {integrity: sha512-E6OCaRmAe4WDmWNsL/9RMqdkkzDCY1etutkflWk4c+AcjDU07Pcz1fQwTX0TQz+Pxqn9i4L1TU3UFpjnrcDgxA==}
@@ -1213,8 +1225,8 @@ packages:
   electron-to-chromium@1.5.207:
     resolution: {integrity: sha512-mryFrrL/GXDTmAtIVMVf+eIXM09BBPlO5IQ7lUyKmK8d+A4VpRGG+M3ofoVef6qyF8s60rJei8ymlJxjUA8Faw==}
 
-  electron@28.3.3:
-    resolution: {integrity: sha512-ObKMLSPNhomtCOBAxFS8P2DW/4umkh72ouZUlUKzXGtYuPzgr1SYhskhFWgzAsPtUzhL2CzyV2sfbHcEW4CXqw==}
+  electron@37.3.1:
+    resolution: {integrity: sha512-7DhktRLqhe6OJh/Bo75bTI0puUYEmIwSzMinocgO63mx3MVjtIn2tYMzLmAleNIlud2htkjpsMG2zT4PiTCloA==}
     engines: {node: '>= 12.20.55'}
     hasBin: true
 
@@ -2248,9 +2260,6 @@ packages:
   ufo@1.6.1:
     resolution: {integrity: sha512-9a4/uxlTWJ4+a5i0ooc1rU7C7YOw3wT+UGqdeNNHWnOF9qcMBgLRS+4IYUqbczewFx4mLEig6gawh7X6mFlEkA==}
 
-  undici-types@5.26.5:
-    resolution: {integrity: sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==}
-
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
@@ -2400,6 +2409,9 @@ packages:
   zip-stream@4.1.1:
     resolution: {integrity: sha512-9qv4rlDiopXg4E69k+vMHjNN63YFMe9sZMrdlvKnCjlCRWeCBswPPMPUfx+ipsAWq1LXHe70RcbaHdJJpS6hyQ==}
     engines: {node: '>= 10'}
+
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
 snapshots:
 
@@ -2906,11 +2918,11 @@ snapshots:
 
   '@types/ms@2.1.0': {}
 
-  '@types/node@18.19.123':
-    dependencies:
-      undici-types: 5.26.5
-
   '@types/node@20.19.11':
+    dependencies:
+      undici-types: 6.21.0
+
+  '@types/node@22.17.2':
     dependencies:
       undici-types: 6.21.0
 
@@ -2943,7 +2955,7 @@ snapshots:
       '@types/node': 20.19.11
     optional: true
 
-  '@vitejs/plugin-react@4.7.0(vite@5.4.19(@types/node@20.19.11))':
+  '@vitejs/plugin-react@4.7.0(vite@5.4.19(@types/node@22.17.2))':
     dependencies:
       '@babel/core': 7.28.3
       '@babel/plugin-transform-react-jsx-self': 7.27.1(@babel/core@7.28.3)
@@ -2951,7 +2963,7 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-beta.27
       '@types/babel__core': 7.20.5
       react-refresh: 0.17.0
-      vite: 5.4.19(@types/node@20.19.11)
+      vite: 5.4.19(@types/node@22.17.2)
     transitivePeerDependencies:
       - supports-color
 
@@ -3507,10 +3519,10 @@ snapshots:
 
   electron-to-chromium@1.5.207: {}
 
-  electron@28.3.3:
+  electron@37.3.1:
     dependencies:
       '@electron/get': 2.0.3
-      '@types/node': 18.19.123
+      '@types/node': 22.17.2
       extract-zip: 2.0.1
     transitivePeerDependencies:
       - supports-color
@@ -4622,8 +4634,6 @@ snapshots:
 
   ufo@1.6.1: {}
 
-  undici-types@5.26.5: {}
-
   undici-types@6.21.0: {}
 
   universalify@0.1.2: {}
@@ -4669,6 +4679,24 @@ snapshots:
       - supports-color
       - terser
 
+  vite-node@1.6.1(@types/node@22.17.2):
+    dependencies:
+      cac: 6.7.14
+      debug: 4.4.1
+      pathe: 1.1.2
+      picocolors: 1.1.1
+      vite: 5.4.19(@types/node@22.17.2)
+    transitivePeerDependencies:
+      - '@types/node'
+      - less
+      - lightningcss
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - supports-color
+      - terser
+
   vite@5.4.19(@types/node@20.19.11):
     dependencies:
       esbuild: 0.21.5
@@ -4676,6 +4704,15 @@ snapshots:
       rollup: 4.46.3
     optionalDependencies:
       '@types/node': 20.19.11
+      fsevents: 2.3.3
+
+  vite@5.4.19(@types/node@22.17.2):
+    dependencies:
+      esbuild: 0.21.5
+      postcss: 8.5.6
+      rollup: 4.46.3
+    optionalDependencies:
+      '@types/node': 22.17.2
       fsevents: 2.3.3
 
   vitest@1.6.1(@types/node@20.19.11):
@@ -4702,6 +4739,40 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 20.19.11
+    transitivePeerDependencies:
+      - less
+      - lightningcss
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - supports-color
+      - terser
+
+  vitest@1.6.1(@types/node@22.17.2):
+    dependencies:
+      '@vitest/expect': 1.6.1
+      '@vitest/runner': 1.6.1
+      '@vitest/snapshot': 1.6.1
+      '@vitest/spy': 1.6.1
+      '@vitest/utils': 1.6.1
+      acorn-walk: 8.3.4
+      chai: 4.5.0
+      debug: 4.4.1
+      execa: 8.0.1
+      local-pkg: 0.5.1
+      magic-string: 0.30.17
+      pathe: 1.1.2
+      picocolors: 1.1.1
+      std-env: 3.9.0
+      strip-literal: 2.1.1
+      tinybench: 2.9.0
+      tinypool: 0.8.4
+      vite: 5.4.19(@types/node@22.17.2)
+      vite-node: 1.6.1(@types/node@22.17.2)
+      why-is-node-running: 2.3.0
+    optionalDependencies:
+      '@types/node': 22.17.2
     transitivePeerDependencies:
       - less
       - lightningcss
@@ -4769,3 +4840,5 @@ snapshots:
       archiver-utils: 3.0.4
       compress-commons: 4.1.2
       readable-stream: 3.6.2
+
+  zod@3.25.76: {}

@@ -5,7 +5,9 @@
   "bin": {
     "amp-sessions": "./dist/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
@@ -16,7 +18,8 @@
   "dependencies": {
     "@ampsm/core": "workspace:*",
     "@ampsm/types": "workspace:*",
-    "commander": "^11.0.0"
+    "commander": "^11.0.0",
+    "yaml": "^2.8.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

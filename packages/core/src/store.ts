@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import type { Session, IterationRecord, ToolCall, SessionCreateOptions, AmpTelemetry } from '@ampsm/types';
+import type { Session, IterationRecord, ToolCall, SessionCreateOptions, AmpTelemetry, BatchRecord, BatchItem, ExportOptions } from '@ampsm/types';
 import { randomUUID } from 'crypto';
 
 export class SessionStore {
@@ -71,6 +71,30 @@ export class SessionStore {
         result TEXT NOT NULL,
         conflictFiles TEXT,
         squashMessage TEXT,
+        FOREIGN KEY(sessionId) REFERENCES sessions(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS batches (
+        runId TEXT PRIMARY KEY,
+        createdAt TEXT NOT NULL,
+        defaultsJson TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS batch_items (
+        id TEXT PRIMARY KEY,
+        runId TEXT NOT NULL,
+        sessionId TEXT,
+        repo TEXT NOT NULL,
+        prompt TEXT NOT NULL,
+        status TEXT NOT NULL,
+        error TEXT,
+        startedAt TEXT,
+        finishedAt TEXT,
+        model TEXT,
+        iterSha TEXT,
+        tokensTotal INTEGER,
+        toolCalls INTEGER,
+        FOREIGN KEY(runId) REFERENCES batches(runId),
         FOREIGN KEY(sessionId) REFERENCES sessions(id)
       );
     `);
@@ -330,6 +354,134 @@ export class SessionStore {
       ...row,
       conflictFiles: row.conflictFiles ? JSON.parse(row.conflictFiles) : undefined
     }));
+  }
+
+  // Batch operations
+  createBatch(runId: string, defaults: any): BatchRecord {
+    const batch: BatchRecord = {
+      runId,
+      createdAt: new Date().toISOString(),
+      defaultsJson: JSON.stringify(defaults)
+    };
+
+    const stmt = this.db.prepare(`
+      INSERT INTO batches (runId, createdAt, defaultsJson)
+      VALUES (?, ?, ?)
+    `);
+    stmt.run(batch.runId, batch.createdAt, batch.defaultsJson);
+
+    return batch;
+  }
+
+  createBatchItem(batchItem: Omit<BatchItem, 'id'>): BatchItem {
+    const item: BatchItem = {
+      id: randomUUID(),
+      ...batchItem
+    };
+
+    const stmt = this.db.prepare(`
+      INSERT INTO batch_items (id, runId, sessionId, repo, prompt, status, error, 
+        startedAt, finishedAt, model, iterSha, tokensTotal, toolCalls)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    stmt.run(
+      item.id,
+      item.runId,
+      item.sessionId,
+      item.repo,
+      item.prompt,
+      item.status,
+      item.error,
+      item.startedAt,
+      item.finishedAt,
+      item.model,
+      item.iterSha,
+      item.tokensTotal,
+      item.toolCalls
+    );
+
+    return item;
+  }
+
+  updateBatchItem(id: string, updates: Partial<BatchItem>) {
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    Object.entries(updates).forEach(([key, value]) => {
+      if (key !== 'id' && value !== undefined) {
+        fields.push(`${key} = ?`);
+        values.push(value);
+      }
+    });
+
+    if (fields.length === 0) return;
+
+    values.push(id);
+    const stmt = this.db.prepare(`UPDATE batch_items SET ${fields.join(', ')} WHERE id = ?`);
+    stmt.run(...values);
+  }
+
+  getBatch(runId: string): BatchRecord | undefined {
+    const stmt = this.db.prepare('SELECT * FROM batches WHERE runId = ?');
+    return stmt.get(runId) as BatchRecord | undefined;
+  }
+
+  getBatchItems(runId: string): BatchItem[] {
+    const stmt = this.db.prepare('SELECT * FROM batch_items WHERE runId = ? ORDER BY startedAt ASC');
+    return stmt.all(runId) as BatchItem[];
+  }
+
+  getAllBatches(): BatchRecord[] {
+    const stmt = this.db.prepare('SELECT * FROM batches ORDER BY createdAt DESC');
+    return stmt.all() as BatchRecord[];
+  }
+
+  exportData(options: ExportOptions): any {
+    const tables = options.tables;
+    const result: Record<string, any[]> = {};
+
+    for (const table of tables) {
+      let sql = `SELECT * FROM ${table}`;
+      const params: any[] = [];
+
+      if (options.runId && (table === 'batches' || table === 'batch_items')) {
+        sql += ' WHERE runId = ?';
+        params.push(options.runId);
+      } else if (options.sessionIds && options.sessionIds.length > 0) {
+        const placeholders = options.sessionIds.map(() => '?').join(',');
+        sql += ` WHERE sessionId IN (${placeholders})`;
+        params.push(...options.sessionIds);
+      }
+
+      if (options.startDate || options.endDate) {
+        const timeField = table === 'sessions' ? 'createdAt' : 
+                          table === 'iterations' ? 'startTime' :
+                          table === 'batches' ? 'createdAt' : 'timestamp';
+        
+        if (sql.includes('WHERE')) {
+          sql += ' AND ';
+        } else {
+          sql += ' WHERE ';
+        }
+
+        if (options.startDate && options.endDate) {
+          sql += `${timeField} BETWEEN ? AND ?`;
+          params.push(options.startDate, options.endDate);
+        } else if (options.startDate) {
+          sql += `${timeField} >= ?`;
+          params.push(options.startDate);
+        } else if (options.endDate) {
+          sql += `${timeField} <= ?`;
+          params.push(options.endDate);
+        }
+      }
+
+      const stmt = this.db.prepare(sql);
+      result[table] = stmt.all(...params);
+    }
+
+    return result;
   }
 
   close() {

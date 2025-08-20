@@ -2,6 +2,8 @@
 
 This document instructs a coding agent (Amp) how to work inside this repository to create and iterate on **isolated Git worktree sessions**, with deterministic commits, reviewable diffs, and safe squash/rebase back to the main branch.
 
+Note: DO NOT RUN SERVERS DIRECTLY WHILE TESTING IMPLEMENTATION, IF YOU WANT TO RUN THE SERVER TO TEST TELL THE USER TO RUN THE COMMAND TO START UP THE SERVER.
+
 ---
 
 ## Mission

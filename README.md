@@ -15,6 +15,8 @@ Amp Session Manager creates and manages **sessions from prompts**, each running 
 - ⚡ **Parallel Sessions**: Run multiple sessions simultaneously
 - 🔔 **Notifications**: Get notified when sessions need attention
 - 🧪 **Test Integration**: Run test scripts per session
+- 📊 **Batch Processing**: Run multiple prompts across different repositories
+- 💾 **Export & Reporting**: Export session data and generate detailed reports
 
 ## Architecture
 
@@ -70,17 +72,18 @@ pnpm typecheck
 ### CLI Usage
 
 ```bash
-# List all sessions
-amp-sessions list
-
-# Create a new session
+# Session Management
+amp-sessions list                                               # List all sessions
 amp-sessions new --repo ./my-repo --name "feature-x" --prompt "Implement feature X"
-
-# Run an iteration
-amp-sessions iterate <session-id>
-
-# Squash and merge
+amp-sessions iterate <session-id>                              # Run an iteration
 amp-sessions squash <session-id> --message "feat: implement feature X"
+
+# Batch Processing
+amp-sessions batch start --file ./batch-config.json           # Start a batch run
+amp-sessions batch list                                        # List batch runs
+amp-sessions batch status <run-id>                            # Check batch status
+amp-sessions batch abort <run-id>                             # Abort running batch
+amp-sessions batch export <run-id> --format csv --out ./data  # Export batch results
 ```
 
 ## Session Workflow
@@ -99,6 +102,25 @@ amp-sessions squash <session-id> --message "feat: implement feature X"
 - **Branches**: `amp/<slug>/<timestamp>`
 - **Commit Messages**: Amp commits start with `amp:`, manual commits are free-form
 - **Squashing**: All `amp:` commits combined, manual commits preserved or included
+
+## Troubleshooting
+
+### Common Issues
+
+**IPC Handler Errors**: If you see "No handler registered" errors, restart the desktop app. Handlers are now registered immediately to prevent race conditions.
+
+**Build Failures**: Ensure all dependencies are installed with `pnpm install` and run `pnpm build` to verify everything compiles.
+
+**Git Worktree Issues**: If sessions fail to create, check that the target repository is clean and the base branch exists.
+
+### Development Commands
+
+```bash
+pnpm dev        # Start desktop app in development mode
+pnpm test       # Run all tests
+pnpm typecheck  # TypeScript type checking
+pnpm lint       # Code linting
+```
 
 ## Development
 
