@@ -99,10 +99,11 @@ ipcMain.handle('get-session', async (_, sessionId: string) => {
 
 ipcMain.handle('sessions:create', async (_, options: any) => {
   try {
-    return await worktreeManager.createSession(options);
+    const session = await worktreeManager.createSession(options);
+    return { success: true, session };
   } catch (error) {
     console.error('Failed to create session:', error);
-    throw error;
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to create session' };
   }
 });
 
