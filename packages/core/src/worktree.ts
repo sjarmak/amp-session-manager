@@ -112,8 +112,9 @@ export class WorktreeManager {
 
       // Run Amp iteration
       console.log('Running Amp iteration...');
+      const iterationPrompt = notes || session.ampPrompt;
       const result = await this.ampAdapter.runIteration(
-        session.ampPrompt, 
+        iterationPrompt, 
         session.worktreePath, 
         session.modelOverride,
         sessionId

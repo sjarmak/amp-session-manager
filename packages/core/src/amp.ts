@@ -94,6 +94,7 @@ export class AmpAdapter {
       
       // Send prompt via stdin
       if (child.stdin) {
+        console.log('Sending prompt to Amp (first 200 chars):', fullPrompt.slice(0, 200));
         child.stdin.write(fullPrompt);
         child.stdin.end();
       }
