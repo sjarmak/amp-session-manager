@@ -141,8 +141,10 @@ export class AmpAdapter {
       child.on('close', (exitCode) => {
         const fullOutput = output + stderr;
         console.log('Amp process output:', { exitCode, stderr: stderr.slice(0, 200) }); // Log first 200 chars of stderr
+        console.log('Full output for telemetry parsing:', fullOutput.slice(-500)); // Log last 500 chars
         const redactedOutput = redactSecrets(fullOutput, this.config.env);
         const telemetry = this.telemetryParser.parseOutput(fullOutput);
+        console.log('Parsed telemetry:', telemetry);
         telemetry.exitCode = exitCode || 0;
 
         // Check for awaiting input condition

@@ -4,6 +4,7 @@ import { BatchRunner } from './batch.js';
 import { Exporter } from './exporter.js';
 import { WorktreeManager } from './worktree.js';
 import { GitOps } from './git.js';
+import { MetricsEventBus } from './metrics/index.js';
 import type { Plan, BatchRecord, BatchItem, ExportOptions, ReportOptions } from '@ampsm/types';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
@@ -87,9 +88,9 @@ export class BatchController extends EventEmitter {
   private exporter: Exporter;
   private activeRuns = new Map<string, BatchRunner>();
 
-  constructor(private store: SessionStore, private dbPath?: string) {
+  constructor(private store: SessionStore, private dbPath?: string, private metricsEventBus?: MetricsEventBus) {
     super();
-    this.batchRunner = new BatchRunner(store, dbPath);
+    this.batchRunner = new BatchRunner(store, dbPath, metricsEventBus);
     this.exporter = new Exporter(store, dbPath);
   }
 
@@ -229,20 +230,33 @@ export class BatchController extends EventEmitter {
       // Already stopped, continue with deletion
     }
     
-    // Get all session IDs before deleting to clean up worktrees
+    // Get all session IDs before deleting batch from database
     const batchItems = this.store.getBatchItems(runId);
     const sessionIdsFromItems = batchItems
       .filter(item => item.sessionId)
       .map(item => item.sessionId!);
       
     // Also find sessions that might not be properly linked to batch items
-    // Look for sessions that contain the runId in their notes or match branch naming
+    // Look for orphaned batch sessions by checking all sessions for batch-related patterns
     const allSessions = this.store.getAllSessions();
+    
     const sessionIdsFromDb = allSessions
-      .filter(session => 
-        session.notes === runId || 
-        session.branchName.includes(runId.slice(0, 8)) // runId prefix in branch name
-      )
+      .filter(session => {
+        // Check if session notes match the runId
+        if (session.notes === runId) return true;
+        
+        // Check if runId prefix is in branch name 
+        if (session.branchName.includes(runId.slice(0, 8))) return true;
+        
+        // Check if this is a batch session by checking for "batch" in name/branch
+        // This is more reliable since we may not have timing info
+        if ((session.name && session.name.includes('batch')) || 
+            session.branchName.includes('batch')) {
+          return true;
+        }
+        
+        return false;
+      })
       .map(session => session.id);
     
     // Combine both sets to ensure complete cleanup
@@ -251,7 +265,7 @@ export class BatchController extends EventEmitter {
     
     console.log(`Found ${sessionIds.length} sessions to clean up for batch ${runId}`);
     
-    // Clean up worktrees for each session
+    // Clean up worktrees for each session  
     const worktreeManager = new WorktreeManager(this.store, this.dbPath);
     const cleanupErrors: Array<{ sessionId: string; error: any }> = [];
     
@@ -265,7 +279,7 @@ export class BatchController extends EventEmitter {
       }
     }
     
-    // Delete batch from database (sessions should already be deleted by worktree cleanup)
+    // Delete batch from database (this will also clean up any remaining sessions)
     this.store.deleteBatch(runId);
     
     // Log summary of cleanup
@@ -276,6 +290,49 @@ export class BatchController extends EventEmitter {
     }
     
     this.emit('run-deleted', { runId });
+  }
+
+  /**
+   * Clean up orphaned batch sessions that don't have corresponding batches
+   */
+  async cleanupOrphanedBatchSessions(): Promise<{ cleanedSessions: number }> {
+    // Find all sessions that look like batch sessions but don't have corresponding batches
+    const allSessions = this.store.getAllSessions();
+    const allBatches = this.store.getAllBatches().map(b => b.runId);
+    
+    const orphanedSessions = allSessions.filter(session => {
+      // Check if this looks like a batch session
+      const isBatchSession = (session.name && session.name.includes('batch')) || 
+                             session.branchName.includes('batch');
+      
+      if (!isBatchSession) return false;
+      
+      // Check if there's a corresponding batch
+      const hasCorrespondingBatch = allBatches.some(runId => 
+        session.notes === runId || 
+        session.branchName.includes(runId.slice(0, 8))
+      );
+      
+      return !hasCorrespondingBatch;
+    });
+    
+    console.log(`Found ${orphanedSessions.length} orphaned batch sessions`);
+    
+    // Clean up each orphaned session
+    const worktreeManager = new WorktreeManager(this.store, this.dbPath);
+    let cleanedCount = 0;
+    
+    for (const session of orphanedSessions) {
+      try {
+        await worktreeManager.cleanup(session.id, true); // force cleanup
+        cleanedCount++;
+        console.log(`✓ Cleaned up orphaned batch session: ${session.name}`);
+      } catch (error) {
+        console.warn(`Failed to cleanup orphaned session ${session.id}:`, error);
+      }
+    }
+    
+    return { cleanedSessions: cleanedCount };
   }
 
   /**

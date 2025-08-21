@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const { join } = require('path');
-const { SessionStore, WorktreeManager, BatchController, getCurrentAmpThreadId, getDbPath, Notifier, MetricsAPI, SQLiteMetricsSink, costCalculator, Logger } = require('@ampsm/core');
+const { SessionStore, WorktreeManager, BatchController, getCurrentAmpThreadId, getDbPath, Notifier, MetricsAPI, SQLiteMetricsSink, MetricsEventBus, costCalculator, Logger } = require('@ampsm/core');
 
 let mainWindow: any;
 
@@ -54,14 +54,18 @@ async function initializeServices() {
   try {
     const dbPath = getDbPath();
     store = new SessionStore(dbPath);
-    worktreeManager = new WorktreeManager(store, dbPath);
-    batchController = new BatchController(store, dbPath);
-    notifier = new Notifier();
-
-    // Initialize metrics system
+    
+    // Initialize shared metrics system first
     const logger = new Logger('Desktop');
+    const metricsEventBus = new MetricsEventBus(logger);
     const sqliteSink = new SQLiteMetricsSink(dbPath, logger);
+    metricsEventBus.addSink(sqliteSink);
     metricsAPI = new MetricsAPI(sqliteSink, costCalculator, logger);
+    
+    // Pass shared metrics bus to WorktreeManager and BatchController
+    worktreeManager = new WorktreeManager(store, dbPath, metricsEventBus);
+    batchController = new BatchController(store, dbPath, metricsEventBus);
+    notifier = new Notifier();
 
     notifier.setCallback(async (options: any) => {
       console.log('Notification:', options.title, '-', options.message);

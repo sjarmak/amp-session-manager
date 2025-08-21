@@ -19,21 +19,29 @@ export class WorktreeManager {
 
   constructor(
     private store: SessionStore,
-    private dbPath?: string
+    private dbPath?: string,
+    metricsEventBus?: MetricsEventBus
   ) {
     this.logger = new Logger('WorktreeManager');
-    this.metricsEventBus = new MetricsEventBus(this.logger);
     
-    // Initialize metrics sinks
-    if (dbPath) {
-      const sqliteSink = new SQLiteMetricsSink(dbPath, this.logger);
-      this.metricsEventBus.addSink(sqliteSink);
+    if (metricsEventBus) {
+      // Use shared metrics event bus from main process
+      this.metricsEventBus = metricsEventBus;
+    } else {
+      // Fallback: create own metrics event bus (for CLI usage)
+      this.metricsEventBus = new MetricsEventBus(this.logger);
       
-      const ndjsonSink = new NDJSONMetricsSink(
-        join(process.cwd(), 'metrics-events.ndjson'), 
-        this.logger
-      );
-      this.metricsEventBus.addSink(ndjsonSink);
+      // Initialize metrics sinks
+      if (dbPath) {
+        const sqliteSink = new SQLiteMetricsSink(dbPath, this.logger);
+        this.metricsEventBus.addSink(sqliteSink);
+        
+        const ndjsonSink = new NDJSONMetricsSink(
+          join(process.cwd(), 'metrics-events.ndjson'), 
+          this.logger
+        );
+        this.metricsEventBus.addSink(ndjsonSink);
+      }
     }
     
     this.ampAdapter = new AmpAdapter(this.loadAmpConfig(), this.store);

@@ -1,5 +1,6 @@
 import { SessionStore } from './store.js';
 import { WorktreeManager } from './worktree.js';
+import { MetricsEventBus } from './metrics/index.js';
 import type { Plan, PlanItem, BatchRecord, BatchItem } from '@ampsm/types';
 import { randomUUID } from 'crypto';
 import { readFile } from 'fs/promises';
@@ -35,7 +36,8 @@ export class BatchRunner {
 
   constructor(
     private store: SessionStore,
-    private dbPath?: string
+    private dbPath?: string,
+    private metricsEventBus?: MetricsEventBus
   ) {}
 
   async parsePlan(planPath: string): Promise<Plan> {
@@ -166,7 +168,7 @@ export class BatchRunner {
       const planItem = plan.matrix.find(p => p.repo === item.repo && p.prompt === item.prompt)!;
       
       // Create session
-      const worktreeManager = new WorktreeManager(this.store, this.dbPath);
+      const worktreeManager = new WorktreeManager(this.store, this.dbPath, this.metricsEventBus);
       const session = await worktreeManager.createSession({
         name: this.generateSessionName(item.prompt, item.id),
         ampPrompt: item.prompt,

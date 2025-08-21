@@ -216,7 +216,7 @@ export const SessionMetrics: React.FC<SessionMetricsProps> = ({ sessionId, class
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg border p-4">
           <div className="flex items-center space-x-2">
-            <span className="text-blue-500">⏱️</span>
+            <span className="text-black">Duration:</span>
             <div>
               <p className="text-xs text-gray-500">Duration</p>
               <p className="text-lg font-semibold">{formatDuration(summary.totalDurationMs)}</p>
@@ -226,7 +226,7 @@ export const SessionMetrics: React.FC<SessionMetricsProps> = ({ sessionId, class
 
         <div className="bg-white rounded-lg border p-4">
           <div className="flex items-center space-x-2">
-            <span className="text-green-500">💰</span>
+            <span className="text-black">Cost:</span>
             <div>
               <p className="text-xs text-gray-500">Total Cost</p>
               <p className="text-lg font-semibold">{formatCost(summary.totalCostUsd)}</p>
@@ -236,7 +236,7 @@ export const SessionMetrics: React.FC<SessionMetricsProps> = ({ sessionId, class
 
         <div className="bg-white rounded-lg border p-4">
           <div className="flex items-center space-x-2">
-            <span className="text-purple-500">📝</span>
+            <span className="text-black">Files:</span>
             <div>
               <p className="text-xs text-gray-500">Lines Changed</p>
               <p className="text-lg font-semibold">
@@ -248,7 +248,7 @@ export const SessionMetrics: React.FC<SessionMetricsProps> = ({ sessionId, class
 
         <div className="bg-white rounded-lg border p-4">
           <div className="flex items-center space-x-2">
-            <span className="text-orange-500">🧪</span>
+            <span className="text-black">Success:</span>
             <div>
               <p className="text-xs text-gray-500">Success Rate</p>
               <p className="text-lg font-semibold">{(summary.successRate * 100).toFixed(1)}%</p>
@@ -299,7 +299,7 @@ export const SessionMetrics: React.FC<SessionMetricsProps> = ({ sessionId, class
         <div className="bg-white rounded-lg border">
           <div className="p-4 border-b">
             <h4 className="text-sm font-medium flex items-center">
-              <span className="mr-2">⚡</span>
+              <span className="mr-2 text-yellow-500">Performance:</span>
               Real-time Performance
             </h4>
           </div>

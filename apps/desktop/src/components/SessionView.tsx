@@ -453,7 +453,7 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
           </div>
 
           <div className="bg-white p-6 rounded-lg border border-green-200">
-            <h3 className="text-lg font-semibold mb-4 text-green-800">Merge to Main</h3>
+            <h3 className="text-lg font-semibold mb-4 text-black">Merge to Main</h3>
             <p className="text-gray-600 mb-4">
               Use the merge wizard to squash commits, rebase, and merge to the base branch in one guided flow.
             </p>
@@ -461,9 +461,9 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
               onClick={() => setShowMergeWizard(true)}
               disabled={loading}
               className="px-6 py-3 text-white rounded-md hover:bg-opacity-80 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
-              style={{ backgroundColor: '#F34E3F' }}
+              style={{ backgroundColor: '#291242' }}
             >
-              🚀 Start Merge Wizard
+              Start Merge Wizard
             </button>
           </div>
           

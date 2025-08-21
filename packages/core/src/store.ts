@@ -5,10 +5,12 @@ import { getDbPath } from './config.js';
 
 export class SessionStore {
   private db: Database.Database;
+  public readonly dbPath: string;
 
   constructor(dbPath?: string) {
     try {
       const finalDbPath = dbPath || getDbPath();
+      this.dbPath = finalDbPath;
       this.db = new Database(finalDbPath);
       
       // Enable WAL mode for better concurrency and preventing reader/writer conflicts
@@ -217,6 +219,22 @@ export class SessionStore {
 
   deleteSession(id: string): void {
     // Delete in reverse order of foreign keys
+    
+    // First, get all metric iteration IDs for this session
+    const metricIterations = this.db.prepare('SELECT id FROM metric_iterations WHERE session_id = ?').all(id) as Array<{ id: string }>;
+    
+    // Delete metrics data that references metric iterations
+    for (const iteration of metricIterations) {
+      this.db.prepare('DELETE FROM metric_tool_calls WHERE iteration_id = ?').run(iteration.id);
+      this.db.prepare('DELETE FROM metric_llm_usage WHERE iteration_id = ?').run(iteration.id);
+      this.db.prepare('DELETE FROM metric_git_operations WHERE iteration_id = ?').run(iteration.id);
+      this.db.prepare('DELETE FROM metric_test_results WHERE iteration_id = ?').run(iteration.id);
+    }
+    
+    // Delete metric iterations
+    this.db.prepare('DELETE FROM metric_iterations WHERE session_id = ?').run(id);
+    
+    // Delete original session-related data
     this.db.prepare('DELETE FROM tool_calls WHERE sessionId = ?').run(id);
     this.db.prepare('DELETE FROM iterations WHERE sessionId = ?').run(id);
     this.db.prepare('DELETE FROM merge_history WHERE sessionId = ?').run(id);
