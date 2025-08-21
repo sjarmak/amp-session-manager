@@ -132,7 +132,7 @@ export function BatchesView({ onRunSelect, onNewBatch }: BatchesViewProps) {
                       {formatDate(run.createdAt)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {run.defaultModel || 'default'}
+                      {run.defaultModel === 'gpt-5' ? 'gpt-5' : run.defaultModel || 'claude sonnet 4'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {run.concurrency}
@@ -158,12 +158,19 @@ export function BatchesView({ onRunSelect, onNewBatch }: BatchesViewProps) {
                       >
                         View
                       </button>
-                      {run.status === 'running' && (
+                      {run.status === 'running' ? (
                         <button
                           onClick={() => handleAbort(run.runId)}
                           className="text-red-600 hover:text-red-900"
                         >
                           Abort
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleDelete(run.runId)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Delete
                         </button>
                       )}
                     </td>
@@ -184,6 +191,17 @@ export function BatchesView({ onRunSelect, onNewBatch }: BatchesViewProps) {
         await loadRuns(); // Refresh the list
       } catch (error) {
         console.error('Failed to abort batch:', error);
+      }
+    }
+  }
+
+  async function handleDelete(runId: string) {
+    if (confirm('Are you sure you want to delete this batch run? This cannot be undone.')) {
+      try {
+        await window.electronAPI.batch.delete(runId);
+        await loadRuns(); // Refresh the list
+      } catch (error) {
+        console.error('Failed to delete batch:', error);
       }
     }
   }

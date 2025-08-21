@@ -96,7 +96,7 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="container mx-auto py-8 px-4 max-w-6xl">
-        <header className="text-center mb-8 relative">
+        <header className="text-center mb-8 relative app-header">
           <div className="flex items-center justify-center gap-2 mb-4">
             <img 
               src="/images/Amp_Style_Light.png" 

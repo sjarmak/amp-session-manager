@@ -1,0 +1,109 @@
+{
+  "batches": [
+    {
+      "runId": "test-batch-run",
+      "createdAt": "2025-08-20T22:23:48.907Z",
+      "defaultsJson": "{\"baseBranch\":\"main\",\"scriptCommand\":\"echo 'Running tests...' && exit 0\",\"model\":\"gpt-4o\",\"timeoutSec\":300,\"mergeOnPass\":false,\"jsonLogs\":false}"
+    }
+  ],
+  "batch_items": [
+    {
+      "id": "a3a7a3ce-4546-40f3-a778-ce57b78ce965",
+      "runId": "test-batch-run",
+      "sessionId": null,
+      "repo": "~/test-project",
+      "prompt": "Add a simple README.md file with project description",
+      "status": "error",
+      "error": "Invalid working directory ~/test-project: Working directory does not exist: ~/test-project",
+      "startedAt": "2025-08-20T22:23:48.909Z",
+      "finishedAt": "2025-08-20T22:23:48.911Z",
+      "model": "gpt-4o",
+      "iterSha": null,
+      "tokensTotal": null,
+      "toolCalls": null
+    },
+    {
+      "id": "18f2ecbf-87d2-4d06-b7a4-78989b287ab4",
+      "runId": "test-batch-run",
+      "sessionId": null,
+      "repo": "~/test-project",
+      "prompt": "Create a basic package.json with common scripts",
+      "status": "error",
+      "error": "Invalid working directory ~/test-project: Working directory does not exist: ~/test-project",
+      "startedAt": "2025-08-20T22:23:48.910Z",
+      "finishedAt": "2025-08-20T22:23:48.911Z",
+      "model": "gpt-4o",
+      "iterSha": null,
+      "tokensTotal": null,
+      "toolCalls": null
+    },
+    {
+      "id": "6701c3ec-adb7-4336-9e0d-f72e7dc210f0",
+      "runId": "test-batch-run",
+      "sessionId": null,
+      "repo": "~/test-project",
+      "prompt": "Add a simple .gitignore file for Node.js projects",
+      "status": "error",
+      "error": "Batch aborted",
+      "startedAt": null,
+      "finishedAt": "2025-08-21T01:40:20.305Z",
+      "model": "gpt-4o",
+      "iterSha": null,
+      "tokensTotal": null,
+      "toolCalls": null
+    }
+  ],
+  "sessions": [
+    {
+      "id": "c75b9c25-a9cc-443e-b78d-7ab7b6107985",
+      "name": "Test",
+      "ampPrompt": "Add a README",
+      "repoRoot": "/Users/sjarmak/test-project",
+      "baseBranch": "main",
+      "branchName": "amp/test/2025-08-20T20-26-56",
+      "worktreePath": "/Users/sjarmak/test-project/.worktrees/c75b9c25-a9cc-443e-b78d-7ab7b6107985",
+      "status": "idle",
+      "scriptCommand": null,
+      "modelOverride": null,
+      "threadId": "T-19aafa58-1434-476f-a582-ad60f90b0598",
+      "createdAt": "2025-08-20T20:26:56.624Z",
+      "lastRun": null,
+      "notes": null
+    },
+    {
+      "id": "2b731266-3f7d-4587-a384-df0029a7d616",
+      "name": "Test (GPT5)",
+      "ampPrompt": "Add a README",
+      "repoRoot": "/Users/sjarmak/test-project",
+      "baseBranch": "main",
+      "branchName": "amp/test-gpt5/2025-08-20T20-27-46",
+      "worktreePath": "/Users/sjarmak/test-project/.worktrees/2b731266-3f7d-4587-a384-df0029a7d616",
+      "status": "idle",
+      "scriptCommand": null,
+      "modelOverride": "gpt-5",
+      "threadId": "T-19aafa58-1434-476f-a582-ad60f90b0598",
+      "createdAt": "2025-08-20T20:27:46.871Z",
+      "lastRun": "2025-08-20T20:35:42.068Z",
+      "notes": null
+    }
+  ],
+  "iterations": [
+    {
+      "id": "4b5b2b43-363a-43ad-bd72-1c99a1a7ec70",
+      "sessionId": "2b731266-3f7d-4587-a384-df0029a7d616",
+      "startTime": "2025-08-20T20:35:41.990Z",
+      "endTime": "2025-08-20T20:35:42.068Z",
+      "commitSha": null,
+      "changedFiles": 0,
+      "testResult": null,
+      "testExitCode": null,
+      "tokenUsage": null,
+      "promptTokens": null,
+      "completionTokens": null,
+      "totalTokens": null,
+      "model": null,
+      "ampVersion": null,
+      "exitCode": 1
+    }
+  ]
+}

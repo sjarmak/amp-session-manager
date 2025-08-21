@@ -59,6 +59,7 @@ export class SessionStore {
         model TEXT,
         ampVersion TEXT,
         exitCode INTEGER,
+        ampArgs TEXT,
         FOREIGN KEY(sessionId) REFERENCES sessions(id)
       );
 
@@ -222,7 +223,7 @@ export class SessionStore {
     stmt.run(...values);
   }
 
-  finishIteration(iterationId: string, telemetry: AmpTelemetry, commitSha?: string, changedFiles?: number) {
+  finishIteration(iterationId: string, telemetry: AmpTelemetry, commitSha?: string, changedFiles?: number, ampArgs?: string) {
     const updates: Partial<IterationRecord> = {
       endTime: new Date().toISOString(),
       exitCode: telemetry.exitCode,
@@ -234,6 +235,10 @@ export class SessionStore {
       commitSha,
       changedFiles: changedFiles || 0
     };
+    
+    if (ampArgs) {
+      (updates as any).ampArgs = ampArgs;
+    }
 
     this.updateIteration(iterationId, updates);
 
@@ -463,6 +468,16 @@ export class SessionStore {
   getAllBatches(): BatchRecord[] {
     const stmt = this.db.prepare('SELECT * FROM batches ORDER BY createdAt DESC');
     return stmt.all() as BatchRecord[];
+  }
+
+  deleteBatch(runId: string): void {
+    // Delete batch items first (foreign key relationship)
+    const deleteItemsStmt = this.db.prepare('DELETE FROM batch_items WHERE runId = ?');
+    deleteItemsStmt.run(runId);
+    
+    // Then delete the batch record
+    const deleteBatchStmt = this.db.prepare('DELETE FROM batches WHERE runId = ?');
+    deleteBatchStmt.run(runId);
   }
 
   exportData(options: ExportOptions): any {

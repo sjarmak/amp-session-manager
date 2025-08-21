@@ -17,7 +17,7 @@ export class WorktreeManager {
     private store: SessionStore,
     private dbPath?: string
   ) {
-    this.ampAdapter = new AmpAdapter(this.loadAmpConfig());
+    this.ampAdapter = new AmpAdapter(this.loadAmpConfig(), this.store);
   }
 
   async createSession(options: SessionCreateOptions): Promise<Session> {
@@ -192,7 +192,13 @@ export class WorktreeManager {
       }
 
       // Update iteration with telemetry and save tool calls
-      this.store.finishIteration(iteration.id, result.telemetry, commitSha || undefined, changedFiles);
+      this.store.finishIteration(
+        iteration.id, 
+        result.telemetry, 
+        commitSha || undefined, 
+        changedFiles,
+        this.ampAdapter.lastUsedArgs?.join(' ')
+      );
       
       // Save tool calls with correct sessionId
       result.telemetry.toolCalls.forEach(toolCall => {

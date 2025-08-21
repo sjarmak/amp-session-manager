@@ -140,10 +140,10 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
         onSessionUpdated();
         setIterationNotes('');
       } else {
-        setError(result.error || 'Failed to run iteration');
+        setError(result.error || 'Failed to continue thread');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to run iteration');
+      setError(err instanceof Error ? err.message : 'Failed to continue thread');
     } finally {
       setLoading(false);
     }
@@ -239,7 +239,7 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
       )}
 
       <div className="flex space-x-1 border-b border-gray-200">
-        {['overview', 'diff', 'actions', 'thread'].map((tab) => (
+        {['overview', 'actions', 'diff', 'thread'].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as any)}
@@ -302,7 +302,14 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
               {session.modelOverride && (
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Model Override</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{session.modelOverride}</dd>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {session.modelOverride}
+                    {session.modelOverride === 'gpt-5' && (
+                      <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                        uses --try-gpt5 flag
+                      </span>
+                    )}
+                  </dd>
                 </div>
               )}
             </dl>
@@ -357,18 +364,18 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
       {activeTab === 'actions' && (
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-lg border">
-            <h3 className="text-lg font-semibold mb-4">Run Iteration</h3>
+            <h3 className="text-lg font-semibold mb-4">Continue Thread</h3>
             <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Notes (optional)
+                  Send followup message
                 </label>
                 <textarea
                   value={iterationNotes}
                   onChange={(e) => setIterationNotes(e.target.value)}
                   rows={2}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Notes for this iteration..."
+                  placeholder="Message to continue the thread..."
                 />
               </div>
               <button
@@ -376,7 +383,7 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
                 disabled={loading || session.status === 'running'}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Running...' : 'Run Iteration'}
+                {loading ? 'Running...' : 'Continue Thread'}
               </button>
             </div>
           </div>

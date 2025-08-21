@@ -1,0 +1,14 @@
+concurrency: 2
+defaults:
+  baseBranch: main
+  scriptCommand: "echo 'Running tests...' && exit 0"
+  timeoutSec: 300
+  mergeOnPass: false
+matrix:
+  - repo: ~/test-project
+    prompt: "Add a simple README.md file with project description"
+  - repo: ~/test-project
+    prompt: "Create a basic package.json with common scripts"
+    scriptCommand: "ls -la && echo 'Package.json created successfully'"
+  - repo: ~/test-project
+    prompt: "Add a simple .gitignore file for Node.js projects"

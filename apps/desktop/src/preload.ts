@@ -27,7 +27,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   
   dialog: {
-    selectDirectory: () => ipcRenderer.invoke('dialog:selectDirectory') as Promise<Electron.OpenDialogReturnValue>
+    selectDirectory: () => ipcRenderer.invoke('dialog:selectDirectory') as Promise<Electron.OpenDialogReturnValue>,
+    selectFile: () => ipcRenderer.invoke('dialog:selectFile') as Promise<Electron.OpenDialogReturnValue>
+  },
+
+  fs: {
+    readFile: (filePath: string) => ipcRenderer.invoke('fs:readFile', filePath) as Promise<{ success: boolean; content?: string; error?: string }>
   },
 
   batch: {
@@ -36,6 +41,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     listItems: (options: any) => ipcRenderer.invoke('batch:listItems', options),
     start: (options: any) => ipcRenderer.invoke('batch:start', options),
     abort: (runId: string) => ipcRenderer.invoke('batch:abort', runId),
+    delete: (runId: string) => ipcRenderer.invoke('batch:delete', runId),
     export: (options: any) => ipcRenderer.invoke('batch:export', options),
     report: (options: any) => ipcRenderer.invoke('batch:report', options),
     onEvent: (callback: (event: any) => void) => {

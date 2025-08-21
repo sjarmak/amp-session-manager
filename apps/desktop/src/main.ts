@@ -14,6 +14,7 @@ function createWindow() {
       preload: join(__dirname, 'preload.js')
     },
     titleBarStyle: 'hiddenInset',
+    movable: true,
     show: false
   });
 
@@ -61,6 +62,13 @@ async function initializeServices() {
       // Native notifications will be added later when Electron issues are resolved
     });
 
+    // Forward batch events to frontend
+    batchController.on('event', (event: any) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('batch:event', event);
+      }
+    });
+
     console.log('Services initialized successfully');
   } catch (error) {
     console.error('Failed to initialize services:', error);
@@ -88,6 +96,31 @@ ipcMain.handle('dialog:selectDirectory', async () => {
   return result;
 });
 
+ipcMain.handle('dialog:selectFile', async () => {
+  const { dialog } = require('electron');
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [
+      { name: 'YAML Files', extensions: ['yaml', 'yml'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+  return result;
+});
+
+ipcMain.handle('fs:readFile', async (_, filePath: string) => {
+  const fs = require('fs').promises;
+  try {
+    console.log('Reading file from main process:', filePath);
+    const content = await fs.readFile(filePath, 'utf8');
+    console.log('File read successfully, length:', content.length);
+    return { success: true, content };
+  } catch (error) {
+    console.error('File read error in main process:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('get-session', async (_, sessionId: string) => {
   try {
     return store.getSession(sessionId);
@@ -104,6 +137,16 @@ ipcMain.handle('sessions:create', async (_, options: any) => {
   } catch (error) {
     console.error('Failed to create session:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Failed to create session' };
+  }
+});
+
+ipcMain.handle('sessions:iterate', async (_, sessionId: string, notes?: string) => {
+  try {
+    const result = await worktreeManager.iterate(sessionId, notes);
+    return { success: true, result };
+  } catch (error) {
+    console.error('Failed to iterate session:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to iterate session' };
   }
 });
 
@@ -209,6 +252,84 @@ ipcMain.handle('run-batch', async (_, batchId: string) => {
   } catch (error) {
     console.error('Failed to run batch:', error);
     throw error;
+  }
+});
+
+// New batch API handlers
+ipcMain.handle('batch:listRuns', async () => {
+  try {
+    return await batchController.listRuns();
+  } catch (error) {
+    console.error('Failed to list batch runs:', error);
+    return [];
+  }
+});
+
+ipcMain.handle('batch:getRun', async (_, runId: string) => {
+  try {
+    return await batchController.getRun(runId);
+  } catch (error) {
+    console.error('Failed to get batch run:', error);
+    return null;
+  }
+});
+
+ipcMain.handle('batch:listItems', async (_, options: any) => {
+  try {
+    return await batchController.listItems(options);
+  } catch (error) {
+    console.error('Failed to list batch items:', error);
+    return { items: [], total: 0 };
+  }
+});
+
+ipcMain.handle('batch:start', async (_, options: any) => {
+  try {
+    const result = await batchController.start(options);
+    return { success: true, runId: result.runId };
+  } catch (error) {
+    console.error('Failed to start batch:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('batch:abort', async (_, runId: string) => {
+  try {
+    await batchController.abort(runId);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to abort batch:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('batch:export', async (_, options: any) => {
+  try {
+    const filePaths = await batchController.export(options);
+    return { success: true, filePaths };
+  } catch (error) {
+    console.error('Failed to export batch:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('batch:report', async (_, options: any) => {
+  try {
+    const outputPath = await batchController.report(options);
+    return { success: true, outputPath };
+  } catch (error) {
+    console.error('Failed to generate batch report:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('batch:delete', async (_, runId: string) => {
+  try {
+    await batchController.delete(runId);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to delete batch:', error);
+    return { success: false, error: error.message };
   }
 });
 

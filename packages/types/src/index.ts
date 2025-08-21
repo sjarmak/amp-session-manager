@@ -31,6 +31,7 @@ export interface IterationRecord {
   model?: string;
   ampVersion?: string;
   exitCode?: number;
+  ampArgs?: string;
 }
 
 export interface ToolCall {

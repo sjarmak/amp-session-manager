@@ -27,6 +27,10 @@ declare global {
       };
       dialog: {
         selectDirectory: () => Promise<Electron.OpenDialogReturnValue>;
+        selectFile: () => Promise<Electron.OpenDialogReturnValue>;
+      };
+      fs: {
+        readFile: (filePath: string) => Promise<{ success: boolean; content?: string; error?: string }>;
       };
       batch: {
         listRuns: () => Promise<any[]>;
@@ -34,6 +38,7 @@ declare global {
         listItems: (options: any) => Promise<{ items: any[]; total: number }>;
         start: (options: any) => Promise<{ success: boolean; runId?: string; error?: string }>;
         abort: (runId: string) => Promise<{ success: boolean; error?: string }>;
+        delete: (runId: string) => Promise<{ success: boolean; error?: string }>;
         export: (options: any) => Promise<{ success: boolean; filePaths?: string[]; error?: string }>;
         report: (options: any) => Promise<{ success: boolean; outputPath?: string; error?: string }>;
         onEvent: (callback: (event: any) => void) => void;

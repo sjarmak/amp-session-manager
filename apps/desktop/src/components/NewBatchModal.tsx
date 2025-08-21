@@ -128,14 +128,30 @@ export function NewBatchModal({ isOpen, onClose, onBatchCreated }: NewBatchModal
 
   const loadPlanFile = async () => {
     try {
-      const result = await window.electronAPI.dialog.selectDirectory();
+      console.log('Opening file picker...');
+      const result = await window.electronAPI.dialog.selectFile();
+      console.log('File picker result:', result);
+      
       if (!result.canceled && result.filePaths[0]) {
-        // In a real implementation, you'd have a file picker for YAML files
-        // For now, show instructions
-        alert('Select a YAML file and copy its contents into the editor below');
+        const filePath = result.filePaths[0];
+        console.log('Reading file:', filePath);
+        const fileReadResult = await window.electronAPI.fs.readFile(filePath);
+        console.log('File read result:', fileReadResult);
+        
+        if (fileReadResult.success && fileReadResult.content) {
+          setPlanYaml(fileReadResult.content);
+        } else {
+          console.error('File read failed:', fileReadResult.error);
+          alert(`Failed to read file: ${fileReadResult.error || 'Unknown error'}`);
+        }
+      } else if (result.canceled) {
+        console.log('File picker was canceled');
+      } else {
+        console.log('No file selected');
       }
     } catch (error) {
       console.error('Failed to load plan file:', error);
+      alert(`Failed to load file: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 

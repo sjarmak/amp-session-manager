@@ -38,8 +38,10 @@ export interface AmpIterationResult {
 export class AmpAdapter {
   private config: AmpAdapterConfig;
   private telemetryParser = new TelemetryParser();
+  public lastUsedArgs?: string[];
+  private store?: any;
 
-  constructor(config: AmpAdapterConfig = {}) {
+  constructor(config: AmpAdapterConfig = {}, store?: any) {
     this.config = {
       ampPath: config.ampPath || process.env.AMP_BIN || 'amp',
       ampArgs: config.ampArgs || [],
@@ -47,6 +49,33 @@ export class AmpAdapter {
       env: config.env,
       extraArgs: config.extraArgs || []
     };
+    this.store = store;
+  }
+
+  private async hasExistingThread(sessionId: string): Promise<boolean> {
+    if (!this.store) return false;
+    try {
+      const session = this.store.getSession(sessionId);
+      // Check if session has threadId AND it's been run before (has lastRun)
+      return !!(session?.threadId && session?.lastRun);
+    } catch {
+      return false;
+    }
+  }
+
+  async continueThread(
+    prompt: string, 
+    workingDir: string, 
+    modelOverride?: string,
+    sessionId?: string
+  ): Promise<AmpIterationResult> {
+    // For first run, use full prompt. For continuation, use /continue + prompt
+    const isFirstRun = !sessionId || !(await this.hasExistingThread(sessionId));
+    const finalPrompt = isFirstRun 
+      ? await this.buildIterationPrompt(prompt, workingDir, sessionId)
+      : `/continue\n\n${prompt}`;
+
+    return this.runAmpCommand(finalPrompt, workingDir, modelOverride);
   }
 
   async runIteration(
@@ -55,8 +84,14 @@ export class AmpAdapter {
     modelOverride?: string,
     sessionId?: string
   ): Promise<AmpIterationResult> {
-    // Generate iteration prompt with context
-    const fullPrompt = await this.buildIterationPrompt(prompt, workingDir, sessionId);
+    return this.continueThread(prompt, workingDir, modelOverride, sessionId);
+  }
+
+  private async runAmpCommand(
+    finalPrompt: string,
+    workingDir: string,
+    modelOverride?: string
+  ): Promise<AmpIterationResult> {
     
     return new Promise((resolve) => {
       const args = ['-x', ...(this.config.ampArgs || []), ...(this.config.extraArgs || [])];
@@ -80,6 +115,9 @@ export class AmpAdapter {
         args
       });
       
+      // Store args for UI verification
+      this.lastUsedArgs = args;
+      
       const child = spawn(this.config.ampPath!, args, {
         cwd: workingDir,
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -94,8 +132,8 @@ export class AmpAdapter {
       
       // Send prompt via stdin
       if (child.stdin) {
-        console.log('Sending prompt to Amp (first 200 chars):', fullPrompt.slice(0, 200));
-        child.stdin.write(fullPrompt);
+        console.log('Sending prompt to Amp (first 200 chars):', finalPrompt.slice(0, 200));
+        child.stdin.write(finalPrompt);
         child.stdin.end();
       }
       

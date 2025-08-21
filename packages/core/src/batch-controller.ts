@@ -219,6 +219,19 @@ export class BatchController extends EventEmitter {
     this.emit('run-aborted', { runId });
   }
 
+  async delete(runId: string): Promise<void> {
+    // Abort if still running
+    try {
+      await this.batchRunner.abortRun(runId);
+    } catch {
+      // Already stopped, continue with deletion
+    }
+    
+    // Delete from database
+    this.store.deleteBatch(runId);
+    this.emit('run-deleted', { runId });
+  }
+
   async export(options: BatchExportOptions): Promise<string[]> {
     const exportOptions: ExportOptions = {
       runId: options.runId,

@@ -109,12 +109,18 @@ export class BatchRunner {
         // Remove completed promises
         for (let i = running.length - 1; i >= 0; i--) {
           const promise = running[i];
-          const isSettled = await Promise.race([
-            promise.then(() => true),
-            Promise.resolve(false)
-          ]);
-          
-          if (isSettled) {
+          try {
+            // Check if promise is already settled by racing with a 0ms timeout
+            const isSettled = await Promise.race([
+              promise.then(() => true, () => true),
+              new Promise<boolean>(resolve => setTimeout(() => resolve(false), 0))
+            ]);
+            
+            if (isSettled) {
+              running.splice(i, 1);
+            }
+          } catch {
+            // Promise rejected, remove it
             running.splice(i, 1);
           }
         }
