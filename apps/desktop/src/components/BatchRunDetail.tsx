@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 export interface BatchItem {
   id: string;
@@ -40,10 +40,12 @@ export interface BatchRunDetailProps {
 
 export function BatchRunDetail({ runId, onBack }: BatchRunDetailProps) {
   const [run, setRun] = useState<BatchRun | null>(null);
-  const [items, setItems] = useState<BatchItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState('');
+const [items, setItems] = useState<BatchItem[]>([]);
+const [loading, setLoading] = useState(true);
+const [statusFilter, setStatusFilter] = useState<string>('all');
+const [searchTerm, setSearchTerm] = useState('');
+const [exportMenuOpen, setExportMenuOpen] = useState(false);
+const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadRunData();
@@ -61,6 +63,20 @@ export function BatchRunDetail({ runId, onBack }: BatchRunDetailProps) {
       window.electronAPI.batch.offEvent(handleBatchEvent);
     };
   }, [runId]);
+
+  // Click away to close export menu
+  useEffect(() => {
+    const handleClickAway = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    };
+
+    if (exportMenuOpen) {
+      document.addEventListener('mousedown', handleClickAway);
+      return () => document.removeEventListener('mousedown', handleClickAway);
+    }
+  }, [exportMenuOpen]);
 
   const loadRunData = async () => {
     try {
@@ -168,54 +184,56 @@ export function BatchRunDetail({ runId, onBack }: BatchRunDetailProps) {
         </div>
         
         <div className="flex space-x-2">
-          <div className="relative">
+          <div className="relative" ref={exportMenuRef}>
             <button
               className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
-              onClick={() => document.getElementById('export-menu')?.classList.toggle('hidden')}
+              onClick={() => setExportMenuOpen(!exportMenuOpen)}
             >
               Export ▼
             </button>
-            <div id="export-menu" className="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
-              <div className="py-1">
-                <button
-                  onClick={() => handleExport('json')}
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-                >
-                  Export as JSON
-                </button>
-                <button
-                  onClick={() => handleExport('csv')}
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-                >
-                  Export as CSV
-                </button>
+            {exportMenuOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
+                <div className="py-1">
+                  <button
+                    onClick={() => {
+                      handleExport('json');
+                      setExportMenuOpen(false);
+                    }}
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                  >
+                    Export as JSON
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleExport('csv');
+                      setExportMenuOpen(false);
+                    }}
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                  >
+                    Export as CSV
+                  </button>
+                  <hr className="my-1" />
+                  <button
+                    onClick={() => {
+                      handleReport('md');
+                      setExportMenuOpen(false);
+                    }}
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                  >
+                    Generate Markdown Report
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleReport('html');
+                      setExportMenuOpen(false);
+                    }}
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                  >
+                    Generate HTML Report
+                  </button>
+                </div>
               </div>
-            </div>
-          </div>
-          
-          <div className="relative">
-            <button
-              className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
-              onClick={() => document.getElementById('report-menu')?.classList.toggle('hidden')}
-            >
-              Report ▼
-            </button>
-            <div id="report-menu" className="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
-              <div className="py-1">
-                <button
-                  onClick={() => handleReport('md')}
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-                >
-                  Generate Markdown
-                </button>
-                <button
-                  onClick={() => handleReport('html')}
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-                >
-                  Generate HTML
-                </button>
-              </div>
-            </div>
+            )}
           </div>
 
           {run.status === 'running' && (
