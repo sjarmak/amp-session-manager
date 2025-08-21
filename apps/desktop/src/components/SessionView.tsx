@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { Session } from '@ampsm/types';
 import { MergeWizard } from './MergeWizard';
 import { DiffViewer } from './DiffViewer';
+import { SessionMetrics } from './SessionMetrics';
 
 interface SessionViewProps {
   session: Session;
@@ -10,7 +11,7 @@ interface SessionViewProps {
 }
 
 export function SessionView({ session, onBack, onSessionUpdated }: SessionViewProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'diff' | 'actions' | 'thread'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'diff' | 'actions' | 'thread' | 'metrics'>('overview');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [iterationNotes, setIterationNotes] = useState('');
@@ -239,7 +240,7 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
       )}
 
       <div className="flex space-x-1 border-b border-gray-200">
-        {['overview', 'actions', 'diff', 'thread'].map((tab) => (
+        {['overview', 'actions', 'diff', 'thread', 'metrics'].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as any)}
@@ -317,8 +318,21 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
 
           <div className="bg-white p-6 rounded-lg border">
             <h3 className="text-lg font-semibold mb-4">Prompt</h3>
-            <div className="bg-gray-50 p-4 rounded-md">
-              <p className="text-gray-800 whitespace-pre-wrap">{session.ampPrompt}</p>
+            <div className="space-y-4">
+              <div className="bg-blue-50 p-4 rounded-md border-l-4 border-blue-400">
+                <h4 className="text-sm font-medium text-blue-800 mb-2">Original Prompt</h4>
+                <p className="text-gray-800 whitespace-pre-wrap">{session.ampPrompt}</p>
+              </div>
+              {session.followUpPrompts && session.followUpPrompts.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-gray-700">Follow-up Messages</h4>
+                  {session.followUpPrompts.map((prompt, index) => (
+                    <div key={index} className="bg-amber-50 p-4 rounded-md border-l-4 border-amber-400">
+                      <p className="text-gray-800 whitespace-pre-wrap">{prompt}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -484,6 +498,12 @@ export function SessionView({ session, onBack, onSessionUpdated }: SessionViewPr
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {activeTab === 'metrics' && (
+        <div className="bg-white rounded-lg border">
+          <SessionMetrics sessionId={session.id} className="p-6" />
         </div>
       )}
 

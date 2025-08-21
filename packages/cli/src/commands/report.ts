@@ -14,7 +14,7 @@ interface ReportCommandOptions {
 
 export async function reportCommand(options: ReportCommandOptions) {
   const store = new SessionStore();
-  const exporter = new Exporter(store);
+  const exporter = new Exporter(store, store.dbPath);
 
   try {
     const reportOptions: ReportOptions = {

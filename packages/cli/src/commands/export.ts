@@ -14,7 +14,7 @@ interface ExportCommandOptions {
 
 export async function exportCommand(options: ExportCommandOptions) {
   const store = new SessionStore();
-  const exporter = new Exporter(store);
+  const exporter = new Exporter(store, store.dbPath);
 
   try {
     const tables = options.tables ? options.tables.split(',') : 

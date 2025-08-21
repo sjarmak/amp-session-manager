@@ -90,7 +90,7 @@ export class BatchController extends EventEmitter {
   constructor(private store: SessionStore, private dbPath?: string) {
     super();
     this.batchRunner = new BatchRunner(store, dbPath);
-    this.exporter = new Exporter(store);
+    this.exporter = new Exporter(store, dbPath);
   }
 
   async listRuns(): Promise<BatchRunSummary[]> {

@@ -30,6 +30,7 @@ export class SessionStore {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         ampPrompt TEXT NOT NULL,
+        followUpPrompts TEXT,
         repoRoot TEXT NOT NULL,
         baseBranch TEXT NOT NULL,
         branchName TEXT NOT NULL,
@@ -128,6 +129,13 @@ export class SessionStore {
     } catch (error) {
       // Column already exists, ignore error
     }
+    
+    // Migration: Add followUpPrompts column if it doesn't exist
+    try {
+      this.db.exec(`ALTER TABLE sessions ADD COLUMN followUpPrompts TEXT;`);
+    } catch (error) {
+      // Column already exists, ignore error
+    }
   }
 
   createSession(options: SessionCreateOptions): Session {
@@ -151,14 +159,14 @@ export class SessionStore {
     };
 
     const stmt = this.db.prepare(`
-      INSERT INTO sessions (id, name, ampPrompt, repoRoot, baseBranch, branchName, 
+      INSERT INTO sessions (id, name, ampPrompt, followUpPrompts, repoRoot, baseBranch, branchName, 
         worktreePath, status, scriptCommand, modelOverride, threadId, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
-      session.id, session.name, session.ampPrompt, session.repoRoot,
-      session.baseBranch, session.branchName, session.worktreePath,
+      session.id, session.name, session.ampPrompt, null,
+      session.repoRoot, session.baseBranch, session.branchName, session.worktreePath,
       session.status, session.scriptCommand ?? null, session.modelOverride ?? null,
       session.threadId ?? null, session.createdAt
     );
@@ -168,12 +176,22 @@ export class SessionStore {
 
   getSession(id: string): Session | null {
     const stmt = this.db.prepare('SELECT * FROM sessions WHERE id = ?');
-    return stmt.get(id) as Session | null;
+    const row = stmt.get(id) as any;
+    if (!row) return null;
+    
+    return {
+      ...row,
+      followUpPrompts: row.followUpPrompts ? JSON.parse(row.followUpPrompts) : undefined
+    } as Session;
   }
 
   getAllSessions(): Session[] {
     const stmt = this.db.prepare('SELECT * FROM sessions ORDER BY createdAt DESC');
-    return stmt.all() as Session[];
+    const rows = stmt.all() as any[];
+    return rows.map(row => ({
+      ...row,
+      followUpPrompts: row.followUpPrompts ? JSON.parse(row.followUpPrompts) : undefined
+    })) as Session[];
   }
 
   updateSessionStatus(id: string, status: Session['status']) {
@@ -184,6 +202,17 @@ export class SessionStore {
   updateSessionThreadId(id: string, threadId: string) {
     const stmt = this.db.prepare('UPDATE sessions SET threadId = ? WHERE id = ?');
     stmt.run(threadId, id);
+  }
+
+  addFollowUpPrompt(id: string, followUpPrompt: string) {
+    const session = this.getSession(id);
+    if (!session) throw new Error(`Session ${id} not found`);
+    
+    const currentPrompts = session.followUpPrompts || [];
+    const updatedPrompts = [...currentPrompts, followUpPrompt];
+    
+    const stmt = this.db.prepare('UPDATE sessions SET followUpPrompts = ? WHERE id = ?');
+    stmt.run(JSON.stringify(updatedPrompts), id);
   }
 
   deleteSession(id: string): void {

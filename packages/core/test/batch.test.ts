@@ -119,7 +119,7 @@ describe('Exporter', () => {
     await mkdir(tmpDir, { recursive: true });
     dbPath = join(tmpDir, 'test.sqlite');
     store = new SessionStore(dbPath);
-    exporter = new Exporter(store);
+    exporter = new Exporter(store, dbPath);
   });
 
   afterEach(async () => {

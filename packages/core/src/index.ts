@@ -10,3 +10,6 @@ export { Exporter } from './exporter.js';
 export { getCurrentAmpThreadId } from './amp-utils.js';
 export { getDbPath, getUserConfigDir } from './config.js';
 export { acquireLock, releaseLock, isLocked, getLockInfo, withLock, cleanupStaleLocks } from './lock.js';
+
+// Export metrics system
+export * from './metrics/index.js';

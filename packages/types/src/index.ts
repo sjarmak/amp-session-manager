@@ -2,6 +2,7 @@ export interface Session {
   id: string;
   name: string;
   ampPrompt: string;
+  followUpPrompts?: string[];
   repoRoot: string;
   baseBranch: string;
   branchName: string;

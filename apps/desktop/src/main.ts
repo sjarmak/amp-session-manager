@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const { join } = require('path');
-const { SessionStore, WorktreeManager, BatchController, getCurrentAmpThreadId, getDbPath, Notifier } = require('@ampsm/core');
+const { SessionStore, WorktreeManager, BatchController, getCurrentAmpThreadId, getDbPath, Notifier, MetricsAPI, SQLiteMetricsSink, costCalculator, Logger } = require('@ampsm/core');
 
 let mainWindow: any;
 
@@ -48,14 +48,20 @@ let store: any;
 let worktreeManager: any;
 let batchController: any;
 let notifier: any;
+let metricsAPI: any;
 
 async function initializeServices() {
   try {
     const dbPath = getDbPath();
     store = new SessionStore(dbPath);
-    worktreeManager = new WorktreeManager(store);
-    batchController = new BatchController(store, worktreeManager);
+    worktreeManager = new WorktreeManager(store, dbPath);
+    batchController = new BatchController(store, dbPath);
     notifier = new Notifier();
+
+    // Initialize metrics system
+    const logger = new Logger('Desktop');
+    const sqliteSink = new SQLiteMetricsSink(dbPath, logger);
+    metricsAPI = new MetricsAPI(sqliteSink, costCalculator, logger);
 
     notifier.setCallback(async (options: any) => {
       console.log('Notification:', options.title, '-', options.message);
@@ -84,6 +90,15 @@ ipcMain.handle('sessions:list', async () => {
   } catch (error) {
     console.error('Failed to get sessions:', error);
     return [];
+  }
+});
+
+ipcMain.handle('sessions:get', async (_, sessionId: string) => {
+  try {
+    return store.getSession(sessionId);
+  } catch (error) {
+    console.error('Failed to get session:', error);
+    return null;
   }
 });
 
@@ -417,6 +432,72 @@ ipcMain.handle('test-notification', async (_, type: string) => {
   } catch (error) {
     console.error('Failed to test notification:', error);
     return false;
+  }
+});
+
+// Metrics IPC handlers
+ipcMain.handle('metrics:getSessionSummary', async (_, sessionId: string) => {
+  try {
+    if (!metricsAPI) {
+      throw new Error('Metrics API not initialized');
+    }
+    const summary = await metricsAPI.getSessionSummary(sessionId);
+    return { success: true, summary };
+  } catch (error) {
+    console.error('Failed to get session metrics summary:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('metrics:getIterationMetrics', async (_, sessionId: string) => {
+  try {
+    if (!metricsAPI) {
+      throw new Error('Metrics API not initialized');
+    }
+    const iterations = await metricsAPI.getIterationMetrics(sessionId);
+    return { success: true, iterations };
+  } catch (error) {
+    console.error('Failed to get iteration metrics:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('metrics:getRealtimeMetrics', async (_, sessionId: string) => {
+  try {
+    if (!metricsAPI) {
+      throw new Error('Metrics API not initialized');
+    }
+    const metrics = await metricsAPI.getRealtimeMetrics(sessionId);
+    return { success: true, metrics };
+  } catch (error) {
+    console.error('Failed to get realtime metrics:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('metrics:getSessionProgress', async (_, sessionId: string) => {
+  try {
+    if (!metricsAPI) {
+      throw new Error('Metrics API not initialized');
+    }
+    const progress = await metricsAPI.getSessionProgress(sessionId);
+    return { success: true, progress };
+  } catch (error) {
+    console.error('Failed to get session progress:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('metrics:exportMetrics', async (_, sessionId: string, options: any) => {
+  try {
+    if (!metricsAPI) {
+      throw new Error('Metrics API not initialized');
+    }
+    const result = await metricsAPI.exportMetrics(sessionId, options);
+    return { success: true, result };
+  } catch (error) {
+    console.error('Failed to export metrics:', error);
+    return { success: false, error: error.message };
   }
 });
 

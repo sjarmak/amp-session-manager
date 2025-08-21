@@ -2,12 +2,46 @@ import { SessionStore } from './store.js';
 import type { ExportOptions, ReportOptions } from '@ampsm/types';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
+import { MetricsAPI, SQLiteMetricsSink, costCalculator, Logger } from './metrics/index.js';
 
 export class Exporter {
-  constructor(private store: SessionStore) {}
+  private metricsAPI?: MetricsAPI;
+
+  constructor(private store: SessionStore, dbPath?: string) {
+    if (dbPath) {
+      const logger = new Logger('Exporter');
+      const sqliteSink = new SQLiteMetricsSink(dbPath, logger);
+      this.metricsAPI = new MetricsAPI(sqliteSink, costCalculator, logger);
+    }
+  }
 
   async exportRun(options: ExportOptions): Promise<void> {
     const data = this.store.exportData(options);
+    
+    // Add comprehensive metrics data if available
+    if (this.metricsAPI && data.sessions) {
+      const enhancedData = { ...data };
+      enhancedData.sessionsMetrics = [];
+      
+      for (const session of data.sessions) {
+        try {
+          const sessionMetrics = await this.metricsAPI.getSessionSummary(session.id);
+          const iterationMetrics = await this.metricsAPI.getIterationMetrics(session.id);
+          const toolUsage = await this.metricsAPI.getToolUsageStats(session.id);
+          
+          enhancedData.sessionsMetrics.push({
+            sessionId: session.id,
+            summary: sessionMetrics,
+            iterations: iterationMetrics,
+            toolUsage
+          });
+        } catch (error) {
+          console.warn(`Failed to get metrics for session ${session.id}:`, error);
+        }
+      }
+      
+      Object.assign(data, enhancedData);
+    }
     
     // Ensure output directory exists
     await mkdir(options.outDir, { recursive: true });

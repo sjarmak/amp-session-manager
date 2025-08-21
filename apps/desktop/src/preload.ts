@@ -67,6 +67,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   },
 
+  metrics: {
+    getSessionSummary: (sessionId: string) => ipcRenderer.invoke('metrics:getSessionSummary', sessionId),
+    getIterationMetrics: (sessionId: string) => ipcRenderer.invoke('metrics:getIterationMetrics', sessionId),
+    getRealtimeMetrics: (sessionId: string) => ipcRenderer.invoke('metrics:getRealtimeMetrics', sessionId),
+    getSessionProgress: (sessionId: string) => ipcRenderer.invoke('metrics:getSessionProgress', sessionId),
+    exportMetrics: (sessionId: string, options: any) => ipcRenderer.invoke('metrics:exportMetrics', sessionId, options)
+  },
+
   // Auth and external links
   validateAuth: () => ipcRenderer.invoke('auth:validate') as Promise<{
     isAuthenticated: boolean;

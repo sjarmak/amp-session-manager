@@ -52,6 +52,21 @@ function App() {
     setRefreshKey(prev => prev + 1);
   };
 
+  // Reload selected session when refreshKey changes
+  useEffect(() => {
+    if (selectedSession && refreshKey > 0) {
+      window.electronAPI.sessions.get(selectedSession.id)
+        .then(updatedSession => {
+          if (updatedSession) {
+            setSelectedSession(updatedSession);
+          }
+        })
+        .catch(error => {
+          console.error('Failed to reload session:', error);
+        });
+    }
+  }, [refreshKey, selectedSession?.id]);
+
   // Handle notification actions
   useEffect(() => {
     const handleNotificationAction = async (action: string) => {

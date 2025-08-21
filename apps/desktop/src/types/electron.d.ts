@@ -52,6 +52,13 @@ declare global {
         onAction: (callback: (action: string) => void) => void;
         offAction: (callback: (action: string) => void) => void;
       };
+      metrics: {
+        getSessionSummary: (sessionId: string) => Promise<{ success: boolean; summary?: any; error?: string }>;
+        getIterationMetrics: (sessionId: string) => Promise<{ success: boolean; iterations?: any[]; error?: string }>;
+        getRealtimeMetrics: (sessionId: string) => Promise<{ success: boolean; metrics?: any; error?: string }>;
+        getSessionProgress: (sessionId: string) => Promise<{ success: boolean; progress?: any; error?: string }>;
+        exportMetrics: (sessionId: string, options: any) => Promise<{ success: boolean; result?: any; error?: string }>;
+      };
       
       // Auth and external links
       validateAuth: () => Promise<{

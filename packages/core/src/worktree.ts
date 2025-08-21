@@ -9,14 +9,33 @@ import { randomUUID } from 'crypto';
 import { spawn } from 'child_process';
 import { homedir } from 'os';
 import { isLocked, acquireLock, releaseLock } from './lock.js';
+import { MetricsEventBus, SQLiteMetricsSink, NDJSONMetricsSink, GitInstrumentation, costCalculator } from './metrics/index.js';
+import { Logger } from './utils/logger.js';
 
 export class WorktreeManager {
   private ampAdapter: AmpAdapter;
+  private metricsEventBus: MetricsEventBus;
+  private logger: Logger;
 
   constructor(
     private store: SessionStore,
     private dbPath?: string
   ) {
+    this.logger = new Logger('WorktreeManager');
+    this.metricsEventBus = new MetricsEventBus(this.logger);
+    
+    // Initialize metrics sinks
+    if (dbPath) {
+      const sqliteSink = new SQLiteMetricsSink(dbPath, this.logger);
+      this.metricsEventBus.addSink(sqliteSink);
+      
+      const ndjsonSink = new NDJSONMetricsSink(
+        join(process.cwd(), 'metrics-events.ndjson'), 
+        this.logger
+      );
+      this.metricsEventBus.addSink(ndjsonSink);
+    }
+    
     this.ampAdapter = new AmpAdapter(this.loadAmpConfig(), this.store);
   }
 
@@ -99,11 +118,25 @@ export class WorktreeManager {
 
     // Create iteration record
     const iteration = this.store.createIteration(sessionId);
+    const iterationId = iteration.id;
     
     this.store.updateSessionStatus(sessionId, 'running');
 
+    // Initialize metrics tracking
+    const git = new GitOps(session.repoRoot);
+    const gitInstrumentation = new GitInstrumentation(this.logger, this.metricsEventBus, session.worktreePath);
+    const startTime = Date.now();
+    const startSha = gitInstrumentation.getCurrentSha();
+
+    // Publish iteration start event
+    await this.metricsEventBus.publishIterationStart(
+      sessionId, 
+      iterationId, 
+      await this.getIterationNumber(sessionId), 
+      startSha
+    );
+
     try {
-      const git = new GitOps(session.repoRoot);
       
       // Update diff summary
       const diff = await git.getDiff(session.worktreePath);
@@ -123,6 +156,12 @@ export class WorktreeManager {
       // Run Amp iteration
       console.log('Running Amp iteration...');
       const iterationPrompt = notes || session.ampPrompt;
+      
+      // Track follow-up prompt when notes are provided
+      if (notes) {
+        this.store.addFollowUpPrompt(sessionId, notes);
+      }
+      
       const result = await this.ampAdapter.runIteration(
         iterationPrompt, 
         session.worktreePath, 
@@ -165,9 +204,14 @@ export class WorktreeManager {
         const changedFilesList = await git.getChangedFiles(session.worktreePath);
         changedFiles = changedFilesList.length;
         
-        // Auto-commit if amp made changes
-        const commitResult = await git.commitChanges('amp: iteration changes', session.worktreePath);
-        commitSha = commitResult || undefined;
+        // Use instrumented git operations for metrics tracking
+        const commitResult = await gitInstrumentation.commit(
+          'amp: iteration changes',
+          sessionId,
+          iterationId,
+          true
+        );
+        commitSha = commitResult.shaAfter;
         
         console.log(`✓ Committed ${changedFiles} changed files: ${commitSha?.slice(0, 8)}`);
       } else {
@@ -190,6 +234,77 @@ export class WorktreeManager {
           finalStatus = 'awaiting-input';
         }
       }
+
+      // Publish comprehensive metrics
+      const endTime = Date.now();
+      const durationMs = endTime - startTime;
+
+      // Publish LLM usage metrics if available
+      if (result.telemetry.totalTokens && result.telemetry.model) {
+        const cost = costCalculator.calculateCost({
+          promptTokens: result.telemetry.promptTokens || 0,
+          completionTokens: result.telemetry.completionTokens || 0,
+          totalTokens: result.telemetry.totalTokens,
+          model: result.telemetry.model
+        });
+
+        await this.metricsEventBus.publishLLMUsage(
+          sessionId,
+          iterationId,
+          result.telemetry.model,
+          {
+            promptTokens: result.telemetry.promptTokens || 0,
+            completionTokens: result.telemetry.completionTokens || 0,
+            totalTokens: result.telemetry.totalTokens,
+            costUsd: cost.totalCost,
+            latencyMs: durationMs
+          }
+        );
+      }
+
+      // Publish tool call metrics
+      for (const toolCall of result.telemetry.toolCalls) {
+        await this.metricsEventBus.publishToolCall(
+          sessionId,
+          iterationId,
+          toolCall.toolName,
+          toolCall.args,
+          {
+            startTime: toolCall.timestamp,
+            endTime: new Date(new Date(toolCall.timestamp).getTime() + (toolCall.durationMs || 0)).toISOString(),
+            durationMs: toolCall.durationMs || 0,
+            success: toolCall.success
+          }
+        );
+      }
+
+      // Publish test results if available
+      if (session.scriptCommand && testExitCode !== undefined) {
+        await this.metricsEventBus.publishTestResult(
+          sessionId,
+          iterationId,
+          'script',
+          session.scriptCommand,
+          {
+            total: 1,
+            passed: testResult === 'pass' ? 1 : 0,
+            failed: testResult === 'fail' ? 1 : 0,
+            skipped: 0,
+            durationMs: 0, // We don't track script duration separately yet
+            exitCode: testExitCode
+          }
+        );
+      }
+
+      // Publish iteration end event
+      await this.metricsEventBus.publishIterationEnd(
+        sessionId,
+        iterationId,
+        await this.getIterationNumber(sessionId),
+        finalStatus === 'idle' ? 'success' : finalStatus === 'error' ? 'failed' : 'awaiting-input',
+        durationMs,
+        result.telemetry.exitCode
+      );
 
       // Update iteration with telemetry and save tool calls
       this.store.finishIteration(
@@ -298,6 +413,11 @@ export class WorktreeManager {
     }
 
     console.log(`✓ Successfully rebased onto ${onto}`);
+  }
+
+  private async getIterationNumber(sessionId: string): Promise<number> {
+    const iterations = this.store.getIterations(sessionId);
+    return iterations.length;
   }
 
   private generateSessionContext(session: Session): string {
