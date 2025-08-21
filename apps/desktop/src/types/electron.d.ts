@@ -41,6 +41,7 @@ declare global {
         delete: (runId: string) => Promise<{ success: boolean; error?: string }>;
         export: (options: any) => Promise<{ success: boolean; filePaths?: string[]; error?: string }>;
         report: (options: any) => Promise<{ success: boolean; outputPath?: string; error?: string }>;
+        cleanEnvironment: () => Promise<{ [repoRoot: string]: { removedDirs: number; removedSessions: number } }>;
         onEvent: (callback: (event: any) => void) => void;
         offEvent: (callback: (event: any) => void) => void;
       };
@@ -51,6 +52,15 @@ declare global {
         onAction: (callback: (action: string) => void) => void;
         offAction: (callback: (action: string) => void) => void;
       };
+      
+      // Auth and external links
+      validateAuth: () => Promise<{
+        isAuthenticated: boolean;
+        error?: string;
+        suggestion?: string;
+        hasCredits?: boolean;
+      }>;
+      openExternal: (url: string) => Promise<void>;
     };
   }
 }

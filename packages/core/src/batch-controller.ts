@@ -2,6 +2,8 @@ import { EventEmitter } from 'events';
 import { SessionStore } from './store.js';
 import { BatchRunner } from './batch.js';
 import { Exporter } from './exporter.js';
+import { WorktreeManager } from './worktree.js';
+import { GitOps } from './git.js';
 import type { Plan, BatchRecord, BatchItem, ExportOptions, ReportOptions } from '@ampsm/types';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
@@ -227,9 +229,82 @@ export class BatchController extends EventEmitter {
       // Already stopped, continue with deletion
     }
     
-    // Delete from database
+    // Get all session IDs before deleting to clean up worktrees
+    const batchItems = this.store.getBatchItems(runId);
+    const sessionIdsFromItems = batchItems
+      .filter(item => item.sessionId)
+      .map(item => item.sessionId!);
+      
+    // Also find sessions that might not be properly linked to batch items
+    // Look for sessions that contain the runId in their notes or match branch naming
+    const allSessions = this.store.getAllSessions();
+    const sessionIdsFromDb = allSessions
+      .filter(session => 
+        session.notes === runId || 
+        session.branchName.includes(runId.slice(0, 8)) // runId prefix in branch name
+      )
+      .map(session => session.id);
+    
+    // Combine both sets to ensure complete cleanup
+    const allSessionIds = new Set([...sessionIdsFromItems, ...sessionIdsFromDb]);
+    const sessionIds = Array.from(allSessionIds);
+    
+    console.log(`Found ${sessionIds.length} sessions to clean up for batch ${runId}`);
+    
+    // Clean up worktrees for each session
+    const worktreeManager = new WorktreeManager(this.store, this.dbPath);
+    const cleanupErrors: Array<{ sessionId: string; error: any }> = [];
+    
+    // Process cleanups sequentially to avoid conflicts
+    for (const sessionId of sessionIds) {
+      try {
+        await worktreeManager.cleanup(sessionId, true); // force cleanup
+      } catch (error) {
+        cleanupErrors.push({ sessionId, error });
+        console.warn(`Failed to cleanup worktree for session ${sessionId}:`, error);
+      }
+    }
+    
+    // Delete batch from database (sessions should already be deleted by worktree cleanup)
     this.store.deleteBatch(runId);
+    
+    // Log summary of cleanup
+    if (cleanupErrors.length > 0) {
+      console.warn(`Batch deletion completed with ${cleanupErrors.length} cleanup errors out of ${sessionIds.length} sessions`);
+    } else {
+      console.log(`✓ Successfully cleaned up all ${sessionIds.length} sessions and worktrees`);
+    }
+    
     this.emit('run-deleted', { runId });
+  }
+
+  /**
+   * Clean up orphaned worktrees and sessions across all repos
+   */
+  async cleanWorktreeEnvironment(): Promise<{ [repoRoot: string]: { removedDirs: number; removedSessions: number } }> {
+    console.log('🧹 Starting worktree environment cleanup...');
+    
+    // Get all unique repo roots from sessions
+    const allSessions = this.store.getAllSessions();
+    const repoRoots = [...new Set(allSessions.map(s => s.repoRoot))];
+    
+    const results: { [repoRoot: string]: { removedDirs: number; removedSessions: number } } = {};
+    
+    for (const repoRoot of repoRoots) {
+      try {
+        const worktreeManager = new WorktreeManager(this.store, this.dbPath);
+        results[repoRoot] = await worktreeManager.pruneOrphans(repoRoot);
+      } catch (error) {
+        console.error(`Failed to clean up repo ${repoRoot}:`, error);
+        results[repoRoot] = { removedDirs: 0, removedSessions: 0 };
+      }
+    }
+    
+    const totalDirs = Object.values(results).reduce((sum, r) => sum + r.removedDirs, 0);
+    const totalSessions = Object.values(results).reduce((sum, r) => sum + r.removedSessions, 0);
+    
+    console.log(`✅ Environment cleanup complete: ${totalDirs} directories, ${totalSessions} sessions removed`);
+    return results;
   }
 
   async export(options: BatchExportOptions): Promise<string[]> {

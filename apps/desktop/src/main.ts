@@ -333,6 +333,34 @@ ipcMain.handle('batch:delete', async (_, runId: string) => {
   }
 });
 
+ipcMain.handle('batch:cleanEnvironment', async () => {
+  try {
+    return await batchController.cleanWorktreeEnvironment();
+  } catch (error) {
+    console.error('Failed to clean environment:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('auth:validate', async () => {
+  try {
+    const { AmpAdapter } = require('@ampsm/core');
+    const ampAdapter = new AmpAdapter({}, store);
+    return await ampAdapter.validateAuth();
+  } catch (error) {
+    console.error('Failed to validate auth:', error);
+    return {
+      isAuthenticated: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+});
+
+ipcMain.handle('shell:openExternal', async (_, url: string) => {
+  const { shell } = require('electron');
+  return await shell.openExternal(url);
+});
+
 ipcMain.handle('get-amp-thread-id', async () => {
   try {
     return getCurrentAmpThreadId();

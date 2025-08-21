@@ -8,6 +8,7 @@ import { BatchesView } from './components/BatchesView';
 import { BatchRunDetail } from './components/BatchRunDetail';
 import { NewBatchModal } from './components/NewBatchModal';
 import NotificationSettingsModal from './components/NotificationSettingsModal';
+import { AuthStatus } from './components/AuthStatus';
 import './App.css';
 
 function App() {
@@ -123,6 +124,11 @@ function App() {
             </svg>
           </button>
         </header>
+
+        {/* Auth Status */}
+        <div className="mb-6">
+          <AuthStatus />
+        </div>
 
         {/* Navigation tabs */}
         <div className="mb-6">

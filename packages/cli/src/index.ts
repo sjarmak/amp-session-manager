@@ -25,6 +25,7 @@ import { reportCommand } from './commands/report.js';
 import { lockCommand } from './commands/lock.js';
 import { repairCommand } from './commands/repair.js';
 import { cleanupDanglingCommand } from './commands/cleanup-dangling.js';
+import { cleanEnvironmentCommand } from './commands/clean-environment.js';
 
 const program = new Command();
 
@@ -238,5 +239,13 @@ program
   .option('--yes', 'Skip confirmation prompt')
   .option('--json', 'Output as JSON')
   .action(cleanupDanglingCommand);
+
+program
+  .command('clean-environment')
+  .alias('clean-env')
+  .description('Comprehensive cleanup of orphaned worktrees and sessions (recommended)')
+  .option('--yes', 'Skip confirmation prompt')
+  .option('--json', 'Output as JSON')
+  .action(cleanEnvironmentCommand);
 
 program.parse();

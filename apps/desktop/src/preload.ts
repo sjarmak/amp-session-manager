@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (runId: string) => ipcRenderer.invoke('batch:delete', runId),
     export: (options: any) => ipcRenderer.invoke('batch:export', options),
     report: (options: any) => ipcRenderer.invoke('batch:report', options),
+    cleanEnvironment: () => ipcRenderer.invoke('batch:cleanEnvironment'),
     onEvent: (callback: (event: any) => void) => {
       ipcRenderer.on('batch:event', (_, event) => callback(event));
     },
@@ -64,7 +65,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
       const handler = (_: any, action: string) => callback(action);
       ipcRenderer.removeListener('notification:action', handler);
     }
-  }
+  },
+
+  // Auth and external links
+  validateAuth: () => ipcRenderer.invoke('auth:validate') as Promise<{
+    isAuthenticated: boolean;
+    error?: string;
+    suggestion?: string;
+    hasCredits?: boolean;
+  }>,
+  openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url) as Promise<void>
 });
 
 export {};

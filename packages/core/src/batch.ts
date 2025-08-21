@@ -52,7 +52,7 @@ export class BatchRunner {
     }
   }
 
-  async runBatch(plan: Plan, dryRun = false): Promise<string> {
+  async runBatch(plan: Plan, dryRun = false, skipAuthCheck = false): Promise<string> {
     const runId = plan.runId || randomUUID();
     
     if (dryRun) {
@@ -62,6 +62,23 @@ export class BatchRunner {
       console.log(`Models: ${[...new Set(plan.matrix.map(item => item.model || plan.defaults.model || 'default'))].join(', ')}`);
       console.log(`Repos: ${[...new Set(plan.matrix.map(item => item.repo))].join(', ')}`);
       return runId;
+    }
+
+    // Pre-flight auth check to prevent failed batches
+    if (!skipAuthCheck) {
+      const { AmpAdapter } = await import('./amp.js');
+      const ampAdapter = new AmpAdapter({}, this.store);
+      const authStatus = await ampAdapter.validateAuth();
+      
+      if (!authStatus.isAuthenticated) {
+        throw new Error(`Authentication required: ${authStatus.error}. ${authStatus.suggestion}`);
+      }
+      
+      if (authStatus.hasCredits === false) {
+        throw new Error(`Insufficient credits: ${authStatus.error}. ${authStatus.suggestion}`);
+      }
+      
+      console.log('✓ Auth validation passed');
     }
 
     // Create batch record
@@ -178,12 +195,19 @@ export class BatchRunner {
       if (lastIteration) {
         const toolCalls = this.store.getToolCalls(session.id, lastIteration.id);
         
+        // Check both test result and session status for accurate reporting
+        const sessionRecord = this.store.getSession(session.id);
+        const iterFailed = lastIteration.exitCode !== 0 || sessionRecord?.status === 'error';
+        
         this.store.updateBatchItem(item.id, {
-          status: lastIteration.testResult === 'fail' ? 'fail' : 'success',
+          status: iterFailed 
+            ? (lastIteration.exitCode === -1 ? 'error' : 'fail')
+            : (lastIteration.testResult === 'fail' ? 'fail' : 'success'),
           finishedAt: new Date().toISOString(),
           iterSha: lastIteration.commitSha,
           tokensTotal: lastIteration.totalTokens,
           toolCalls: toolCalls.length,
+          error: undefined, // Clear any previous errors on successful completion
         });
 
         // Handle mergeOnPass

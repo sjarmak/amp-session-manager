@@ -121,6 +121,13 @@ export class SessionStore {
     } catch (error) {
       // Column already exists, ignore error
     }
+    
+    // Migration: Add ampArgs column if it doesn't exist
+    try {
+      this.db.exec(`ALTER TABLE iterations ADD COLUMN ampArgs TEXT;`);
+    } catch (error) {
+      // Column already exists, ignore error
+    }
   }
 
   createSession(options: SessionCreateOptions): Session {
@@ -152,8 +159,8 @@ export class SessionStore {
     stmt.run(
       session.id, session.name, session.ampPrompt, session.repoRoot,
       session.baseBranch, session.branchName, session.worktreePath,
-      session.status, session.scriptCommand, session.modelOverride,
-      session.threadId, session.createdAt
+      session.status, session.scriptCommand ?? null, session.modelOverride ?? null,
+      session.threadId ?? null, session.createdAt
     );
 
     return session;
@@ -184,6 +191,7 @@ export class SessionStore {
     this.db.prepare('DELETE FROM tool_calls WHERE sessionId = ?').run(id);
     this.db.prepare('DELETE FROM iterations WHERE sessionId = ?').run(id);
     this.db.prepare('DELETE FROM merge_history WHERE sessionId = ?').run(id);
+    this.db.prepare('DELETE FROM batch_items WHERE sessionId = ?').run(id);
     this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
   }
 
@@ -200,7 +208,7 @@ export class SessionStore {
       INSERT INTO iterations (id, sessionId, startTime, changedFiles)
       VALUES (?, ?, ?, ?)
     `);
-    stmt.run(iteration.id, iteration.sessionId, iteration.startTime, iteration.changedFiles);
+    stmt.run(iteration.id, iteration.sessionId, iteration.startTime, iteration.changedFiles ?? null);
 
     return iteration;
   }
@@ -212,7 +220,7 @@ export class SessionStore {
     Object.entries(updates).forEach(([key, value]) => {
       if (key !== 'id' && key !== 'sessionId' && value !== undefined) {
         fields.push(`${key} = ?`);
-        values.push(value);
+        values.push(value === undefined ? null : value);
       }
     });
 
@@ -257,10 +265,10 @@ export class SessionStore {
       toolCall.iterationId,
       toolCall.timestamp,
       toolCall.toolName,
-      toolCall.argsJson,
+      toolCall.argsJson ?? null,
       toolCall.success,
-      toolCall.durationMs,
-      toolCall.rawJson
+      toolCall.durationMs ?? null,
+      toolCall.rawJson ?? null
     );
   }
 
@@ -335,12 +343,12 @@ export class SessionStore {
       record.id,
       record.sessionId,
       record.startedAt,
-      record.finishedAt,
+      record.finishedAt ?? null,
       record.baseBranch,
       record.mode,
       record.result,
       record.conflictFiles ? JSON.stringify(record.conflictFiles) : null,
-      record.squashMessage
+      record.squashMessage ?? null
     );
   }
 
@@ -358,7 +366,7 @@ export class SessionStore {
         if (key === 'conflictFiles' && Array.isArray(value)) {
           values.push(JSON.stringify(value));
         } else {
-          values.push(value);
+          values.push(value === undefined ? null : value);
         }
       }
     });
@@ -421,17 +429,17 @@ export class SessionStore {
     stmt.run(
       item.id,
       item.runId,
-      item.sessionId,
+      item.sessionId ?? null,
       item.repo,
       item.prompt,
       item.status,
-      item.error,
-      item.startedAt,
-      item.finishedAt,
-      item.model,
-      item.iterSha,
-      item.tokensTotal,
-      item.toolCalls
+      item.error ?? null,
+      item.startedAt ?? null,
+      item.finishedAt ?? null,
+      item.model ?? null,
+      item.iterSha ?? null,
+      item.tokensTotal ?? null,
+      item.toolCalls ?? null
     );
 
     return item;
@@ -444,7 +452,7 @@ export class SessionStore {
     Object.entries(updates).forEach(([key, value]) => {
       if (key !== 'id' && value !== undefined) {
         fields.push(`${key} = ?`);
-        values.push(value);
+        values.push(value === undefined ? null : value);
       }
     });
 
@@ -471,6 +479,10 @@ export class SessionStore {
   }
 
   deleteBatch(runId: string): void {
+    // Get all session IDs associated with this batch before deletion
+    const getSessionIdsStmt = this.db.prepare('SELECT sessionId FROM batch_items WHERE runId = ? AND sessionId IS NOT NULL');
+    const sessionIds = (getSessionIdsStmt.all(runId) as Array<{ sessionId: string }>).map(row => row.sessionId);
+    
     // Delete batch items first (foreign key relationship)
     const deleteItemsStmt = this.db.prepare('DELETE FROM batch_items WHERE runId = ?');
     deleteItemsStmt.run(runId);
@@ -478,6 +490,20 @@ export class SessionStore {
     // Then delete the batch record
     const deleteBatchStmt = this.db.prepare('DELETE FROM batches WHERE runId = ?');
     deleteBatchStmt.run(runId);
+    
+    // Clean up any remaining sessions that weren't deleted by worktree cleanup
+    for (const sessionId of sessionIds) {
+      try {
+        // Check if session still exists before trying to delete
+        const session = this.getSession(sessionId);
+        if (session) {
+          this.deleteSession(sessionId);
+          console.log(`✓ Cleaned up remaining session ${sessionId} from database`);
+        }
+      } catch (error) {
+        // Session already deleted or doesn't exist, ignore
+      }
+    }
   }
 
   exportData(options: ExportOptions): any {

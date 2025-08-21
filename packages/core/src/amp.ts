@@ -103,10 +103,7 @@ export class AmpAdapter {
         args.push('--model', modelOverride);
       }
 
-      // Enable JSON logs if available
-      if (this.config.enableJSONLogs) {
-        args.push('--jsonl-logs');
-      }
+      // Note: Real Amp CLI doesn't support --jsonl-logs, so we skip this
 
       // Add the prompt (use stdin for long prompts)
       console.log('Amp environment check:', {
@@ -118,10 +115,14 @@ export class AmpAdapter {
       // Store args for UI verification
       this.lastUsedArgs = args;
       
+      // Smart auth: prefer stored credentials over env vars for better UX
+      const env = this.config.env ? { ...process.env, ...this.config.env } : { ...process.env };
+      delete env.AMP_API_KEY; // Remove to let stored credentials work
+      
       const child = spawn(this.config.ampPath!, args, {
         cwd: workingDir,
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: this.config.env ? { ...process.env, ...this.config.env } : process.env
+        env
       });
       
       let output = '';
@@ -316,5 +317,75 @@ Please provide a thorough analysis and actionable recommendations.`;
       output: result.output,
       tokenUsage: result.telemetry.totalTokens
     };
+  }
+
+  /**
+   * Validate Amp CLI authentication and return detailed status
+   */
+  async validateAuth(): Promise<{
+    isAuthenticated: boolean;
+    error?: string;
+    suggestion?: string;
+    hasCredits?: boolean;
+  }> {
+    return new Promise((resolve) => {
+      const testPrompt = 'echo "auth test"';
+      const env = { ...process.env };
+      delete env.AMP_API_KEY; // Use same auth strategy as main commands
+      
+      const child = spawn(this.config.ampPath!, ['-x'], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env
+      });
+      
+      let output = '';
+      let stderr = '';
+      
+      child.stdout?.on('data', (data) => output += data.toString());
+      child.stderr?.on('data', (data) => stderr += data.toString());
+      
+      if (child.stdin) {
+        child.stdin.write(testPrompt);
+        child.stdin.end();
+      }
+      
+      child.on('close', (exitCode) => {
+        const fullOutput = output + stderr;
+        
+        if (fullOutput.includes('Not logged in') || fullOutput.includes('Unauthorized')) {
+          resolve({
+            isAuthenticated: false,
+            error: 'Not logged in to Amp CLI',
+            suggestion: 'Run "amp login" in terminal or use the built-in login flow'
+          });
+        } else if (fullOutput.includes('Insufficient credit')) {
+          resolve({
+            isAuthenticated: true,
+            hasCredits: false,
+            error: 'Insufficient credit balance',
+            suggestion: 'Add credits to your Amp account at ampcode.com/settings'
+          });
+        } else if (exitCode === 0) {
+          resolve({
+            isAuthenticated: true,
+            hasCredits: true
+          });
+        } else {
+          resolve({
+            isAuthenticated: false,
+            error: `Auth validation failed: ${fullOutput.slice(0, 100)}`,
+            suggestion: 'Check your Amp CLI configuration'
+          });
+        }
+      });
+      
+      child.on('error', (error) => {
+        resolve({
+          isAuthenticated: false,
+          error: `Failed to run amp CLI: ${error.message}`,
+          suggestion: 'Make sure Amp CLI is installed and in your PATH'
+        });
+      });
+    });
   }
 }

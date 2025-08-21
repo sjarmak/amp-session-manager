@@ -313,19 +313,57 @@ export class GitOps {
   }
 
   async safeRemoveWorktreeAndBranch(worktreePath: string, branchName: string, baseBranch: string): Promise<void> {
-    // Verify the commit is reachable from base branch
-    const isReachable = await this.isCommitReachableFromBase(baseBranch, worktreePath);
-    if (!isReachable) {
-      throw new Error('Session commit is not reachable from base branch. Cannot safely delete.');
+    // Check if worktree exists
+    const fs = await import('fs/promises');
+    const worktreeExists = await fs.access(worktreePath).then(() => true).catch(() => false);
+    
+    if (worktreeExists) {
+      // Verify the commit is reachable from base branch
+      const isReachable = await this.isCommitReachableFromBase(baseBranch, worktreePath);
+      if (!isReachable) {
+        throw new Error('Session commit is not reachable from base branch. Cannot safely delete.');
+      }
+      
+      await this.exec(['worktree', 'remove', worktreePath]);
+    } else {
+      // Worktree doesn't exist, just remove it from git's worktree list
+      try {
+        await this.exec(['worktree', 'remove', worktreePath]);
+      } catch (error) {
+        // Ignore error if worktree is already not in git's list
+      }
     }
     
-    await this.exec(['worktree', 'remove', worktreePath]);
-    await this.exec(['branch', '-D', branchName]);
+    // Always try to delete the branch
+    try {
+      await this.exec(['branch', '-D', branchName]);
+    } catch (error) {
+      // Branch might not exist, ignore error
+    }
   }
 
   async forceRemoveWorktreeAndBranch(worktreePath: string, branchName: string): Promise<void> {
     // Force remove without safety checks
-    await this.exec(['worktree', 'remove', '--force', worktreePath]);
-    await this.exec(['branch', '-D', branchName]);
+    try {
+      await this.exec(['worktree', 'remove', '--force', worktreePath]);
+    } catch (error) {
+      // Worktree might not exist, ignore error
+    }
+    
+    try {
+      await this.exec(['branch', '-D', branchName]);
+    } catch (error) {
+      // Branch might not exist, ignore error
+    }
+    
+    // Ensure physical directory is removed
+    try {
+      const { access, rm } = await import('fs/promises');
+      await access(worktreePath); // Check if still exists
+      await rm(worktreePath, { recursive: true, force: true });
+      console.log(`✓ Removed residual directory ${worktreePath}`);
+    } catch {
+      // Directory already gone or never existed
+    }
   }
 }

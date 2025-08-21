@@ -611,6 +611,75 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
     console.log(`✓ Cleaned up session worktree, branch, and database record`);
   }
 
+  /**
+   * Scan for mismatches between DB, git worktree list and filesystem.
+   * Removes:
+   *  – worktree folders with no DB session
+   *  – DB sessions whose folder is gone
+   */
+  async pruneOrphans(repoRoot: string): Promise<{ removedDirs: number; removedSessions: number }> {
+    console.log(`🔍 Scanning for orphaned worktrees in ${repoRoot}...`);
+    
+    let removedDirs = 0;
+    let removedSessions = 0;
+    
+    try {
+      const git = new GitOps(repoRoot);
+      
+      // Get all git worktrees
+      const result = await git.exec(['worktree', 'list', '--porcelain']);
+      const activePaths = new Set<string>();
+      
+      if (result.stdout) {
+        const lines = result.stdout.split('\n').filter(Boolean);
+        for (const line of lines) {
+          if (line.startsWith('worktree ')) {
+            const path = line.replace('worktree ', '').trim();
+            activePaths.add(path);
+          }
+        }
+      }
+      
+      // Get all sessions from DB
+      const dbSessions = this.store.getAllSessions().filter(s => s.repoRoot === repoRoot);
+      
+      // 1. Remove git worktrees that have no corresponding DB session
+      for (const path of activePaths) {
+        if (!dbSessions.find(s => s.worktreePath === path)) {
+          console.log(`🧹 Removing orphaned worktree: ${path}`);
+          try {
+            await git.exec(['worktree', 'remove', '--force', path]);
+            const { rm } = await import('fs/promises');
+            await rm(path, { recursive: true, force: true });
+            removedDirs++;
+          } catch (error) {
+            console.warn(`Failed to remove orphaned worktree ${path}:`, error);
+          }
+        }
+      }
+      
+      // 2. Remove DB sessions whose directory is gone
+      const { stat } = await import('fs/promises');
+      for (const session of dbSessions) {
+        try {
+          await stat(session.worktreePath);
+        } catch {
+          // Directory doesn't exist, remove session from DB
+          console.log(`🧹 Removing orphaned session: ${session.id} (${session.name})`);
+          this.store.deleteSession(session.id);
+          removedSessions++;
+        }
+      }
+      
+      console.log(`✓ Cleanup complete: removed ${removedDirs} directories, ${removedSessions} sessions`);
+      return { removedDirs, removedSessions };
+      
+    } catch (error) {
+      console.error('Failed to prune orphans:', error);
+      throw error;
+    }
+  }
+
   private loadAmpConfig(): AmpAdapterConfig {
     try {
       const configPath = join(homedir(), '.amp-session-manager', 'config.json');
