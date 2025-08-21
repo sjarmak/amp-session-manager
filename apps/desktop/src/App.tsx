@@ -7,12 +7,13 @@ import { NewSessionModal } from './components/NewSessionModal';
 import { BatchesView } from './components/BatchesView';
 import { BatchRunDetail } from './components/BatchRunDetail';
 import { NewBatchModal } from './components/NewBatchModal';
+import { ThreadsView } from './components/ThreadsView';
 import NotificationSettingsModal from './components/NotificationSettingsModal';
 import { AuthStatus } from './components/AuthStatus';
 import './App.css';
 
 function App() {
-  const [currentView, setCurrentView] = useState<'sessions' | 'batches' | 'session' | 'batch-detail'>('sessions');
+  const [currentView, setCurrentView] = useState<'sessions' | 'batches' | 'threads' | 'session' | 'batch-detail'>('sessions');
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [selectedBatchRun, setSelectedBatchRun] = useState<string | null>(null);
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
@@ -51,6 +52,8 @@ function App() {
   const handleBatchCreated = () => {
     setRefreshKey(prev => prev + 1);
   };
+
+
 
   // Reload selected session when refreshKey changes
   useEffect(() => {
@@ -168,6 +171,16 @@ function App() {
             >
               Batches
             </button>
+            <button
+              onClick={() => setCurrentView('threads')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                currentView === 'threads' 
+                  ? 'bg-orange-500 text-white shadow-sm' 
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-orange-100'
+              }`}
+            >
+              Threads
+            </button>
           </nav>
         </div>
 
@@ -185,6 +198,10 @@ function App() {
                 onRunSelect={handleBatchRunSelect}
                 onNewBatch={() => setShowNewBatchModal(true)}
               />
+            </div>
+          ) : currentView === 'threads' ? (
+            <div key={refreshKey}>
+              <ThreadsView />
             </div>
           ) : currentView === 'batch-detail' && selectedBatchRun ? (
             <BatchRunDetail

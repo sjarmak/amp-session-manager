@@ -60,7 +60,7 @@ async function initializeServices() {
     const metricsEventBus = new MetricsEventBus(logger);
     const sqliteSink = new SQLiteMetricsSink(dbPath, logger);
     metricsEventBus.addSink(sqliteSink);
-    metricsAPI = new MetricsAPI(sqliteSink, costCalculator, logger);
+    metricsAPI = new MetricsAPI(sqliteSink, store, logger);
     
     // Pass shared metrics bus to WorktreeManager and BatchController
     worktreeManager = new WorktreeManager(store, dbPath, metricsEventBus);

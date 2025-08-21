@@ -97,8 +97,81 @@ export class GitOps {
     return result.exitCode === 0;
   }
 
+  public async getDefaultBranch(): Promise<string> {
+    // Try to get the default branch from remote HEAD
+    const defaultBranchResult = await this.exec(['symbolic-ref', 'refs/remotes/origin/HEAD']);
+    if (defaultBranchResult.exitCode === 0) {
+      return defaultBranchResult.stdout.trim().replace('refs/remotes/origin/', '');
+    }
+    
+    // Fallback: try to get current branch
+    const currentBranchResult = await this.exec(['rev-parse', '--abbrev-ref', 'HEAD']);
+    if (currentBranchResult.exitCode === 0) {
+      return currentBranchResult.stdout.trim();
+    }
+    
+    // Last fallback: return 'main'
+    return 'main';
+  }
+
   async createWorktree(branchName: string, worktreePath: string, baseBranch: string = 'main'): Promise<void> {
+    const maxRetries = 3;
+    let attempt = 0;
+    
+    while (attempt < maxRetries) {
+      try {
+        await this.createWorktreeInternal(branchName, worktreePath, baseBranch);
+        return; // Success
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        // Check if it's a git lock error
+        if (errorMessage.includes('index.lock') || errorMessage.includes('Another git process')) {
+          attempt++;
+          if (attempt < maxRetries) {
+            console.log(`Git lock conflict detected (attempt ${attempt}/${maxRetries}), retrying in ${attempt * 2} seconds...`);
+            await new Promise(resolve => setTimeout(resolve, attempt * 2000));
+            
+            // Try to clean up stale lock files
+            await this.cleanupGitLocks();
+            continue;
+          }
+        }
+        
+        // Not a lock error or max retries reached
+        throw error;
+      }
+    }
+  }
+
+  private async createWorktreeInternal(branchName: string, worktreePath: string, baseBranch: string): Promise<void> {
     try {
+      // Check if repository has any commits
+      const hasCommitsResult = await this.exec(['rev-list', '--count', 'HEAD']);
+      if (hasCommitsResult.exitCode !== 0) {
+        throw new Error(`Repository has no commits yet. Please make an initial commit before creating sessions.`);
+      }
+      
+      // Check if baseBranch exists
+      const branchExistsResult = await this.exec(['rev-parse', '--verify', baseBranch]);
+      if (branchExistsResult.exitCode !== 0) {
+        // Try to find the default branch
+        const defaultBranchResult = await this.exec(['symbolic-ref', 'refs/remotes/origin/HEAD']);
+        if (defaultBranchResult.exitCode === 0) {
+          const defaultBranch = defaultBranchResult.stdout.trim().replace('refs/remotes/origin/', '');
+          throw new Error(`Branch '${baseBranch}' does not exist. The repository's default branch appears to be '${defaultBranch}'. Please use --base ${defaultBranch} or create the '${baseBranch}' branch.`);
+        } else {
+          // List available branches
+          const branchesResult = await this.exec(['branch', '-a']);
+          const branches = branchesResult.stdout.split('\n')
+            .map(line => line.trim().replace(/^\*\s*/, '').replace(/^remotes\/origin\//, ''))
+            .filter(line => line && !line.includes('HEAD ->'))
+            .slice(0, 5); // Show first 5 branches
+          
+          throw new Error(`Branch '${baseBranch}' does not exist. Available branches: ${branches.join(', ')}. Please use --base <branch-name> to specify an existing branch.`);
+        }
+      }
+      
       // Check if we have any remotes
       const remotesResult = await this.exec(['remote']);
       const hasRemotes = remotesResult.exitCode === 0 && remotesResult.stdout.trim().length > 0;
@@ -310,6 +383,38 @@ export class GitOps {
     // Check if HEAD is reachable from baseBranch (i.e., the session has been merged)
     const result = await this.exec(['merge-base', '--is-ancestor', 'HEAD', baseBranch], worktreePath);
     return result.exitCode === 0;
+  }
+
+  private async cleanupGitLocks(): Promise<void> {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      
+      // Common git lock files to clean up
+      const lockFiles = [
+        path.join(this.repoRoot, '.git', 'index.lock'),
+        path.join(this.repoRoot, '.git', 'HEAD.lock'),
+        path.join(this.repoRoot, '.git', 'config.lock')
+      ];
+      
+      for (const lockFile of lockFiles) {
+        if (fs.existsSync(lockFile)) {
+          try {
+            // Check if lock file is stale (older than 5 minutes)
+            const stats = fs.statSync(lockFile);
+            const age = Date.now() - stats.mtime.getTime();
+            if (age > 5 * 60 * 1000) { // 5 minutes
+              fs.unlinkSync(lockFile);
+              console.log(`Cleaned up stale git lock: ${lockFile}`);
+            }
+          } catch (error) {
+            // Lock file might be in use or already removed
+          }
+        }
+      }
+    } catch (error) {
+      // Non-fatal cleanup error
+    }
   }
 
   async safeRemoveWorktreeAndBranch(worktreePath: string, branchName: string, baseBranch: string): Promise<void> {

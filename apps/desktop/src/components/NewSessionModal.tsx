@@ -175,13 +175,15 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Model Override (optional)
             </label>
-            <input
-              type="text"
+            <select
               value={formData.modelOverride}
               onChange={(e) => setFormData(prev => ({ ...prev, modelOverride: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., gpt-5"
-            />
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              <option value="">Default model</option>
+              <option value="gpt-5">GPT-5</option>
+              <option value="alloy">Alloy (GPT-5 + Sonnet 4)</option>
+            </select>
           </div>
 
           <div className="flex gap-3 pt-4">

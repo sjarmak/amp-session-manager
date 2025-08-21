@@ -26,6 +26,10 @@ import { lockCommand } from './commands/lock.js';
 import { repairCommand } from './commands/repair.js';
 import { cleanupDanglingCommand } from './commands/cleanup-dangling.js';
 import { cleanEnvironmentCommand } from './commands/clean-environment.js';
+import { createMetricsCommand } from './commands/metrics.js';
+import { addRepoInfoCommand } from './commands/repo-info.js';
+import { benchCommand } from './commands/bench.js';
+import { threads } from './commands/threads.js';
 
 const program = new Command();
 
@@ -48,6 +52,9 @@ program
   .requiredOption('--prompt <prompt>', 'Initial Amp prompt')
   .option('--script <command>', 'Test script command')
   .option('--model <model>', 'Override Amp model')
+  .option('--gpt5', 'Use GPT-5 model (equivalent to --model gpt-5)')
+  .option('--alloy', 'Use Alloy model mode (sets amp.internal.alloy.enable=true)')
+  .option('--run', 'Automatically run first iteration after creating session')
   .action(newCommand);
 
 program
@@ -66,6 +73,7 @@ program
   .command('iterate <sessionId>')
   .description('Run an iteration on a session')
   .option('--notes <notes>', 'Notes for this iteration')
+  .option('--metrics-file <path>', 'Export detailed metrics to JSONL file')
   .action(iterateCommand);
 
 program
@@ -247,5 +255,25 @@ program
   .option('--yes', 'Skip confirmation prompt')
   .option('--json', 'Output as JSON')
   .action(cleanEnvironmentCommand);
+
+// Add metrics command
+program.addCommand(createMetricsCommand());
+
+// Add threads command
+program.addCommand(threads);
+
+// Add repo-info command
+addRepoInfoCommand(program);
+
+// Benchmark command
+program
+  .command('bench <suite>')
+  .description('Execute benchmark suite')
+  .option('--dry-run', 'Show what would be executed without running')
+  .option('--timeout <seconds>', 'Timeout per case in seconds', parseInt)
+  .option('--output-dir <path>', 'Output directory for results')
+  .option('--concurrent <n>', 'Number of concurrent executions', parseInt, 1)
+  .option('--json', 'Output results as JSON')
+  .action(benchCommand);
 
 program.parse();

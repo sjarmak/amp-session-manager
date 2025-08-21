@@ -1,0 +1,42 @@
+# Example benchmark suite for amp-workflow-manager-v2
+# This demonstrates how to define benchmark cases for automated testing
+
+name: "Example Benchmark Suite"
+description: "Sample benchmark cases for testing Amp session management"
+
+cases:
+  - id: "simple-refactor"
+    description: "Simple code refactoring task"
+    repo: "/path/to/your/test/repo"
+    prompt: |
+      Please refactor the main function in src/main.js to be more readable. 
+      Split it into smaller, well-named functions and add appropriate comments.
+    timeoutSec: 600  # 10 minutes
+    successCommand: "npm test"
+    expectedFiles:
+      - "src/main.js"
+
+  - id: "add-feature"
+    description: "Add a new feature with tests"
+    repo: "/path/to/your/test/repo"
+    prompt: |
+      Add a new validateEmail function to utils/validation.js that:
+      1. Checks if email format is valid
+      2. Returns true/false
+      3. Include comprehensive unit tests
+    timeoutSec: 1200  # 20 minutes
+    successCommand: "npm test -- --testPathPattern=validation"
+    expectedFiles:
+      - "utils/validation.js"
+      - "test/validation.test.js"
+
+  - id: "bug-fix"
+    description: "Fix a specific bug"
+    repo: "/path/to/your/test/repo"
+    prompt: |
+      There's a bug in the calculateTotal function where it doesn't handle 
+      null values properly. Fix this bug and add appropriate error handling.
+    timeoutSec: 900   # 15 minutes
+    successCommand: "npm test -- --testPathPattern=calculator"
+    expectedFiles:
+      - "src/calculator.js"

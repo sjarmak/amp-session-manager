@@ -13,3 +13,10 @@ export { acquireLock, releaseLock, isLocked, getLockInfo, withLock, cleanupStale
 
 // Export metrics system
 export * from './metrics/index.js';
+
+// Export thread system
+// Export simple thread utils for sessions
+export { getSessionThreadUrl, getSessionThreadInfo } from './session-threads.js';
+
+// Export utilities
+export { Logger } from './utils/logger.js';

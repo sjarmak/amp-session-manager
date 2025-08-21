@@ -99,6 +99,9 @@ export class AmpAdapter {
       // Add model override
       if (modelOverride === 'gpt-5') {
         args.push('--try-gpt5');
+      } else if (modelOverride === 'alloy') {
+        // For alloy mode, we need to set the config instead of a flag
+        // This will be handled via environment variable
       } else if (modelOverride) {
         args.push('--model', modelOverride);
       }
@@ -112,12 +115,19 @@ export class AmpAdapter {
         args
       });
       
+      const ampStartTime = Date.now();
+      
       // Store args for UI verification
       this.lastUsedArgs = args;
       
       // Smart auth: prefer stored credentials over env vars for better UX
       const env = this.config.env ? { ...process.env, ...this.config.env } : { ...process.env };
       delete env.AMP_API_KEY; // Remove to let stored credentials work
+      
+      // Handle alloy mode via environment variable
+      if (modelOverride === 'alloy') {
+        env['amp.internal.alloy.enable'] = 'true';
+      }
       
       const child = spawn(this.config.ampPath!, args, {
         cwd: workingDir,
@@ -139,8 +149,13 @@ export class AmpAdapter {
       }
       
       child.on('close', (exitCode) => {
+        const ampDuration = Date.now() - ampStartTime;
         const fullOutput = output + stderr;
-        console.log('Amp process output:', { exitCode, stderr: stderr.slice(0, 200) }); // Log first 200 chars of stderr
+        console.log('Amp process completed:', { 
+          exitCode, 
+          durationMs: ampDuration,
+          stderr: stderr.slice(0, 200) // Log first 200 chars of stderr
+        }); 
         console.log('Full output for telemetry parsing:', fullOutput.slice(-500)); // Log last 500 chars
         const redactedOutput = redactSecrets(fullOutput, this.config.env);
         const telemetry = this.telemetryParser.parseOutput(fullOutput);
@@ -176,17 +191,32 @@ export class AmpAdapter {
   async consultOracle(
     query: string,
     workingDir: string,
-    context?: string
+    context?: string,
+    modelOverride?: string
   ): Promise<AmpIterationResult> {
     const oraclePrompt = this.buildOraclePrompt(query, context);
     
     return new Promise((resolve) => {
       const args = [...(this.config.ampArgs || []), ...(this.config.extraArgs || []), '--oracle'];
       
+      // Add model override for oracle
+      if (modelOverride === 'gpt-5') {
+        args.push('--try-gpt5');
+      } else if (modelOverride && modelOverride !== 'alloy') {
+        args.push('--model', modelOverride);
+      }
+      
+      const env = this.config.env ? { ...process.env, ...this.config.env } : { ...process.env };
+      
+      // Handle alloy mode for oracle
+      if (modelOverride === 'alloy') {
+        env['amp.internal.alloy.enable'] = 'true';
+      }
+      
       const child = spawn(this.config.ampPath!, args, {
         cwd: workingDir,
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: this.config.env ? { ...process.env, ...this.config.env } : process.env
+        env
       });
       
       let output = '';

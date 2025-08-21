@@ -1,7 +1,9 @@
 import { Logger } from '../utils/logger';
 import { SQLiteMetricsSink } from './sinks/sqlite-sink';
 import { NDJSONMetricsSink } from './sinks/ndjson-sink';
-import { CostCalculator, CostBreakdown } from './cost-calculator';
+import { CostCalculator, CostBreakdown } from '../cost-calculator';
+import { SessionStore } from '../store';
+import type { ToolCall, IterationRecord } from '@ampsm/types';
 
 export interface SessionMetricsSummary {
   sessionId: string;
@@ -97,18 +99,18 @@ export interface MetricsExportResult {
 export class MetricsAPI {
   private sqliteSink: SQLiteMetricsSink;
   private ndjsonSink?: NDJSONMetricsSink;
-  private costCalculator: CostCalculator;
+  private store: SessionStore;
   private logger: Logger;
 
   constructor(
     sqliteSink: SQLiteMetricsSink,
-    costCalculator: CostCalculator,
+    store: SessionStore,
     logger: Logger,
     ndjsonSink?: NDJSONMetricsSink
   ) {
     this.sqliteSink = sqliteSink;
     this.ndjsonSink = ndjsonSink;
-    this.costCalculator = costCalculator;
+    this.store = store;
     this.logger = logger;
   }
 
@@ -282,14 +284,47 @@ export class MetricsAPI {
   }
 
   private calculateTokenUsageSummary(sessionId: string): SessionMetricsSummary['tokenUsage'] {
-    // This would require additional database queries to get detailed token usage
-    // For now, returning a placeholder
+    const iterations = this.store.getIterations(sessionId);
+    
+    let totalPromptTokens = 0;
+    let totalCompletionTokens = 0;
+    let totalTokens = 0;
+    const costByModel: Record<string, number> = {};
+    const costBreakdown: CostBreakdown[] = [];
+    
+    for (const iteration of iterations) {
+      const promptTokens = iteration.promptTokens || 0;
+      const completionTokens = iteration.completionTokens || 0;
+      const iterTotalTokens = iteration.totalTokens || (promptTokens + completionTokens);
+      
+      totalPromptTokens += promptTokens;
+      totalCompletionTokens += completionTokens;
+      totalTokens += iterTotalTokens;
+      
+      // Calculate cost for this iteration
+      if (iterTotalTokens > 0 && iteration.model) {
+        const mockTelemetry = {
+          promptTokens: promptTokens,
+          completionTokens: completionTokens,
+          totalTokens: iterTotalTokens,
+          model: iteration.model,
+          exitCode: iteration.exitCode || 0,
+          toolCalls: []
+        };
+        
+        const breakdown = CostCalculator.calculateCost(mockTelemetry);
+        costBreakdown.push(breakdown);
+        
+        costByModel[iteration.model] = (costByModel[iteration.model] || 0) + breakdown.totalCost;
+      }
+    }
+    
     return {
-      totalPromptTokens: 0,
-      totalCompletionTokens: 0,
-      totalTokens: 0,
-      costBreakdown: [],
-      costByModel: {}
+      totalPromptTokens,
+      totalCompletionTokens,
+      totalTokens,
+      costBreakdown,
+      costByModel
     };
   }
 
@@ -310,6 +345,117 @@ export class MetricsAPI {
       passRate: 0,
       avgTestDuration: 0
     };
+  }
+
+  /**
+   * Get detailed tool call statistics for display
+   */
+  getToolCallDetails(sessionId: string, iterationId?: string): Array<{
+    id: string;
+    sessionId: string;
+    iterationId: string;
+    timestamp: string;
+    toolName: string;
+    args: Record<string, any>;
+    success: boolean;
+    durationMs: number | null;
+    formattedDuration: string;
+    formattedArgs: string;
+  }> {
+    const toolCalls = this.store.getToolCalls(sessionId, iterationId);
+    
+    return toolCalls.map((call: ToolCall) => ({
+      id: call.id,
+      sessionId: call.sessionId,
+      iterationId: call.iterationId,
+      timestamp: call.timestamp,
+      toolName: call.toolName,
+      args: call.argsJson ? JSON.parse(call.argsJson) : {},
+      success: call.success,
+      durationMs: call.durationMs || null,
+      formattedDuration: call.durationMs ? `${call.durationMs}ms` : 'N/A',
+      formattedArgs: this.formatToolArgs(call.argsJson)
+    }));
+  }
+
+  /**
+   * Get cost breakdown for a session with formatting
+   */
+  getCostBreakdown(sessionId: string): {
+    totalCost: string;
+    totalTokens: string;
+    costByModel: Array<{
+      model: string;
+      cost: string;
+      tokens: string;
+      percentage: number;
+    }>;
+    averageCostPerIteration: string;
+  } {
+    const tokenUsage = this.calculateTokenUsageSummary(sessionId);
+    const totalCost = Object.values(tokenUsage.costByModel).reduce((sum, cost) => sum + cost, 0);
+    const totalTokens = tokenUsage.totalTokens;
+    const iterations = this.store.getIterations(sessionId);
+    
+    const costByModel = Object.entries(tokenUsage.costByModel).map(([model, cost]) => ({
+      model,
+      cost: CostCalculator.formatCost(cost),
+      tokens: CostCalculator.formatTokens(tokenUsage.totalTokens), // This should be per-model but we don't have that breakdown
+      percentage: totalCost > 0 ? (cost / totalCost) * 100 : 0
+    }));
+
+    return {
+      totalCost: CostCalculator.formatCost(totalCost),
+      totalTokens: CostCalculator.formatTokens(totalTokens),
+      costByModel,
+      averageCostPerIteration: CostCalculator.formatCost(
+        iterations.length > 0 ? totalCost / iterations.length : 0
+      )
+    };
+  }
+
+  /**
+   * Get line change statistics for display
+   */
+  getLineChangeStats(sessionId: string): Array<{
+    iterationId: string;
+    iterationNumber: number;
+    filesChanged: number;
+    linesAdded: number;
+    linesDeleted: number;
+    netChange: number;
+    timestamp: string;
+  }> {
+    const iterations = this.store.getIterations(sessionId);
+    
+    return iterations.map((iteration: IterationRecord, index: number) => ({
+      iterationId: iteration.id,
+      iterationNumber: index + 1,
+      filesChanged: iteration.changedFiles || 0,
+      linesAdded: 0, // TODO: Add linesAdded to IterationRecord
+      linesDeleted: 0, // TODO: Add linesDeleted to IterationRecord  
+      netChange: 0, // TODO: Calculate from actual line changes
+      timestamp: iteration.startTime
+    }));
+  }
+
+  private formatToolArgs(argsJson: string | null): string {
+    if (!argsJson) return '{}';
+    
+    try {
+      const args = JSON.parse(argsJson);
+      // Format common argument patterns for better readability
+      if (args.path) {
+        const pathParts = args.path.split('/');
+        args.path = pathParts.length > 3 ? `.../${pathParts.slice(-2).join('/')}` : args.path;
+      }
+      if (args.pattern && args.pattern.length > 30) {
+        args.pattern = args.pattern.substring(0, 30) + '...';
+      }
+      return JSON.stringify(args, null, 0);
+    } catch {
+      return argsJson.substring(0, 50) + (argsJson.length > 50 ? '...' : '');
+    }
   }
 
   private transformToolUsageStats(raw: any): ToolUsageStats {

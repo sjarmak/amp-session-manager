@@ -2,6 +2,7 @@ import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { Logger } from '../utils/logger';
 import { MetricsEventBus } from './event-bus';
+import { FileDiffTracker } from './file-diff-tracker';
 
 export interface AmpWrapperOptions {
   ampPath?: string;
@@ -38,12 +39,14 @@ export class AmpWrapper extends EventEmitter {
   private logger: Logger;
   private eventBus: MetricsEventBus;
   private ampPath: string;
+  private fileDiffTracker: FileDiffTracker;
 
   constructor(logger: Logger, eventBus: MetricsEventBus, ampPath: string = 'amp') {
     super();
     this.logger = logger;
     this.eventBus = eventBus;
     this.ampPath = ampPath;
+    this.fileDiffTracker = new FileDiffTracker(logger);
   }
 
   async execute(
@@ -135,6 +138,9 @@ export class AmpWrapper extends EventEmitter {
       // Parse token usage and tool calls from output
       result.tokenUsage = this.extractTokenUsage(result.stdout + result.stderr);
       result.toolCalls = this.extractToolCalls(result.stdout + result.stderr);
+
+      // Track file changes after execution
+      await this.trackFileChanges(options, result);
 
       // Publish metrics events
       await this.publishMetrics(options, result);
@@ -282,6 +288,35 @@ export class AmpWrapper extends EventEmitter {
       }
       
       return args;
+    }
+  }
+
+  private async trackFileChanges(
+    options: AmpWrapperOptions,
+    result: AmpWrapperResult
+  ): Promise<void> {
+    try {
+      const workingDir = options.cwd || process.cwd();
+      const fileChanges = await this.fileDiffTracker.getFileChanges(workingDir);
+      
+      // Publish file edit events
+      for (const change of fileChanges) {
+        await this.eventBus.publishFileEdit(
+          options.sessionId,
+          options.iterationId,
+          change.path,
+          {
+            linesAdded: change.linesAdded,
+            linesDeleted: change.linesDeleted,
+            diff: change.diff,
+            operation: change.operation
+          }
+        );
+      }
+      
+      this.logger.debug(`Tracked ${fileChanges.length} file changes`);
+    } catch (error) {
+      this.logger.error('Failed to track file changes:', error);
     }
   }
 

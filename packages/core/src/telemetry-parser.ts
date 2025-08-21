@@ -28,12 +28,11 @@ export class TelemetryParser {
     
     // Try to parse as JSONL first
     const jsonlEvents = this.parseJSONL(lines);
-    if (jsonlEvents.length > 0) {
-      events.push(...jsonlEvents);
-    } else {
-      // Fallback to regex parsing
-      events.push(...this.parseTextLogs(lines));
-    }
+    events.push(...jsonlEvents);
+    
+    // Always also try regex parsing for mixed logs
+    const textEvents = this.parseTextLogs(lines);
+    events.push(...textEvents);
 
     return this.buildTelemetry(events, output);
   }
@@ -116,13 +115,24 @@ export class TelemetryParser {
     const timestamp = new Date().toISOString();
 
     for (const line of lines) {
-      // Tool usage patterns
+      // Enhanced tool usage patterns (based on amp-eval patterns)
       const toolStartMatch = line.match(/^\[(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\].*?Using (\w+) tool.*?({.*})/i);
       if (toolStartMatch) {
         events.push({
           timestamp: toolStartMatch[1],
           tool: toolStartMatch[2],
           args: this.safeParseJSON(toolStartMatch[3]),
+          type: 'tool_start'
+        });
+        continue;
+      }
+
+      // Plain tool start patterns (no timestamp prefix)
+      const plainStartMatch = line.match(/Tool\s+(\w+)\s+(?:started|begin|initiated)/i);
+      if (plainStartMatch) {
+        events.push({
+          timestamp,
+          tool: plainStartMatch[1],
           type: 'tool_start'
         });
         continue;
@@ -140,15 +150,73 @@ export class TelemetryParser {
         continue;
       }
 
-      // Token usage patterns
-      const tokenMatch = line.match(/tokens?[\s:]*(?:prompt:\s*(\d+))?.*?(?:completion:\s*(\d+))?.*?(?:total:\s*(\d+))/i);
+      // Plain tool finish patterns (no timestamp prefix)
+      const plainFinishMatch = line.match(/Tool\s+(\w+)\s+(?:done|finished|completed).*?(\d+)ms/i);
+      if (plainFinishMatch) {
+        events.push({
+          timestamp,
+          tool: plainFinishMatch[1],
+          success: true,
+          duration: parseInt(plainFinishMatch[2], 10),
+          type: 'tool_finish'
+        });
+        continue;
+      }
+
+      // Enhanced token usage patterns
+      const tokenMatch = line.match(/(?:tokens?[:\s]*)?prompt[:\s]*(\d+).*?completion[:\s]*(\d+).*?total[:\s]*(\d+)/i);
       if (tokenMatch) {
         events.push({
           timestamp,
           tokens: {
-            prompt: tokenMatch[1] ? parseInt(tokenMatch[1], 10) : undefined,
-            completion: tokenMatch[2] ? parseInt(tokenMatch[2], 10) : undefined,
-            total: tokenMatch[3] ? parseInt(tokenMatch[3], 10) : undefined
+            prompt: parseInt(tokenMatch[1], 10),
+            completion: parseInt(tokenMatch[2], 10),
+            total: parseInt(tokenMatch[3], 10)
+          },
+          type: 'token_usage'
+        });
+        continue;
+      }
+
+      // Alternative token format "Prompt tokens: N, Completion tokens: M, Total: T"
+      const altTokenMatch = line.match(/Prompt\s+tokens:\s*(\d+),?\s*Completion\s+tokens:\s*(\d+),?\s*Total:\s*(\d+)/i);
+      if (altTokenMatch) {
+        events.push({
+          timestamp,
+          tokens: {
+            prompt: parseInt(altTokenMatch[1], 10),
+            completion: parseInt(altTokenMatch[2], 10),
+            total: parseInt(altTokenMatch[3], 10)
+          },
+          type: 'token_usage'
+        });
+        continue;
+      }
+
+      // Partial token information (just total)
+      const partialTokenMatch = line.match(/tokens?[:\s]*total[:\s]*(\d+)/i);
+      if (partialTokenMatch) {
+        events.push({
+          timestamp,
+          tokens: {
+            total: parseInt(partialTokenMatch[1], 10)
+          },
+          type: 'token_usage'
+        });
+        continue;
+      }
+
+      // Input/output token format (amp-eval style)
+      const ioTokenMatch = line.match(/(?:input_tokens|input):\s*(\d+).*?(?:output_tokens|output):\s*(\d+)/i);
+      if (ioTokenMatch) {
+        const inputTokens = parseInt(ioTokenMatch[1], 10);
+        const outputTokens = parseInt(ioTokenMatch[2], 10);
+        events.push({
+          timestamp,
+          tokens: {
+            prompt: inputTokens,
+            completion: outputTokens,
+            total: inputTokens + outputTokens
           },
           type: 'token_usage'
         });

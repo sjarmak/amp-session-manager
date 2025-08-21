@@ -11,7 +11,7 @@ export class Exporter {
     if (dbPath) {
       const logger = new Logger('Exporter');
       const sqliteSink = new SQLiteMetricsSink(dbPath, logger);
-      this.metricsAPI = new MetricsAPI(sqliteSink, costCalculator, logger);
+      this.metricsAPI = new MetricsAPI(sqliteSink, this.store, logger);
     }
   }
 

@@ -84,13 +84,25 @@ export interface TestResultEvent extends MetricEvent {
   };
 }
 
+export interface FileEditEvent extends MetricEvent {
+  type: 'file_edit';
+  data: {
+    path: string;
+    linesAdded: number;
+    linesDeleted: number;
+    diff?: string; // unified diff, truncated to reasonable size
+    operation: 'create' | 'modify' | 'delete';
+  };
+}
+
 export type MetricEventTypes = 
   | IterationStartEvent
   | IterationEndEvent
   | GitOperationEvent
   | ToolCallEvent
   | LLMUsageEvent
-  | TestResultEvent;
+  | TestResultEvent
+  | FileEditEvent;
 
 export interface MetricsSink {
   name: string;
@@ -302,6 +314,29 @@ export class MetricsEventBus extends EventEmitter {
         framework,
         command,
         ...result
+      }
+    });
+  }
+
+  async publishFileEdit(
+    sessionId: string,
+    iterationId: string,
+    path: string,
+    details: {
+      linesAdded: number;
+      linesDeleted: number;
+      diff?: string;
+      operation: 'create' | 'modify' | 'delete';
+    }
+  ): Promise<void> {
+    await this.publish({
+      type: 'file_edit',
+      sessionId,
+      iterationId,
+      timestamp: new Date().toISOString(),
+      data: {
+        path,
+        ...details
       }
     });
   }

@@ -27,13 +27,6 @@ matrix:
 export function NewBatchModal({ isOpen, onClose, onBatchCreated }: NewBatchModalProps) {
   const [planYaml, setPlanYaml] = useState(DEFAULT_PLAN);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const [overrides, setOverrides] = useState({
-    concurrency: '',
-    model: '',
-    jsonLogs: false,
-    timeoutSec: '',
-    mergeOnPass: false
-  });
   const [loading, setLoading] = useState(false);
 
   const validatePlan = () => {
@@ -90,31 +83,13 @@ export function NewBatchModal({ isOpen, onClose, onBatchCreated }: NewBatchModal
     try {
       setLoading(true);
       
-      const startOptions = {
-        planYaml,
-        overrides: {
-          ...(overrides.concurrency && { concurrency: parseInt(overrides.concurrency) }),
-          ...(overrides.model && { model: overrides.model }),
-          jsonLogs: overrides.jsonLogs,
-          ...(overrides.timeoutSec && { timeoutSec: parseInt(overrides.timeoutSec) }),
-          mergeOnPass: overrides.mergeOnPass
-        }
-      };
-
-      const result = await window.electronAPI.batch.start(startOptions);
+      const result = await window.electronAPI.batch.start({ planYaml });
       
       if (result.success) {
         onBatchCreated();
         onClose();
         // Reset form
         setPlanYaml(DEFAULT_PLAN);
-        setOverrides({
-          concurrency: '',
-          model: '',
-          jsonLogs: false,
-          timeoutSec: '',
-          mergeOnPass: false
-        });
       } else {
         alert(`Failed to start batch: ${result.error}`);
       }
@@ -171,9 +146,8 @@ export function NewBatchModal({ isOpen, onClose, onBatchCreated }: NewBatchModal
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Plan Editor */}
-            <div className="lg:col-span-2">
+          {/* Plan Editor */}
+          <div>
               <div className="flex justify-between items-center mb-4">
                 <label className="block text-sm font-medium text-gray-700">
                   Batch Plan (YAML)
@@ -206,81 +180,6 @@ export function NewBatchModal({ isOpen, onClose, onBatchCreated }: NewBatchModal
                   </ul>
                 </div>
               )}
-            </div>
-
-            {/* Overrides */}
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Runtime Overrides</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Concurrency
-                  </label>
-                  <input
-                    type="number"
-                    value={overrides.concurrency}
-                    onChange={(e) => setOverrides(prev => ({ ...prev, concurrency: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Override plan concurrency"
-                    min="1"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Model
-                  </label>
-                  <input
-                    type="text"
-                    value={overrides.model}
-                    onChange={(e) => setOverrides(prev => ({ ...prev, model: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Override default model"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Timeout (seconds)
-                  </label>
-                  <input
-                    type="number"
-                    value={overrides.timeoutSec}
-                    onChange={(e) => setOverrides(prev => ({ ...prev, timeoutSec: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Override timeout"
-                    min="1"
-                  />
-                </div>
-
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="jsonLogs"
-                    checked={overrides.jsonLogs}
-                    onChange={(e) => setOverrides(prev => ({ ...prev, jsonLogs: e.target.checked }))}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="jsonLogs" className="ml-2 block text-sm text-gray-900">
-                    JSON Logs
-                  </label>
-                </div>
-
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="mergeOnPass"
-                    checked={overrides.mergeOnPass}
-                    onChange={(e) => setOverrides(prev => ({ ...prev, mergeOnPass: e.target.checked }))}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="mergeOnPass" className="ml-2 block text-sm text-gray-900">
-                    Auto-merge on pass
-                  </label>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 

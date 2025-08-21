@@ -4,12 +4,15 @@ import { AmpAdapter, type AmpAdapterConfig } from './amp.js';
 import { getCurrentAmpThreadId } from './amp-utils.js';
 import type { Session, SessionCreateOptions, IterationRecord, PreflightResult, SquashOptions, RebaseResult, MergeOptions } from '@ampsm/types';
 import { mkdir, writeFile, readFile } from 'fs/promises';
+import * as fs from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { spawn } from 'child_process';
 import { homedir } from 'os';
 import { isLocked, acquireLock, releaseLock } from './lock.js';
-import { MetricsEventBus, SQLiteMetricsSink, NDJSONMetricsSink, GitInstrumentation, costCalculator } from './metrics/index.js';
+import { withRepoLock } from './repo-lock.js';
+import { MetricsEventBus, SQLiteMetricsSink, NDJSONMetricsSink, GitInstrumentation, costCalculator, FileDiffTracker } from './metrics/index.js';
+import { JSONLSink } from './metrics/sinks/jsonl-sink.js';
 import { Logger } from './utils/logger.js';
 
 export class WorktreeManager {
@@ -20,7 +23,8 @@ export class WorktreeManager {
   constructor(
     private store: SessionStore,
     private dbPath?: string,
-    metricsEventBus?: MetricsEventBus
+    metricsEventBus?: MetricsEventBus,
+    private metricsJsonlPath?: string
   ) {
     this.logger = new Logger('WorktreeManager');
     
@@ -42,6 +46,17 @@ export class WorktreeManager {
         );
         this.metricsEventBus.addSink(ndjsonSink);
       }
+
+      // Add JSONL sink if path specified
+      if (this.metricsJsonlPath) {
+        const jsonlSink = new JSONLSink(this.logger, { 
+          filePath: this.metricsJsonlPath,
+          autoFlush: true,
+          truncateArgs: true,
+          maxDiffLines: 200
+        });
+        this.metricsEventBus.addSink(jsonlSink);
+      }
     }
     
     this.ampAdapter = new AmpAdapter(this.loadAmpConfig(), this.store);
@@ -56,15 +71,36 @@ export class WorktreeManager {
       throw new Error(`${options.repoRoot} is not a git repository`);
     }
 
-    // Create session in store
+    // Create session in store first (before any git operations)
     const session = this.store.createSession(options);
 
     try {
-      // Create worktree directory
-      await mkdir(session.worktreePath, { recursive: true });
+      // Use repository-level locking to prevent concurrent git operations
+      const gitStartTime = Date.now();
+      await withRepoLock(options.repoRoot, async () => {
+        // Provide helpful error context for common issues
+        try {
+          // Check if the specified base branch exists
+          const branchExistsResult = await git.exec(['rev-parse', '--verify', options.baseBranch || 'main']);
+          if (branchExistsResult.exitCode !== 0) {
+            const defaultBranch = await git.getDefaultBranch();
+            if (defaultBranch !== (options.baseBranch || 'main')) {
+              console.warn(`Warning: Base branch '${options.baseBranch || 'main'}' not found. Detected default branch: '${defaultBranch}'`);
+            }
+          }
+        } catch (error) {
+          // Non-fatal - the createWorktree method will provide detailed error messages
+        }
+
+        // Create worktree directory
+        await mkdir(session.worktreePath, { recursive: true });
+        
+        // Create branch and worktree
+        await git.createWorktree(session.branchName, session.worktreePath, session.baseBranch);
+      });
       
-      // Create branch and worktree
-      await git.createWorktree(session.branchName, session.worktreePath, session.baseBranch);
+      const gitDuration = Date.now() - gitStartTime;
+      console.log(`Git worktree creation completed in ${gitDuration}ms`);
 
       // Initialize AGENT_CONTEXT directory
       const contextDir = join(session.worktreePath, 'AGENT_CONTEXT');
@@ -192,6 +228,9 @@ export class WorktreeManager {
         const existingLog = await readFile(iterationLogPath, 'utf-8').catch(() => '');
         await writeFile(iterationLogPath, existingLog + oracleEntry);
       }
+
+      // Track file changes immediately after Amp execution
+      await this.trackFileChangesAfterAmp(sessionId, iterationId, session.worktreePath);
 
       // Update status based on Amp result
       let finalStatus: Session['status'];
@@ -665,7 +704,7 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
         this.store.updateSessionThreadId(sessionId, currentThreadId);
         session.threadId = currentThreadId;
       } else {
-        return 'No thread conversation available for this session.';
+        return 'No thread ID available for this session. Thread conversations are created when sessions are linked to active Amp threads.';
       }
     }
 
@@ -678,7 +717,7 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
       const files = await readdir(threadDir).catch(() => []);
       
       if (files.length === 0) {
-        return 'Thread conversation files not found.';
+        return 'Thread conversation files not available yet. Files will be created after running iterations with Amp.';
       }
 
       // Parse and format file changes
@@ -805,6 +844,36 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
     } catch (error) {
       console.error('Failed to prune orphans:', error);
       throw error;
+    }
+  }
+
+  private async trackFileChangesAfterAmp(
+    sessionId: string, 
+    iterationId: string, 
+    worktreePath: string
+  ): Promise<void> {
+    try {
+      const fileDiffTracker = new FileDiffTracker(this.logger);
+      const fileChanges = await fileDiffTracker.getFileChanges(worktreePath);
+      
+      // Publish file edit events
+      for (const change of fileChanges) {
+        await this.metricsEventBus.publishFileEdit(
+          sessionId,
+          iterationId,
+          change.path,
+          {
+            linesAdded: change.linesAdded,
+            linesDeleted: change.linesDeleted,
+            diff: change.diff,
+            operation: change.operation
+          }
+        );
+      }
+      
+      this.logger.debug(`Tracked ${fileChanges.length} file changes after Amp execution`);
+    } catch (error) {
+      this.logger.error('Failed to track file changes after Amp execution:', error);
     }
   }
 

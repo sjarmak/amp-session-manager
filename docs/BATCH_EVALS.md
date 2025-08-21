@@ -56,6 +56,7 @@ defaults:
   baseBranch: main
   scriptCommand: "pnpm -w test"
   model: gpt-5                # maps to --try-gpt5 via AmpAdapter
+                              # or "alloy" for alloy mode (sets amp.internal.alloy.enable=true)
   jsonLogs: true
   timeoutSec: 900
   retries: 1                  # not implemented yet
@@ -257,7 +258,7 @@ matrix:
 ### Model Comparison
 ```yaml
 runId: model-comparison
-concurrency: 2
+concurrency: 3
 defaults:
   baseBranch: main
   scriptCommand: "python -m pytest"
@@ -268,7 +269,10 @@ matrix:
     model: gpt-4o
   - repo: /projects/ml-service
     prompt: "Optimize data preprocessing pipeline"  
-    model: gpt-5
+    model: gpt-5      # Uses --try-gpt5 flag
+  - repo: /projects/ml-service
+    prompt: "Optimize data preprocessing pipeline"
+    model: alloy      # Uses amp.internal.alloy.enable=true
 ```
 
 ### Auto-Merge Pipeline
