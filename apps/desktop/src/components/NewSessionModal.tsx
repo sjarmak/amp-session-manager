@@ -14,7 +14,8 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
     repoRoot: '',
     baseBranch: 'main',
     scriptCommand: '',
-    modelOverride: ''
+    modelOverride: '',
+    includeContext: false
   });
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +49,8 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
         repoRoot: formData.repoRoot.trim(),
         baseBranch: formData.baseBranch.trim() || 'main',
         scriptCommand: formData.scriptCommand.trim() || undefined,
-        modelOverride: formData.modelOverride.trim() || undefined
+        modelOverride: formData.modelOverride.trim() || undefined,
+        includeContext: formData.includeContext
       };
 
       const result = await window.electronAPI.sessions.create(options);
@@ -63,7 +65,8 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
           repoRoot: '',
           baseBranch: 'main',
           scriptCommand: '',
-          modelOverride: ''
+          modelOverride: '',
+          includeContext: false
         });
       } else {
         setError(result.error || 'Failed to create session');
@@ -78,15 +81,30 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          console.log('Backdrop clicked');
+          onClose();
+        }
+      }}
+    >
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-xl font-semibold text-gray-900">New Session</h2>
           <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Close button clicked');
+              onClose();
+            }}
+            className="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded transition-colors text-xl font-bold cursor-pointer"
+            style={{ zIndex: 9999 }}
           >
-            ✕
+            ×
           </button>
         </div>
 
@@ -184,6 +202,19 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
               <option value="gpt-5">GPT-5</option>
               <option value="alloy">Alloy (GPT-5 + Sonnet 4)</option>
             </select>
+          </div>
+
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="includeContext"
+              checked={formData.includeContext}
+              onChange={(e) => setFormData(prev => ({ ...prev, includeContext: e.target.checked }))}
+              className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <label htmlFor="includeContext" className="text-sm text-gray-700">
+              Include CONTEXT.md file content if it exists
+            </label>
           </div>
 
           <div className="flex gap-3 pt-4">

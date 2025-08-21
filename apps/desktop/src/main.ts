@@ -159,9 +159,9 @@ ipcMain.handle('sessions:create', async (_, options: any) => {
   }
 });
 
-ipcMain.handle('sessions:iterate', async (_, sessionId: string, notes?: string) => {
+ipcMain.handle('sessions:iterate', async (_, sessionId: string, notes?: string, includeContext?: boolean) => {
   try {
-    const result = await worktreeManager.iterate(sessionId, notes);
+    const result = await worktreeManager.iterate(sessionId, notes, includeContext);
     return { success: true, result };
   } catch (error) {
     console.error('Failed to iterate session:', error);
@@ -208,6 +208,26 @@ ipcMain.handle('sessions:thread', async (_, sessionId: string) => {
   } catch (error) {
     console.error('Failed to get thread conversation:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Failed to get thread conversation' };
+  }
+});
+
+ipcMain.handle('sessions:getIterations', async (_, sessionId: string) => {
+  try {
+    const iterations = store.getIterations(sessionId);
+    return { success: true, iterations };
+  } catch (error) {
+    console.error('Failed to get iterations:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to get iterations' };
+  }
+});
+
+ipcMain.handle('sessions:getToolCalls', async (_, sessionId: string) => {
+  try {
+    const toolCalls = store.getToolCalls(sessionId);
+    return { success: true, toolCalls };
+  } catch (error) {
+    console.error('Failed to get tool calls:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to get tool calls' };
   }
 });
 

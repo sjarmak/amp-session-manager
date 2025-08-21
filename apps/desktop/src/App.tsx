@@ -220,7 +220,10 @@ function App() {
 
         <NewSessionModal
           isOpen={showNewSessionModal}
-          onClose={() => setShowNewSessionModal(false)}
+          onClose={() => {
+            console.log('NewSessionModal onClose called');
+            setShowNewSessionModal(false);
+          }}
           onSessionCreated={handleSessionCreated}
         />
 

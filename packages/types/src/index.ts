@@ -33,6 +33,7 @@ export interface IterationRecord {
   ampVersion?: string;
   exitCode?: number;
   ampArgs?: string;
+  output?: string;
 }
 
 export interface ToolCall {
@@ -71,6 +72,7 @@ export interface SessionCreateOptions {
   scriptCommand?: string;
   modelOverride?: string;
   threadId?: string;
+  includeContext?: boolean;
 }
 
 export interface PreflightResult {

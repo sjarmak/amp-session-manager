@@ -63,28 +63,51 @@ export class AmpAdapter {
     }
   }
 
+  private async getIterationCount(sessionId: string): Promise<number> {
+    if (!this.store) return 0;
+    try {
+      const iterations = this.store.getIterations(sessionId);
+      return iterations.length;
+    } catch (error) {
+      console.warn('Error getting iteration count:', error);
+      return 0;
+    }
+  }
+
   async continueThread(
     prompt: string, 
     workingDir: string, 
     modelOverride?: string,
-    sessionId?: string
+    sessionId?: string,
+    includeContext?: boolean
   ): Promise<AmpIterationResult> {
-    // For first run, use full prompt. For continuation, use /continue + prompt
+    // For first run, use full prompt with default model. For follow-ups, alternate between default and gpt-5
     const isFirstRun = !sessionId || !(await this.hasExistingThread(sessionId));
-    const finalPrompt = isFirstRun 
-      ? await this.buildIterationPrompt(prompt, workingDir, sessionId)
-      : `/continue\n\n${prompt}`;
-
-    return this.runAmpCommand(finalPrompt, workingDir, modelOverride);
+    
+    if (isFirstRun) {
+      const finalPrompt = await this.buildIterationPrompt(prompt, workingDir, sessionId, includeContext);
+      return this.runAmpCommand(finalPrompt, workingDir, modelOverride);
+    } else {
+      // Get existing iterations to determine which model to use (alternate)
+      const existingIterations = await this.getIterationCount(sessionId);
+      const useGpt5 = existingIterations % 2 === 1; // Odd iterations (2nd, 4th, etc.) use GPT-5
+      
+      console.log(`🔄 Alternating model logic: existingIterations=${existingIterations}, useGpt5=${useGpt5}, model=${useGpt5 ? 'gpt-5' : 'default'}`);
+      
+      const finalPrompt = `/continue\n\n${prompt}`;
+      const alternatingModel = useGpt5 ? 'gpt-5' : undefined; // undefined = default model
+      return this.runAmpCommand(finalPrompt, workingDir, alternatingModel);
+    }
   }
 
   async runIteration(
     prompt: string, 
     workingDir: string, 
     modelOverride?: string,
-    sessionId?: string
+    sessionId?: string,
+    includeContext?: boolean
   ): Promise<AmpIterationResult> {
-    return this.continueThread(prompt, workingDir, modelOverride, sessionId);
+    return this.continueThread(prompt, workingDir, modelOverride, sessionId, includeContext);
   }
 
   private async runAmpCommand(
@@ -112,6 +135,7 @@ export class AmpAdapter {
       console.log('Amp environment check:', {
         AMP_API_KEY: process.env.AMP_API_KEY ? '***exists***' : 'MISSING',
         ampPath: this.config.ampPath,
+        modelOverride,
         args
       });
       
@@ -120,9 +144,8 @@ export class AmpAdapter {
       // Store args for UI verification
       this.lastUsedArgs = args;
       
-      // Smart auth: prefer stored credentials over env vars for better UX
+      // Use environment variables for authentication
       const env = this.config.env ? { ...process.env, ...this.config.env } : { ...process.env };
-      delete env.AMP_API_KEY; // Remove to let stored credentials work
       
       // Handle alloy mode via environment variable
       if (modelOverride === 'alloy') {
@@ -154,10 +177,14 @@ export class AmpAdapter {
         console.log('Amp process completed:', { 
           exitCode, 
           durationMs: ampDuration,
+          outputLength: output.length,
+          stderrLength: stderr.length,
           stderr: stderr.slice(0, 200) // Log first 200 chars of stderr
         }); 
+        console.log('Raw stdout (first 500 chars):', output.slice(0, 500));
         console.log('Full output for telemetry parsing:', fullOutput.slice(-500)); // Log last 500 chars
         const redactedOutput = redactSecrets(fullOutput, this.config.env);
+        console.log('Redacted output length:', redactedOutput.length);
         const telemetry = this.telemetryParser.parseOutput(fullOutput);
         console.log('Parsed telemetry:', telemetry);
         telemetry.exitCode = exitCode || 0;
@@ -259,50 +286,26 @@ export class AmpAdapter {
     });
   }
 
-  private async buildIterationPrompt(prompt: string, workingDir: string, sessionId?: string): Promise<string> {
+  private async buildIterationPrompt(prompt: string, workingDir: string, sessionId?: string, includeContext?: boolean): Promise<string> {
     try {
-      // Read agent context files
-      const sessionMd = await this.safeReadFile(join(workingDir, 'AGENT_CONTEXT', 'SESSION.md'));
-      const diffSummary = await this.safeReadFile(join(workingDir, 'AGENT_CONTEXT', 'DIFF_SUMMARY.md'));
+      // If user doesn't want context, just return the prompt
+      if (!includeContext) {
+        return prompt;
+      }
       
-      return `You are improving the Amp Session Manager in this worktree.
+      // Check if CONTEXT.md exists and include it if user opted in
+      const contextMd = await this.safeReadFile(join(workingDir, 'CONTEXT.md'));
+      
+      if (!contextMd.trim()) {
+        return prompt;
+      }
+      
+      // Include CONTEXT.md with the prompt since user opted in
+      return `${prompt}
 
-Goal:
-- ${prompt}
-
-Context:
-- Tech: Electron + React + TypeScript + Vite + Tailwind; Node TypeScript backend; SQLite via better-sqlite3.
-- This worktree represents a single user session branch.
-- You must end with a deterministic commit if any file changes were made.
-
-Constraints:
-- Do not modify Amp's source or global environment.
-- Prefer standard git, node, pnpm commands.
-- Do not read .env or log secrets.
-- Keep changes focused; avoid broad refactors unless explicitly requested.
-
-Available references:
-- AGENT_CONTEXT/SESSION.md (session briefing)
-- AGENT_CONTEXT/DIFF_SUMMARY.md (recent diffs)
-- packages/core (session engine, git ops, amp adapter)
-- packages/cli (amp-sessions CLI)
-- apps/desktop (Electron+React UI)
-
-${sessionMd ? `Session Context:\n${sessionMd}\n` : ''}
-${diffSummary && diffSummary !== 'No changes since last iteration.' ? `Recent Changes:\n${diffSummary}\n` : ''}
-
-Definition of done for this iteration:
-- Implement the requested change(s).
-- All TypeScript compiles; unit tests pass locally.
-- Commit message begins with 'amp:' and concisely summarizes what changed.
-
-Now:
-- Explain your plan in 3–6 bullet points.
-- Make the minimal necessary code changes.
-- Update or add tests if needed.
-- Run quick self-checks and finalize.`;
+${contextMd}`;
     } catch (error) {
-      console.warn('Failed to build full iteration prompt:', error);
+      console.warn('Failed to build iteration prompt:', error);
       return prompt;
     }
   }
@@ -362,8 +365,7 @@ Please provide a thorough analysis and actionable recommendations.`;
   }> {
     return new Promise((resolve) => {
       const testPrompt = 'echo "auth test"';
-      const env = { ...process.env };
-      delete env.AMP_API_KEY; // Use same auth strategy as main commands
+      const env = this.config.env ? { ...process.env, ...this.config.env } : { ...process.env };
       
       const child = spawn(this.config.ampPath!, ['-x'], {
         stdio: ['pipe', 'pipe', 'pipe'],

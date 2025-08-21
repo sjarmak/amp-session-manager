@@ -63,6 +63,7 @@ export class SessionStore {
         ampVersion TEXT,
         exitCode INTEGER,
         ampArgs TEXT,
+        output TEXT,
         FOREIGN KEY(sessionId) REFERENCES sessions(id)
       );
 
@@ -135,6 +136,13 @@ export class SessionStore {
     // Migration: Add followUpPrompts column if it doesn't exist
     try {
       this.db.exec(`ALTER TABLE sessions ADD COLUMN followUpPrompts TEXT;`);
+    } catch (error) {
+      // Column already exists, ignore error
+    }
+    
+    // Migration: Add output column to iterations if it doesn't exist
+    try {
+      this.db.exec(`ALTER TABLE iterations ADD COLUMN output TEXT;`);
     } catch (error) {
       // Column already exists, ignore error
     }
@@ -278,8 +286,14 @@ export class SessionStore {
     stmt.run(...values);
   }
 
-  finishIteration(iterationId: string, telemetry: AmpTelemetry, commitSha?: string, changedFiles?: number, ampArgs?: string) {
-    const updates: Partial<IterationRecord> = {
+  finishIteration(iterationId: string, telemetry: AmpTelemetry, commitSha?: string, changedFiles?: number, ampArgs?: string, output?: string) {
+    console.log('Finishing iteration:', {
+      iterationId,
+      outputLength: output?.length || 0,
+      outputPreview: output?.slice(0, 100) || 'No output'
+    });
+    
+    const updates = {
       endTime: new Date().toISOString(),
       exitCode: telemetry.exitCode,
       promptTokens: telemetry.promptTokens,
@@ -288,8 +302,9 @@ export class SessionStore {
       model: telemetry.model,
       ampVersion: telemetry.ampVersion,
       commitSha,
-      changedFiles: changedFiles || 0
-    };
+      changedFiles: changedFiles || 0,
+      output
+    } as Partial<IterationRecord>;
     
     if (ampArgs) {
       (updates as any).ampArgs = ampArgs;
@@ -321,10 +336,12 @@ export class SessionStore {
 
   getIterations(sessionId: string, limit?: number): IterationRecord[] {
     const sql = limit 
-      ? 'SELECT * FROM iterations WHERE sessionId = ? ORDER BY startTime DESC LIMIT ?' 
-      : 'SELECT * FROM iterations WHERE sessionId = ? ORDER BY startTime DESC';
+      ? 'SELECT * FROM iterations WHERE sessionId = ? ORDER BY startTime ASC LIMIT ?' 
+      : 'SELECT * FROM iterations WHERE sessionId = ? ORDER BY startTime ASC';
     const stmt = this.db.prepare(sql);
-    return limit ? stmt.all(sessionId, limit) as IterationRecord[] : stmt.all(sessionId) as IterationRecord[];
+    const results = limit ? stmt.all(sessionId, limit) as IterationRecord[] : stmt.all(sessionId) as IterationRecord[];
+    console.log('Retrieved iterations:', results.map(r => ({ id: r.id, outputLength: r.output?.length || 0 })));
+    return results;
   }
 
   getToolCalls(sessionId: string, iterationId?: string, limit?: number): ToolCall[] {
@@ -356,8 +373,8 @@ export class SessionStore {
     totalTokens?: number;
   }> {
     const sql = limit
-      ? 'SELECT id as iterationId, startTime, model, promptTokens, completionTokens, totalTokens FROM iterations WHERE sessionId = ? ORDER BY startTime DESC LIMIT ?'
-      : 'SELECT id as iterationId, startTime, model, promptTokens, completionTokens, totalTokens FROM iterations WHERE sessionId = ? ORDER BY startTime DESC';
+      ? 'SELECT id as iterationId, startTime, model, promptTokens, completionTokens, totalTokens FROM iterations WHERE sessionId = ? ORDER BY startTime ASC LIMIT ?'
+      : 'SELECT id as iterationId, startTime, model, promptTokens, completionTokens, totalTokens FROM iterations WHERE sessionId = ? ORDER BY startTime ASC';
     const stmt = this.db.prepare(sql);
     const results = limit ? stmt.all(sessionId, limit) : stmt.all(sessionId);
     return results as Array<{

@@ -134,6 +134,30 @@ export class WorktreeManager {
         console.log(`✓ Session created with initial commit: ${commitSha.slice(0, 8)}`);
       }
 
+      // Immediately run the initial iteration with the provided prompt
+      console.log('Running initial iteration with the provided prompt...');
+      console.log('Session details:', { id: session.id, prompt: session.ampPrompt });
+      
+      // Validate Amp authentication before attempting iteration
+      try {
+        console.log('Validating Amp authentication...');
+        const authStatus = await this.ampAdapter.validateAuth();
+        console.log('Amp auth status:', authStatus);
+        
+        if (!authStatus.isAuthenticated) {
+          throw new Error(`Amp authentication failed: ${authStatus.error || 'Not authenticated'}. ${authStatus.suggestion || ''}`);
+        }
+        
+        console.log('Authentication validated, running iteration...');
+        await this.iterate(session.id, undefined, options.includeContext);
+        console.log('✓ Initial iteration completed');
+      } catch (error) {
+        console.error('Initial iteration failed, but session was created successfully:', error);
+        // Update session status to indicate there was an issue
+        this.store.updateSessionStatus(session.id, 'error');
+        // Don't fail session creation if iteration fails - user can retry manually
+      }
+
       return session;
     } catch (error) {
       // Cleanup on failure
@@ -146,7 +170,7 @@ export class WorktreeManager {
     }
   }
 
-  async iterate(sessionId: string, notes?: string): Promise<void> {
+  async iterate(sessionId: string, notes?: string, includeContext?: boolean): Promise<void> {
     const session = this.store.getSession(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -200,6 +224,7 @@ export class WorktreeManager {
       // Run Amp iteration
       console.log('Running Amp iteration...');
       const iterationPrompt = notes || session.ampPrompt;
+      console.log('Iteration prompt:', iterationPrompt?.slice(0, 100) + '...');
       
       // Track follow-up prompt when notes are provided
       if (notes) {
@@ -210,7 +235,8 @@ export class WorktreeManager {
         iterationPrompt, 
         session.worktreePath, 
         session.modelOverride,
-        sessionId
+        sessionId,
+        includeContext
       );
 
       // Handle oracle consultation if needed
@@ -359,7 +385,8 @@ export class WorktreeManager {
         result.telemetry, 
         commitSha || undefined, 
         changedFiles,
-        this.ampAdapter.lastUsedArgs?.join(' ')
+        this.ampAdapter.lastUsedArgs?.join(' '),
+        result.output
       );
       
       // Save tool calls with correct sessionId

@@ -9,7 +9,7 @@ declare global {
         list: () => Promise<Session[]>;
         get: (sessionId: string) => Promise<Session | null>;
         create: (options: SessionCreateOptions) => Promise<{ success: boolean; session?: Session; error?: string }>;
-        iterate: (sessionId: string, notes?: string) => Promise<{ success: boolean; error?: string }>;
+        iterate: (sessionId: string, notes?: string, includeContext?: boolean) => Promise<{ success: boolean; error?: string }>;
         squash: (sessionId: string, message: string) => Promise<{ success: boolean; error?: string }>;
         rebase: (sessionId: string, onto: string) => Promise<{ success: boolean; error?: string }>;
         
@@ -24,6 +24,8 @@ declare global {
         cleanup: (sessionId: string, force?: boolean) => Promise<{ success: boolean; error?: string }>;
         diff: (sessionId: string) => Promise<{ success: boolean; diff?: string; error?: string }>;
         thread: (sessionId: string) => Promise<{ success: boolean; threadConversation?: string; error?: string }>;
+        getIterations: (sessionId: string) => Promise<{ success: boolean; iterations?: any[]; error?: string }>;
+        getToolCalls: (sessionId: string) => Promise<{ success: boolean; toolCalls?: any[]; error?: string }>;
       };
       dialog: {
         selectDirectory: () => Promise<Electron.OpenDialogReturnValue>;

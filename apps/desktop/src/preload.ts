@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     list: () => ipcRenderer.invoke('sessions:list') as Promise<Session[]>,
     get: (sessionId: string) => ipcRenderer.invoke('sessions:get', sessionId) as Promise<Session | null>,
     create: (options: SessionCreateOptions) => ipcRenderer.invoke('sessions:create', options) as Promise<{ success: boolean; session?: Session; error?: string }>,
-    iterate: (sessionId: string, notes?: string) => ipcRenderer.invoke('sessions:iterate', sessionId, notes) as Promise<{ success: boolean; error?: string }>,
+    iterate: (sessionId: string, notes?: string, includeContext?: boolean) => ipcRenderer.invoke('sessions:iterate', sessionId, notes, includeContext) as Promise<{ success: boolean; error?: string }>,
     squash: (sessionId: string, message: string) => ipcRenderer.invoke('sessions:squash', sessionId, message) as Promise<{ success: boolean; error?: string }>,
     rebase: (sessionId: string, onto: string) => ipcRenderer.invoke('sessions:rebase', sessionId, onto) as Promise<{ success: boolean; error?: string }>,
     
@@ -23,7 +23,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     exportPatch: (sessionId: string, outPath: string) => ipcRenderer.invoke('sessions:export-patch', sessionId, outPath) as Promise<{ success: boolean; error?: string }>,
     cleanup: (sessionId: string, force?: boolean) => ipcRenderer.invoke('sessions:cleanup', sessionId, force) as Promise<{ success: boolean; error?: string }>,
     diff: (sessionId: string) => ipcRenderer.invoke('sessions:diff', sessionId) as Promise<{ success: boolean; diff?: string; error?: string }>,
-    thread: (sessionId: string) => ipcRenderer.invoke('sessions:thread', sessionId) as Promise<{ success: boolean; threadConversation?: string; error?: string }>
+    thread: (sessionId: string) => ipcRenderer.invoke('sessions:thread', sessionId) as Promise<{ success: boolean; threadConversation?: string; error?: string }>,
+    getIterations: (sessionId: string) => ipcRenderer.invoke('sessions:getIterations', sessionId) as Promise<{ success: boolean; iterations?: any[]; error?: string }>,
+    getToolCalls: (sessionId: string) => ipcRenderer.invoke('sessions:getToolCalls', sessionId) as Promise<{ success: boolean; toolCalls?: any[]; error?: string }>
   },
   
   dialog: {
