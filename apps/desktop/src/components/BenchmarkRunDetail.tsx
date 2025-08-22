@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import type { Session } from '@ampsm/types';
 
 export interface BenchmarkResult {
   instanceId: string;
@@ -12,9 +13,10 @@ export interface BenchmarkRunDetailProps {
   runId: string;
   type: string;
   onBack: () => void;
+  onSessionSelect: (session: Session) => void;
 }
 
-export function BenchmarkRunDetail({ runId, type, onBack }: BenchmarkRunDetailProps) {
+export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: BenchmarkRunDetailProps) {
   const [run, setRun] = useState<any>(null);
   const [results, setResults] = useState<BenchmarkResult[]>([]);
   const [loading, setLoading] = useState(true);
@@ -217,8 +219,7 @@ export function BenchmarkRunDetail({ runId, type, onBack }: BenchmarkRunDetailPr
                       <button
                         onClick={() => window.electronAPI.sessions.get(result.sessionId!).then(session => {
                           if (session) {
-                            // TODO: Navigate to session view
-                            console.log('Navigate to session:', session);
+                            onSessionSelect(session);
                           }
                         })}
                         className="text-blue-600 hover:text-blue-800 font-mono text-sm"

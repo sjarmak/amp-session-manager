@@ -249,6 +249,7 @@ function App() {
               runId={selectedBenchmarkRun.runId}
               type={selectedBenchmarkRun.type}
               onBack={handleBackToBenchmarks}
+              onSessionSelect={handleSessionSelect}
             />
           ) : selectedSession ? (
             <SessionView
