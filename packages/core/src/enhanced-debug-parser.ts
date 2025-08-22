@@ -93,14 +93,26 @@ export class EnhancedDebugParser {
           }
 
           // --- tool invocation flow ----------------------------
-          // 1. LLM decides to call a tool → "invokeTool" line
+          // 1. LLM decides to call a tool → "invokeTool" line (matches amp_runner.py logic)
           if (j.name === "invokeTool") {
             const message = j.message || "";
             const tool_id = message.split(",")[0].trim();
             pending[tool_id] = { tool_id };
+            console.log(`[EnhancedDebugParser] Found invokeTool with ID: ${tool_id}`);
           }
 
-          // 2. Handle new tool_calls format (post-2024-02-15)
+          // 2. Handle ChatML-delta single-line tool call format
+          if (j.name && j.arguments && !j.tool && !j.function_call && !j.tool_calls) {
+            const toolData = {
+              tool_id: j.id || `tool_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              name: j.name,
+              arguments: j.arguments
+            };
+            console.log(`[EnhancedDebugParser] Found tool via ChatML format: ${j.name}`);
+            tool_calls.push(toolData);
+          }
+
+          // 3. Handle new tool_calls format (post-2024-02-15)
           if (j.tool_calls && Array.isArray(j.tool_calls)) {
             for (const toolCall of j.tool_calls) {
               if (toolCall.type === "function" && toolCall.function) {
@@ -111,39 +123,39 @@ export class EnhancedDebugParser {
                     ? this.safeParseJSON(toolCall.function.arguments)
                     : (toolCall.function.arguments || {}),
                 };
+                console.log(`[EnhancedDebugParser] Found tool via tool_calls format: ${toolCall.function.name}`);
                 tool_calls.push(toolData);
               }
             }
           }
 
-          // 3. Handle legacy toolCall messages
+          // 4. Handle legacy toolCall messages (matches amp_runner.py exactly)
           if (j.name === "toolCall" || j.name === "toolCallCompleted") {
             try {
               const payload = JSON.parse(j.message);
               const t_id = payload.toolId || payload.id;
               if (t_id && t_id in pending) {
-                const toolCall = {
+                // Complete the pending tool call
+                const completedCall = {
                   tool_id: t_id,
                   name: payload.name || "unknown",
                   arguments: payload.arguments || {},
                 };
-                tool_calls.push(toolCall);
+                console.log(`[EnhancedDebugParser] Completed pending tool call: ${payload.name} (ID: ${t_id})`);
+                tool_calls.push(completedCall);
                 delete pending[t_id];
               } else if (payload.name) {
                 // Handle case where we don't have pending toolId but have a tool name
                 const toolCall = {
-                  tool_id:
-                    t_id ||
-                    `tool_${Date.now()}_${Math.random()
-                      .toString(36)
-                      .substr(2, 9)}`,
+                  tool_id: t_id || `tool_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                   name: payload.name,
                   arguments: payload.arguments || {},
                 };
+                console.log(`[EnhancedDebugParser] Found direct tool call: ${payload.name}`);
                 tool_calls.push(toolCall);
               }
-            } catch {
-              // Skip malformed tool call entries
+            } catch (error) {
+              console.log(`[EnhancedDebugParser] Failed to parse toolCall message: ${error}`);
             }
           }
         } catch {
@@ -152,9 +164,13 @@ export class EnhancedDebugParser {
         }
       }
 
-      // Flush any partially-filled calls
-      for (const pendingCall of Object.values(pending)) {
-        tool_calls.push(pendingCall);
+      // Flush any partially-filled calls (matches amp_runner.py line 247)
+      console.log(`[EnhancedDebugParser] Flushing ${Object.keys(pending).length} pending calls`);
+      tool_calls.push(...Object.values(pending));
+      
+      console.log(`[EnhancedDebugParser] Total tool calls found: ${tool_calls.length}`);
+      if (tool_calls.length > 0) {
+        console.log(`[EnhancedDebugParser] Tool names: ${tool_calls.map(t => t.name || 'unnamed').join(', ')}`);
       }
     } catch (error) {
       console.warn("Failed to parse debug log:", error);
@@ -228,13 +244,22 @@ export class EnhancedDebugParser {
     exitCode: number = 0
   ): AmpTelemetry {
     // Convert tool calls to expected format
-    const toolCalls = parsed.tool_calls.map((toolCall) => ({
-      toolName: toolCall.name || "unknown",
-      timestamp: new Date().toISOString(),
-      args: toolCall.arguments || {},
-      durationMs: 0, // Not available in debug logs
-      success: true, // Assume success unless we detect failure
-    }));
+    const toolCalls = parsed.tool_calls.map((toolCall) => {
+      const toolName = toolCall.name || "unknown";
+      if (toolName === "unknown") {
+        console.warn(`[EnhancedDebugParser] Tool call with unknown name found:`, {
+          toolCall,
+          id: toolCall.tool_id
+        });
+      }
+      return {
+        toolName,
+        timestamp: new Date().toISOString(),
+        args: toolCall.arguments || {},
+        durationMs: 0, // Not available in debug logs
+        success: true, // Assume success unless we detect failure
+      };
+    });
 
     // Calculate total tokens
     const inputTokens = parsed.token_usage.input_tokens || 0;

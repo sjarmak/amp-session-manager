@@ -80,6 +80,42 @@ export class TelemetryParser {
       json.timestamp = new Date().toISOString();
     }
 
+    // New ChatML-delta single-line tool call format
+    // {"id":"call_123","name":"web_search","arguments":{...}}
+    if (json.name && json.arguments && !json.tool && !json.function_call && !json.tool_calls) {
+      const key = `${json.name}_${json.timestamp}`;
+      this.toolCalls.set(key, {
+        toolName: json.name,
+        args: json.arguments,
+        timestamp: json.timestamp
+      });
+      return {
+        timestamp: json.timestamp,
+        tool: json.name,
+        args: json.arguments,
+        type: 'tool_start'
+      };
+    }
+
+    // ChatML-delta tool result format
+    // {"type":"tool_result","id":"call_123","content":"...","duration":1730}
+    if (json.type === 'tool_result' && json.id && json.content !== undefined) {
+      // Find matching tool call by looking for any tool with same timestamp or id
+      const matchingTool = Array.from(this.toolCalls.entries())
+        .find(([_, toolInfo]) => 
+          Math.abs(new Date(json.timestamp).getTime() - new Date(toolInfo.timestamp).getTime()) < 300000 // 5 min window
+        );
+      
+      const toolName = matchingTool ? matchingTool[1].toolName : 'unknown';
+      return {
+        timestamp: json.timestamp,
+        tool: toolName,
+        duration: json.duration,
+        success: json.error === undefined,
+        type: 'tool_finish'
+      };
+    }
+
     // Handle new tool_calls format (post-2024-02-15)
     if (json.tool_calls && Array.isArray(json.tool_calls)) {
       const events: LogEvent[] = [];
@@ -416,6 +452,12 @@ export class TelemetryParser {
     // Add any unmatched start events
     for (const startEvent of toolStarts.values()) {
       if (startEvent.tool) {
+        if (startEvent.tool === "unknown") {
+          console.warn(`[TelemetryParser] Tool call with unknown name found:`, {
+            event: startEvent,
+            timestamp: startEvent.timestamp
+          });
+        }
         telemetry.toolCalls.push({
           toolName: startEvent.tool,
           args: startEvent.args || {},

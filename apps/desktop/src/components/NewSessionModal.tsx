@@ -42,23 +42,22 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
     setCreating(true);
     setError(null);
 
-    try {
-      const options: SessionCreateOptions = {
-        name: formData.name.trim(),
-        ampPrompt: formData.ampPrompt.trim(),
-        repoRoot: formData.repoRoot.trim(),
-        baseBranch: formData.baseBranch.trim() || 'main',
-        scriptCommand: formData.scriptCommand.trim() || undefined,
-        modelOverride: formData.modelOverride.trim() || undefined,
-        includeContext: formData.includeContext
-      };
+    const options: SessionCreateOptions = {
+      name: formData.name.trim(),
+      ampPrompt: formData.ampPrompt.trim(),
+      repoRoot: formData.repoRoot.trim(),
+      baseBranch: formData.baseBranch.trim() || 'main',
+      scriptCommand: formData.scriptCommand.trim() || undefined,
+      modelOverride: formData.modelOverride.trim() || undefined,
+      includeContext: formData.includeContext
+    };
 
+    try {
       const result = await window.electronAPI.sessions.create(options);
       
       if (result.success) {
-        onSessionCreated();
+        // Close modal and reset form only after successful creation
         onClose();
-        // Reset form
         setFormData({
           name: '',
           ampPrompt: '',
@@ -68,12 +67,16 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
           modelOverride: '',
           includeContext: false
         });
+        setCreating(false);
+        
+        // Refresh the session list
+        onSessionCreated();
       } else {
         setError(result.error || 'Failed to create session');
+        setCreating(false);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create session');
-    } finally {
       setCreating(false);
     }
   };
@@ -84,7 +87,7 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
     <div 
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
       onClick={(e) => {
-        if (e.target === e.currentTarget) {
+        if (e.target === e.currentTarget && !creating) {
           console.log('Backdrop clicked');
           onClose();
         }
@@ -98,10 +101,13 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log('Close button clicked');
-              onClose();
+              if (!creating) {
+                console.log('Close button clicked');
+                onClose();
+              }
             }}
-            className="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded transition-colors text-xl font-bold cursor-pointer"
+            disabled={creating}
+            className="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded transition-colors text-xl font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ zIndex: 9999 }}
           >
             ×
@@ -221,7 +227,8 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+              disabled={creating}
+              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>

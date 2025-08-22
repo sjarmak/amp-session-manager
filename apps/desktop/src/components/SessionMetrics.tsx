@@ -37,6 +37,14 @@ interface MetricsSummary {
     avgDurationMs: number;
     successRate: number;
   }>;
+  fileEdits: Array<{
+    filePath: string;
+    editCount: number;
+    totalLinesAdded: number;
+    totalLinesDeleted: number;
+    operationType: 'create' | 'modify' | 'delete';
+    lastModified: string;
+  }>;
 }
 
 interface RealtimeMetrics {
@@ -378,8 +386,49 @@ export const SessionMetrics: React.FC<SessionMetricsProps> = ({ sessionId, class
                         {tool.callCount} calls • {(tool.successRate * 100).toFixed(1)}% success
                       </span>
                     </div>
+                    {tool.avgDurationMs > 0 && (
+                      <div className="text-xs text-gray-500">
+                        Avg: {formatDuration(tool.avgDurationMs)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* File Modifications */}
+      {summary.fileEdits && summary.fileEdits.length > 0 && (
+        <div className="bg-white rounded-lg border">
+          <div className="p-4 border-b">
+            <h4 className="text-sm font-medium">File Modifications</h4>
+          </div>
+          <div className="p-4">
+            <div className="space-y-3">
+              {summary.fileEdits.slice(0, 10).map((file, index) => (
+                <div key={`${file.filePath}-${index}`} className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm font-medium font-mono text-gray-800">
+                        {file.filePath.length > 50 ? '...' + file.filePath.slice(-47) : file.filePath}
+                      </span>
+                      <div className="flex items-center space-x-2">
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          file.operationType === 'create' ? 'bg-green-100 text-green-800' :
+                          file.operationType === 'delete' ? 'bg-red-100 text-red-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {file.operationType}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {file.editCount} edit{file.editCount !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    </div>
                     <div className="text-xs text-gray-500">
-                      Avg: {formatDuration(tool.avgDurationMs)}
+                      +{file.totalLinesAdded} -{file.totalLinesDeleted} lines
                     </div>
                   </div>
                 </div>

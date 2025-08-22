@@ -357,6 +357,12 @@ export function SessionView({
             </div>
           </div>
 
+          {/* Session Summary */}
+          <div className="bg-white p-6 rounded-lg border">
+            <h3 className="text-lg font-semibold mb-4">Session Summary</h3>
+            <SessionMetrics sessionId={session.id} className="space-y-4" />
+          </div>
+
           {/* Delete Session Button */}
           <div className="bg-white p-6 rounded-lg border border-red-200">
             <h3 className="text-lg font-semibold mb-4 text-red-800">

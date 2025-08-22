@@ -257,6 +257,7 @@ export class SessionStore {
       this.db.prepare('DELETE FROM metric_llm_usage WHERE iteration_id = ?').run(iteration.id);
       this.db.prepare('DELETE FROM metric_git_operations WHERE iteration_id = ?').run(iteration.id);
       this.db.prepare('DELETE FROM metric_test_results WHERE iteration_id = ?').run(iteration.id);
+      this.db.prepare('DELETE FROM metric_file_edits WHERE iteration_id = ?').run(iteration.id);
     }
     
     // Delete metric iterations

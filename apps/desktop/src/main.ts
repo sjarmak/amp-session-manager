@@ -249,14 +249,15 @@ ipcMain.handle('rebase-session', async (_, sessionId: string, options: any) => {
   }
 });
 
-ipcMain.handle('cleanup-session', async (_, sessionId: string) => {
-  try {
-    return await worktreeManager.cleanup(sessionId);
-  } catch (error) {
-    console.error('Failed to cleanup session:', error);
-    throw error;
-  }
-});
+// Deprecated - use 'sessions:cleanup' instead
+// ipcMain.handle('cleanup-session', async (_, sessionId: string) => {
+//   try {
+//     return await worktreeManager.cleanup(sessionId);
+//   } catch (error) {
+//     console.error('Failed to cleanup session:', error);
+//     throw error;
+//   }
+// });
 
 ipcMain.handle('get-batches', async () => {
   try {

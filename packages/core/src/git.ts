@@ -417,16 +417,19 @@ export class GitOps {
     }
   }
 
-  async safeRemoveWorktreeAndBranch(worktreePath: string, branchName: string, baseBranch: string): Promise<void> {
+  async safeRemoveWorktreeAndBranch(worktreePath: string, branchName: string, baseBranch: string, force = false): Promise<void> {
     // Check if worktree exists
     const fs = await import('fs/promises');
     const worktreeExists = await fs.access(worktreePath).then(() => true).catch(() => false);
     
     if (worktreeExists) {
-      // Verify the commit is reachable from base branch
-      const isReachable = await this.isCommitReachableFromBase(baseBranch, worktreePath);
-      if (!isReachable) {
-        throw new Error('Session commit is not reachable from base branch. Cannot safely delete.');
+      // Skip safety check if force is true (for cleanup operations)
+      if (!force) {
+        // Verify the commit is reachable from base branch
+        const isReachable = await this.isCommitReachableFromBase(baseBranch, worktreePath);
+        if (!isReachable) {
+          throw new Error('Session commit is not reachable from base branch. Cannot safely delete.');
+        }
       }
       
       await this.exec(['worktree', 'remove', worktreePath]);

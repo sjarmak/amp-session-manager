@@ -303,7 +303,7 @@ export class CostCalculator {
   // Utility methods for cost tracking
   formatCost(cost: number): string {
     if (cost < 0.001) {
-      return `$${(cost * 1000).toFixed(4)}k`; // Show in thousandths
+      return `$${(cost * 1000000).toFixed(2)}µ`; // Show in millionths (micro-dollars)
     } else if (cost < 1) {
       return `$${cost.toFixed(4)}`;
     } else {

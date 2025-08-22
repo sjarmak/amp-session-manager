@@ -5,6 +5,15 @@ import { CostCalculator, CostBreakdown } from '../cost-calculator';
 import { SessionStore } from '../store';
 import type { ToolCall, IterationRecord } from '@ampsm/types';
 
+export interface FileEditStats {
+  filePath: string;
+  editCount: number;
+  totalLinesAdded: number;
+  totalLinesDeleted: number;
+  operationType: 'create' | 'modify' | 'delete';
+  lastModified: string;
+}
+
 export interface SessionMetricsSummary {
   sessionId: string;
   totalIterations: number;
@@ -26,6 +35,7 @@ export interface SessionMetricsSummary {
     costByModel: Record<string, number>;
   };
   toolUsage: ToolUsageStats[];
+  fileEdits: FileEditStats[];
   gitStats: {
     totalCommits: number;
     manualCommits: number;
@@ -123,6 +133,7 @@ export class MetricsAPI {
 
       const iterations = this.sqliteSink.getIterationMetrics(sessionId);
       const toolUsage = this.sqliteSink.getToolUsageStats(sessionId);
+      const fileEdits = this.sqliteSink.getFileEditStats(sessionId);
 
       // Calculate token usage and costs
       const tokenUsage = this.calculateTokenUsageSummary(sessionId);
@@ -146,6 +157,7 @@ export class MetricsAPI {
         lastIteration: rawSummary.last_iteration,
         tokenUsage,
         toolUsage: toolUsage.map(this.transformToolUsageStats),
+        fileEdits: fileEdits.map(this.transformFileEditStats),
         gitStats,
         testResults
       };
@@ -469,6 +481,17 @@ export class MetricsAPI {
         : 0,
       failureCount: raw.failure_count || 0,
       totalCostUsd: raw.total_cost_usd || 0
+    };
+  }
+
+  private transformFileEditStats(raw: any): FileEditStats {
+    return {
+      filePath: raw.file_path,
+      editCount: raw.edit_count || 0,
+      totalLinesAdded: raw.total_lines_added || 0,
+      totalLinesDeleted: raw.total_lines_deleted || 0,
+      operationType: raw.operation_type || 'modify',
+      lastModified: raw.last_modified
     };
   }
 

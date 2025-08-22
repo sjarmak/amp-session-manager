@@ -445,4 +445,21 @@ export class SQLiteMetricsSink implements MetricsSink {
       ORDER BY call_count DESC
     `).all(sessionId);
   }
+
+  getFileEditStats(sessionId: string): any[] {
+    return this.db.prepare(`
+      SELECT 
+        fe.file_path,
+        COUNT(*) as edit_count,
+        SUM(fe.lines_added) as total_lines_added,
+        SUM(fe.lines_deleted) as total_lines_deleted,
+        fe.operation_type,
+        MAX(i.started_at) as last_modified
+      FROM metric_file_edits fe
+      JOIN metric_iterations i ON fe.iteration_id = i.id
+      WHERE i.session_id = ?
+      GROUP BY fe.file_path, fe.operation_type
+      ORDER BY edit_count DESC, last_modified DESC
+    `).all(sessionId);
+  }
 }
