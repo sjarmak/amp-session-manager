@@ -1,22 +1,24 @@
 # Amp Session Manager
 
-A cross-platform desktop application and CLI for managing isolated Git worktree sessions with the Amp coding agent.
+A cross-platform desktop application and CLI that transforms Amp coding sessions into a disciplined, auditable Git workflow with isolated worktrees, atomic commits, and comprehensive telemetry.
 
 ## Overview
 
-Amp Session Manager creates and manages **sessions from prompts**, each running in its own **Git worktree** on a dedicated branch. Every iteration with Amp ends with a commit, enabling reviewable diffs and safe squash/rebase operations back to the main branch.
+Amp Session Manager wraps the Amp coding agent in a reproducible Git workflow. Every time you ask Amp to change code, it works inside an **isolated worktree on its own branch**, commits after every iteration, and records rich telemetry. You can run many sessions in parallel, review diffs, and safely squash/rebase/merge changes back to your main branch.
 
-## Features
+## Core Capabilities
 
-- 🔄 **Isolated Sessions**: Each session runs in its own Git worktree
-- 📝 **Deterministic Commits**: Every Amp iteration results in a commit
-- 🔍 **Reviewable Diffs**: Track all changes through the UI and CLI
-- 🧹 **Clean Integration**: Squash session commits and rebase onto base branch
-- ⚡ **Parallel Sessions**: Run multiple sessions simultaneously
-- 🔔 **Notifications**: Get notified when sessions need attention
-- 🧪 **Test Integration**: Run test scripts per session
-- 📊 **Batch Processing**: Run multiple prompts across different repositories
-- 💾 **Export & Reporting**: Export session data and generate detailed reports
+- 🔄 **Isolated Git Worktree Sessions**: Each session runs in `<repo>/.worktrees/<session-id>` on branch `amp/<slug>/<timestamp>`
+- 📝 **Deterministic, Atomic Commits**: Every Amp iteration creates a commit with `amp:` prefix  
+- 🔍 **Reviewable History**: Track all changes through desktop UI diff viewer and CLI
+- 🧹 **Safe Merge Workflow**: Squash → rebase → merge with conflict resolution
+- ⚡ **Parallel Execution**: Run multiple sessions simultaneously with file-system locks
+- 🧪 **Test Integration**: Run validation scripts per session with automatic gating
+- 📊 **Batch Processing**: Execute hundreds of prompts across repositories from YAML configs
+- 💰 **Cost & Usage Tracking**: Monitor token usage, tool calls, and costs across all models
+- 📈 **Rich Telemetry**: SQLite storage with NDJSON/CSV export for analytics
+- 🔔 **Smart Notifications**: Desktop, email, and webhook alerts for session events
+- 🎯 **Benchmark Support**: SWE-bench integration for software engineering research
 
 ## Architecture
 
@@ -43,29 +45,41 @@ amp-session-manager/
 
 ## Quick Start
 
+### Prerequisites
+
+- **Node.js**: >= 18.0.0 (LTS recommended)
+- **pnpm**: >= 8.0.0 (`npm install -g pnpm`)
+- **Git**: >= 2.38 (for improved worktree support)
+- **Amp CLI**: Installed and authenticated (`npm install -g @amp/cli && amp auth`)
+
 ### Installation
 
 ```bash
-# Install dependencies
+# Clone and install dependencies
+git clone https://github.com/sjarmak/amp-session-manager.git
+cd amp-session-manager
 pnpm install
 
 # Build all packages
 pnpm build
+
+# Verify Amp integration
+pnpm cli verify-amp
 ```
 
 ### Development
 
 ```bash
-# Start the desktop app
+# Start the desktop app (Electron)
 pnpm dev
 
-# Run the CLI in watch mode
+# Run the CLI in watch mode  
 pnpm cli
 
-# Run tests
+# Run tests across all packages
 pnpm test
 
-# Type checking
+# Type checking across workspace
 pnpm typecheck
 ```
 
@@ -73,28 +87,38 @@ pnpm typecheck
 
 ```bash
 # Session Management
-amp-sessions list                                               # List all sessions
 amp-sessions new --repo ./my-repo --name "feature-x" --prompt "Implement feature X"
-amp-sessions iterate <session-id>                              # Run an iteration
-amp-sessions squash <session-id> --message "feat: implement feature X"
+amp-sessions list                                               # List all sessions with status
+amp-sessions iterate <session-id>                              # Run Amp iteration  
+amp-sessions diff <session-id>                                 # View session changes
+amp-sessions logs <session-id> --follow                        # Stream Amp logs
 
-# Batch Processing
-amp-sessions batch start --file ./batch-config.json           # Start a batch run
-amp-sessions batch list                                        # List batch runs
-amp-sessions batch status <run-id>                            # Check batch status
-amp-sessions batch abort <run-id>                             # Abort running batch
-amp-sessions batch export <run-id> --format csv --out ./data  # Export batch results
+# Git Workflow
+amp-sessions squash <session-id> --message "feat: implement feature X"
+amp-sessions rebase <session-id> --onto main                   # Rebase onto target branch
+amp-sessions merge <session-id>                                # Complete merge workflow
+amp-sessions preflight <session-id>                            # Pre-merge validation
+
+# Batch Processing & Benchmarks
+amp-sessions batch start --file ./batch-config.yaml           # Execute batch from config
+amp-sessions batch export <run-id> --format csv --out ./data  # Export results
+amp-sessions bench <benchmark-suite>                          # Run SWE-bench tests
+
+# Analytics & Reporting
+amp-sessions export --format ndjson --out sessions.jsonl      # Export all session data
+amp-sessions report --output report.md                        # Generate comprehensive report
+amp-sessions metrics <session-id>                             # Show session metrics
 ```
 
 ## Session Workflow
 
-1. **Create Session**: Specify repository, base branch, and initial prompt
-2. **Iterate**: Amp makes changes and commits automatically with `amp:` prefix
-3. **Manual Edits**: Make manual changes anytime - they're tracked separately
-4. **Review**: Use the UI or CLI to review all diffs and changes
-5. **Squash**: Combine all `amp:` commits into a single commit
-6. **Rebase**: Clean rebase onto the base branch
-7. **Merge**: Standard Git merge workflow
+1. **Create Session**: `amp-sessions new` creates isolated worktree and branch
+2. **Iterate**: Amp makes changes, commits automatically with `amp:` prefix, runs optional tests
+3. **Manual Edits**: Make changes anytime - they're tracked separately from Amp commits
+4. **Review**: Desktop UI diff viewer or `amp-sessions diff` to examine all changes  
+5. **Squash**: `amp-sessions squash` combines all `amp:` commits into single commit
+6. **Rebase**: `amp-sessions rebase` safely rebases onto target branch with conflict handling
+7. **Merge**: `amp-sessions merge` completes full workflow or create PR
 
 ## Git Conventions
 
