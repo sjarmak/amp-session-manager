@@ -38,5 +38,9 @@ export type {
   MetricsExportResult
 } from './metrics-api';
 
+// Re-export parsers
+export { TelemetryParser } from '../telemetry-parser';
+export { EnhancedDebugParser } from '../enhanced-debug-parser';
+
 // Re-export common utilities
 export { Logger } from '../utils/logger';

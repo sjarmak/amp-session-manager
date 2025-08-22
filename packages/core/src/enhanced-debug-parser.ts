@@ -42,7 +42,9 @@ export class EnhancedDebugParser {
       arguments?: Record<string, any>;
     }> = [];
 
-    let token_usage: { input_tokens?: number; output_tokens?: number } = {};
+    // Aggregate token usage across all ChatCompletion responses
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
     let perf: {
       inferenceDuration?: number;
       tokensPerSecond?: number;
@@ -62,12 +64,23 @@ export class EnhancedDebugParser {
         try {
           const j = JSON.parse(raw.trim());
 
-          // --- token usage --------------------------------------
+          // --- token usage aggregation (sum all ChatCompletion responses) ---
           if ("input_tokens" in j && "output_tokens" in j) {
-            token_usage = {
-              input_tokens: j.input_tokens,
-              output_tokens: j.output_tokens,
-            };
+            // Add to running totals instead of replacing
+            totalInputTokens += j.input_tokens || 0;
+            totalOutputTokens += j.output_tokens || 0;
+          }
+
+          // Look for usage field in ChatCompletion responses
+          if (j.usage && (j.usage.prompt_tokens || j.usage.completion_tokens)) {
+            totalInputTokens += j.usage.prompt_tokens || 0;
+            totalOutputTokens += j.usage.completion_tokens || 0;
+          }
+
+          // Look for OpenAI-style token usage anywhere in the log
+          if (j.prompt_tokens && j.completion_tokens) {
+            totalInputTokens += j.prompt_tokens;
+            totalOutputTokens += j.completion_tokens;
           }
 
           // --- inference metrics -------------------------------
@@ -87,8 +100,23 @@ export class EnhancedDebugParser {
             pending[tool_id] = { tool_id };
           }
 
-          // 2. A later log entry contains the concrete call:
-          //    {"name":"toolCall", "message":"{\"name\":\"Grep\", \"arguments\":{...}, \"toolId\":\"toolu_abc\"}"}
+          // 2. Handle new tool_calls format (post-2024-02-15)
+          if (j.tool_calls && Array.isArray(j.tool_calls)) {
+            for (const toolCall of j.tool_calls) {
+              if (toolCall.type === "function" && toolCall.function) {
+                const toolData = {
+                  tool_id: toolCall.id || `tool_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                  name: toolCall.function.name || "unknown",
+                  arguments: typeof toolCall.function.arguments === 'string' 
+                    ? this.safeParseJSON(toolCall.function.arguments)
+                    : (toolCall.function.arguments || {}),
+                };
+                tool_calls.push(toolData);
+              }
+            }
+          }
+
+          // 3. Handle legacy toolCall messages
           if (j.name === "toolCall" || j.name === "toolCallCompleted") {
             try {
               const payload = JSON.parse(j.message);
@@ -134,9 +162,20 @@ export class EnhancedDebugParser {
 
     return {
       tool_calls,
-      token_usage,
+      token_usage: {
+        input_tokens: totalInputTokens,
+        output_tokens: totalOutputTokens,
+      },
       perf,
     };
+  }
+
+  private static safeParseJSON(str: string): Record<string, any> {
+    try {
+      return JSON.parse(str);
+    } catch {
+      return {};
+    }
   }
 
   /**

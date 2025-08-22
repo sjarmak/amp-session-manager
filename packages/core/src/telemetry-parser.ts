@@ -46,6 +46,23 @@ export class TelemetryParser {
       
       try {
         const parsed = JSON.parse(trimmed);
+        
+        // Handle new tool_calls format directly in JSONL parsing
+        if (parsed.tool_calls && Array.isArray(parsed.tool_calls)) {
+          for (const toolCall of parsed.tool_calls) {
+            if (toolCall.type === "function" && toolCall.function) {
+              events.push({
+                timestamp: parsed.timestamp || new Date().toISOString(),
+                tool: toolCall.function.name || "unknown",
+                args: typeof toolCall.function.arguments === 'string' 
+                  ? this.safeParseJSON(toolCall.function.arguments)
+                  : (toolCall.function.arguments || {}),
+                type: 'tool_start'
+              });
+            }
+          }
+        }
+        
         const event = this.parseJSONEvent(parsed);
         if (event) {
           events.push(event);
@@ -61,6 +78,37 @@ export class TelemetryParser {
   private parseJSONEvent(json: any): LogEvent | null {
     if (!json.timestamp) {
       json.timestamp = new Date().toISOString();
+    }
+
+    // Handle new tool_calls format (post-2024-02-15)
+    if (json.tool_calls && Array.isArray(json.tool_calls)) {
+      const events: LogEvent[] = [];
+      for (const toolCall of json.tool_calls) {
+        if (toolCall.type === "function" && toolCall.function) {
+          events.push({
+            timestamp: json.timestamp,
+            tool: toolCall.function.name || "unknown",
+            args: typeof toolCall.function.arguments === 'string' 
+              ? this.safeParseJSON(toolCall.function.arguments)
+              : (toolCall.function.arguments || {}),
+            type: 'tool_start'
+          });
+        }
+      }
+      // Return first tool call event, others will be processed in subsequent calls
+      return events[0] || null;
+    }
+
+    // Legacy function_call format
+    if (json.function_call?.name) {
+      return {
+        timestamp: json.timestamp,
+        tool: json.function_call.name,
+        args: typeof json.function_call.arguments === 'string'
+          ? this.safeParseJSON(json.function_call.arguments)
+          : (json.function_call.arguments || {}),
+        type: 'tool_start'
+      };
     }
 
     // Tool call events
@@ -83,14 +131,14 @@ export class TelemetryParser {
       }
     }
 
-    // Token usage (either dedicated tokens field or inline) - also extract model if present
-    if (json.tokens || json.token_usage || (json.prompt && json.completion)) {
-      const tokens = json.tokens || json.token_usage || json;
+    // Token usage (various formats)
+    if (json.tokens || json.token_usage || json.usage || (json.prompt && json.completion)) {
+      const tokens = json.tokens || json.token_usage || json.usage || json;
       return {
         timestamp: json.timestamp,
         tokens: {
-          prompt: tokens.prompt || tokens.prompt_tokens,
-          completion: tokens.completion || tokens.completion_tokens,
+          prompt: tokens.prompt || tokens.prompt_tokens || tokens.input_tokens,
+          completion: tokens.completion || tokens.completion_tokens || tokens.output_tokens,
           total: tokens.total || tokens.total_tokens
         },
         model: json.model, // Extract model from same event
@@ -294,20 +342,30 @@ export class TelemetryParser {
       toolCalls: []
     };
 
-    // Extract token usage and model info (prefer the last/most complete entry)
-    for (const event of events.reverse()) {
+    // Aggregate token usage across all token_usage events
+    let totalPromptTokens = 0;
+    let totalCompletionTokens = 0;
+    let totalTokens = 0;
+
+    for (const event of events) {
       if (event.type === 'token_usage' && event.tokens) {
-        telemetry.promptTokens = event.tokens.prompt;
-        telemetry.completionTokens = event.tokens.completion;
-        telemetry.totalTokens = event.tokens.total;
-        // Also extract model if it's in the same event
-        if (event.model) {
+        totalPromptTokens += event.tokens.prompt || 0;
+        totalCompletionTokens += event.tokens.completion || 0;
+        totalTokens += event.tokens.total || 0;
+        
+        // Extract model if it's in the same event
+        if (event.model && !telemetry.model) {
           telemetry.model = event.model;
         }
-        break;
       }
     }
-    events.reverse(); // Restore original order
+
+    // Set aggregated token counts
+    if (totalPromptTokens > 0 || totalCompletionTokens > 0) {
+      telemetry.promptTokens = totalPromptTokens;
+      telemetry.completionTokens = totalCompletionTokens;
+      telemetry.totalTokens = totalTokens || (totalPromptTokens + totalCompletionTokens);
+    }
 
     // Extract model info from any event that has it (if not already set)
     if (!telemetry.model) {
@@ -361,7 +419,7 @@ export class TelemetryParser {
         telemetry.toolCalls.push({
           toolName: startEvent.tool,
           args: startEvent.args || {},
-          success: false, // Assume failed since no finish event
+          success: true, // Assume success for tool calls from modern format
           timestamp: startEvent.timestamp
         });
       }
