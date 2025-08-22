@@ -84,7 +84,7 @@ export class BatchRunner {
     }
 
     // Create batch record
-    this.store.createBatch(runId, plan.defaults);
+    this.store.createBatch(runId, { ...plan.defaults, concurrency: plan.concurrency });
 
     // Create batch items
     const items: BatchItem[] = [];
@@ -181,14 +181,8 @@ export class BatchRunner {
       // Update batch item with session ID
       this.store.updateBatchItem(item.id, { sessionId: session.id });
 
-      // Run iteration with timeout
-      const timeoutMs = (planItem.timeoutSec || plan.defaults.timeoutSec || 900) * 1000;
-      const iterationPromise = this.runWithTimeout(
-        () => worktreeManager.iterate(session.id),
-        timeoutMs
-      );
-
-      const result = await iterationPromise;
+      // Note: createSession() already runs the initial iteration, so we don't need to call iterate() again
+      // This fixes the double iteration bug where batch items were running 2 iterations instead of 1
       
       // Get telemetry from the iteration
       const iterations = this.store.getIterations(session.id, 1);

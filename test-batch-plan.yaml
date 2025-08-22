@@ -1,4 +1,4 @@
-concurrency: 2
+concurrency: 3
 defaults:
   baseBranch: main
   scriptCommand: "echo 'Running tests...' && exit 0"
