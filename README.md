@@ -83,6 +83,28 @@ pnpm test
 pnpm typecheck
 ```
 
+### Desktop UI
+
+The `pnpm dev` command launches an **Electron desktop application** with a React-based interface for managing sessions:
+
+**Main Features:**
+- **Session Dashboard**: Visual overview of all sessions with status indicators
+- **Live Session Monitoring**: Real-time updates as Amp works on sessions
+- **Diff Viewer**: Side-by-side comparison of changes with syntax highlighting  
+- **Merge Wizard**: Guided workflow for squashing, rebasing, and merging sessions
+- **Batch Run Management**: Visual interface for executing and monitoring batch operations
+- **Metrics Dashboard**: Charts showing token usage, costs, and performance across sessions
+- **Notification Center**: Desktop notifications for session completion and errors
+- **Thread Integration**: View and manage Amp conversation threads directly
+
+**Navigation:**
+- Sessions tab: Create, iterate, and manage individual sessions
+- Batches tab: Configure and monitor multi-session batch runs  
+- Metrics tab: Analyze performance and costs across all sessions
+- Settings: Configure notifications, Amp integration, and preferences
+
+The desktop app provides a user-friendly alternative to the CLI, especially useful for reviewing diffs, managing multiple sessions, and monitoring long-running batch operations.
+
 ### CLI Usage
 
 ```bash
