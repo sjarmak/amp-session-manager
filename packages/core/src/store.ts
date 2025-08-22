@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import type { Session, IterationRecord, ToolCall, SessionCreateOptions, AmpTelemetry, BatchRecord, BatchItem, ExportOptions } from '@ampsm/types';
+import type { Session, IterationRecord, ToolCall, SessionCreateOptions, AmpTelemetry, BatchRecord, BatchItem, ExportOptions, SweBenchRun, SweBenchCaseResult } from '@ampsm/types';
 import { randomUUID } from 'crypto';
 import { getDbPath } from './config.js';
 
@@ -118,6 +118,30 @@ export class SessionStore {
         tokensTotal INTEGER,
         toolCalls INTEGER,
         FOREIGN KEY(runId) REFERENCES batches(runId),
+        FOREIGN KEY(sessionId) REFERENCES sessions(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS swebench_runs (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        casesDir TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        total INTEGER NOT NULL DEFAULT 0,
+        completed INTEGER NOT NULL DEFAULT 0,
+        passed INTEGER NOT NULL DEFAULT 0,
+        failed INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'running'
+      );
+
+      CREATE TABLE IF NOT EXISTS swebench_case_results (
+        runId TEXT NOT NULL,
+        caseId TEXT NOT NULL,
+        sessionId TEXT NOT NULL,
+        status TEXT NOT NULL,
+        iterations INTEGER NOT NULL DEFAULT 0,
+        wallTimeSec REAL NOT NULL DEFAULT 0,
+        PRIMARY KEY(runId, caseId),
+        FOREIGN KEY(runId) REFERENCES swebench_runs(id),
         FOREIGN KEY(sessionId) REFERENCES sessions(id)
       );
     `);
@@ -650,6 +674,90 @@ export class SessionStore {
     const stmt = this.db.prepare('UPDATE sessions SET status = "idle" WHERE status = "running"');
     const result = stmt.run();
     return result.changes;
+  }
+
+  // SWE-bench operations
+  createSweBenchRun(run: Omit<SweBenchRun, 'createdAt'> & { createdAt?: string }): SweBenchRun {
+    const sweBenchRun: SweBenchRun = {
+      ...run,
+      createdAt: run.createdAt || new Date().toISOString()
+    };
+
+    const stmt = this.db.prepare(`
+      INSERT INTO swebench_runs (id, name, casesDir, createdAt, total, completed, passed, failed, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    stmt.run(
+      sweBenchRun.id,
+      sweBenchRun.name,
+      sweBenchRun.casesDir,
+      sweBenchRun.createdAt,
+      sweBenchRun.total,
+      sweBenchRun.completed,
+      sweBenchRun.passed,
+      sweBenchRun.failed,
+      sweBenchRun.status
+    );
+
+    return sweBenchRun;
+  }
+
+  updateSweBenchRun(id: string, updates: Partial<Omit<SweBenchRun, 'id' | 'createdAt'>>) {
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value !== undefined) {
+        fields.push(`${key} = ?`);
+        values.push(value);
+      }
+    });
+
+    if (fields.length === 0) return;
+
+    values.push(id);
+    const stmt = this.db.prepare(`UPDATE swebench_runs SET ${fields.join(', ')} WHERE id = ?`);
+    stmt.run(...values);
+  }
+
+  getSweBenchRun(id: string): SweBenchRun | null {
+    const stmt = this.db.prepare('SELECT * FROM swebench_runs WHERE id = ?');
+    return stmt.get(id) as SweBenchRun | null;
+  }
+
+  getAllSweBenchRuns(): SweBenchRun[] {
+    const stmt = this.db.prepare('SELECT * FROM swebench_runs ORDER BY createdAt DESC');
+    return stmt.all() as SweBenchRun[];
+  }
+
+  saveSweBenchCaseResult(result: SweBenchCaseResult) {
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO swebench_case_results (runId, caseId, sessionId, status, iterations, wallTimeSec)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    
+    stmt.run(
+      result.runId,
+      result.caseId,
+      result.sessionId,
+      result.status,
+      result.iterations,
+      result.wallTimeSec
+    );
+  }
+
+  getSweBenchCaseResults(runId: string): SweBenchCaseResult[] {
+    const stmt = this.db.prepare('SELECT * FROM swebench_case_results WHERE runId = ? ORDER BY caseId ASC');
+    return stmt.all(runId) as SweBenchCaseResult[];
+  }
+
+  deleteSweBenchRun(id: string): void {
+    // Delete case results first (foreign key relationship)
+    this.db.prepare('DELETE FROM swebench_case_results WHERE runId = ?').run(id);
+    
+    // Then delete the run record
+    this.db.prepare('DELETE FROM swebench_runs WHERE id = ?').run(id);
   }
 
   close() {

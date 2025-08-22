@@ -181,6 +181,37 @@ export interface ReportOptions {
   format: 'md' | 'html';
 }
 
+// SWE-bench types
+export interface SweBenchCase {
+  id: string;                // e.g. "apache#1234"
+  repo: string;              // gh slug, used to locate local mirror
+  bugCommit: string;         // SHA the tests fail on
+  fixCommit: string;         // golden patch SHA (used only for diff metrics)
+  testPath: string;          // tests/foo/test_bar.py::TestBaz::test_qux
+  prompt: string;            // Provided by dataset, fallback = template
+}
+
+export interface SweBenchRun {
+  id: string;
+  name: string;
+  casesDir: string;          // folder user pointed at
+  createdAt: string;
+  total: number;
+  completed: number;
+  passed: number;
+  failed: number;
+  status: "running"|"done"|"aborted";
+}
+
+export interface SweBenchCaseResult {
+  runId: string;
+  caseId: string;
+  sessionId: string;         // FK → sessions table
+  status: "pass"|"fail";
+  iterations: number;
+  wallTimeSec: number;
+}
+
 // Thread-related types
 export interface NormalizedThread {
   id: string;

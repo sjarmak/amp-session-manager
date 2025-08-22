@@ -240,7 +240,8 @@ export class AmpAdapter {
         const telemetry = EnhancedDebugParser.parseWithFallback(
           debugLogFile,
           fullOutput,
-          exitCode || 0
+          exitCode || 0,
+          modelOverride
         );
         console.log('Enhanced parsed telemetry:', telemetry);
         
@@ -371,7 +372,8 @@ export class AmpAdapter {
         const telemetry = EnhancedDebugParser.parseWithFallback(
           debugLogFile,
           fullOutput,
-          exitCode || 0
+          exitCode || 0,
+          modelOverride
         );
         console.log('Enhanced parsed oracle telemetry:', telemetry);
         

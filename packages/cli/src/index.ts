@@ -30,6 +30,7 @@ import { createMetricsCommand } from './commands/metrics.js';
 import { addRepoInfoCommand } from './commands/repo-info.js';
 import { benchCommand } from './commands/bench.js';
 import { threads } from './commands/threads.js';
+import { sweBenchCommand } from './commands/swebench.js';
 
 const program = new Command();
 
@@ -264,6 +265,9 @@ program.addCommand(threads);
 
 // Add repo-info command
 addRepoInfoCommand(program);
+
+// Add SWE-bench command
+program.addCommand(sweBenchCommand);
 
 // Benchmark command
 program

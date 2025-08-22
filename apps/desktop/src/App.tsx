@@ -7,17 +7,22 @@ import { NewSessionModal } from './components/NewSessionModal';
 import { BatchesView } from './components/BatchesView';
 import { BatchRunDetail } from './components/BatchRunDetail';
 import { NewBatchModal } from './components/NewBatchModal';
+import { BenchmarksView } from './components/BenchmarksView';
+import { BenchmarkRunDetail } from './components/BenchmarkRunDetail';
+import { NewBenchmarkModal } from './components/NewBenchmarkModal';
 import { ThreadsView } from './components/ThreadsView';
 import NotificationSettingsModal from './components/NotificationSettingsModal';
 import { AuthStatus } from './components/AuthStatus';
 import './App.css';
 
 function App() {
-  const [currentView, setCurrentView] = useState<'sessions' | 'batches' | 'threads' | 'session' | 'batch-detail'>('sessions');
+  const [currentView, setCurrentView] = useState<'sessions' | 'batches' | 'benchmarks' | 'threads' | 'session' | 'batch-detail' | 'benchmark-detail'>('sessions');
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [selectedBatchRun, setSelectedBatchRun] = useState<string | null>(null);
+  const [selectedBenchmarkRun, setSelectedBenchmarkRun] = useState<{ runId: string; type: string } | null>(null);
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [showNewBatchModal, setShowNewBatchModal] = useState(false);
+  const [showNewBenchmarkModal, setShowNewBenchmarkModal] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -50,6 +55,20 @@ function App() {
   };
 
   const handleBatchCreated = () => {
+    setRefreshKey(prev => prev + 1);
+  };
+
+  const handleBenchmarkRunSelect = (runId: string, type: string) => {
+    setSelectedBenchmarkRun({ runId, type });
+    setCurrentView('benchmark-detail');
+  };
+
+  const handleBackToBenchmarks = () => {
+    setSelectedBenchmarkRun(null);
+    setCurrentView('benchmarks');
+  };
+
+  const handleBenchmarkCreated = () => {
     setRefreshKey(prev => prev + 1);
   };
 
@@ -172,6 +191,16 @@ function App() {
               Batches
             </button>
             <button
+              onClick={() => setCurrentView('benchmarks')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                currentView === 'benchmarks' 
+                  ? 'bg-orange-500 text-white shadow-sm' 
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-orange-100'
+              }`}
+            >
+              Benchmarks
+            </button>
+            <button
               onClick={() => setCurrentView('threads')}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 currentView === 'threads' 
@@ -199,6 +228,13 @@ function App() {
                 onNewBatch={() => setShowNewBatchModal(true)}
               />
             </div>
+          ) : currentView === 'benchmarks' ? (
+            <div key={refreshKey}>
+              <BenchmarksView
+                onRunSelect={handleBenchmarkRunSelect}
+                onNewRun={() => setShowNewBenchmarkModal(true)}
+              />
+            </div>
           ) : currentView === 'threads' ? (
             <div key={refreshKey}>
               <ThreadsView />
@@ -207,6 +243,12 @@ function App() {
             <BatchRunDetail
               runId={selectedBatchRun}
               onBack={handleBackToBatches}
+            />
+          ) : currentView === 'benchmark-detail' && selectedBenchmarkRun ? (
+            <BenchmarkRunDetail
+              runId={selectedBenchmarkRun.runId}
+              type={selectedBenchmarkRun.type}
+              onBack={handleBackToBenchmarks}
             />
           ) : selectedSession ? (
             <SessionView
@@ -231,6 +273,12 @@ function App() {
           isOpen={showNewBatchModal}
           onClose={() => setShowNewBatchModal(false)}
           onBatchCreated={handleBatchCreated}
+        />
+
+        <NewBenchmarkModal
+          isOpen={showNewBenchmarkModal}
+          onClose={() => setShowNewBenchmarkModal(false)}
+          onBenchmarkCreated={handleBenchmarkCreated}
         />
 
         <NotificationSettingsModal

@@ -61,6 +61,14 @@ declare global {
         getSessionProgress: (sessionId: string) => Promise<{ success: boolean; progress?: any; error?: string }>;
         exportMetrics: (sessionId: string, options: any) => Promise<{ success: boolean; result?: any; error?: string }>;
       };
+      benchmarks: {
+        listRuns: () => Promise<any[]>;
+        getRun: (runId: string) => Promise<any>;
+        getResults: (runId: string) => Promise<any[]>;
+        start: (options: any) => Promise<{ success: boolean; runId?: string; error?: string }>;
+        abort: (runId: string) => Promise<{ success: boolean; error?: string }>;
+        delete: (runId: string) => Promise<{ success: boolean; error?: string }>;
+      };
       
       // Auth and external links
       validateAuth: () => Promise<{

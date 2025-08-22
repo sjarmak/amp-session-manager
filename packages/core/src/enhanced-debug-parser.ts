@@ -314,7 +314,8 @@ export class EnhancedDebugParser {
    */
   static convertToTelemetry(
     parsed: ParsedDebugLogs,
-    exitCode: number = 0
+    exitCode: number = 0,
+    modelOverride?: string
   ): AmpTelemetry {
     // Convert tool calls to expected format
     const toolCalls = parsed.tool_calls.map((toolCall) => {
@@ -345,7 +346,7 @@ export class EnhancedDebugParser {
       promptTokens: inputTokens,
       completionTokens: outputTokens,
       totalTokens,
-      model: "anthropic/claude-sonnet-4-20250514", // Default, could be extracted from logs
+      model: modelOverride || "anthropic/claude-sonnet-4-20250514", // Use actual model or default
       ampVersion: "1.0.0", // Could be extracted from logs
       toolCalls,
     };
@@ -357,7 +358,8 @@ export class EnhancedDebugParser {
   static parseWithFallback(
     debugLogPath: string | null,
     textOutput: string,
-    exitCode: number = 0
+    exitCode: number = 0,
+    modelOverride?: string
   ): AmpTelemetry {
     // Try debug log parsing first
     if (debugLogPath) {
@@ -370,7 +372,7 @@ export class EnhancedDebugParser {
           parsed.token_usage.input_tokens ||
           parsed.token_usage.output_tokens
         ) {
-          const telemetry = this.convertToTelemetry(parsed, exitCode);
+          const telemetry = this.convertToTelemetry(parsed, exitCode, modelOverride);
           
           // Also check text output for file operations that might have been missed
           console.log(`[EnhancedDebugParser] Checking text output for file operations:`, textOutput.substring(0, 200));
@@ -399,7 +401,7 @@ export class EnhancedDebugParser {
     }
 
     // Fallback to pattern matching on text output
-    return this.parseTextOutput(textOutput, exitCode);
+    return this.parseTextOutput(textOutput, exitCode, modelOverride);
   }
 
   /**
@@ -499,7 +501,8 @@ export class EnhancedDebugParser {
    */
   private static parseTextOutput(
     output: string,
-    exitCode: number
+    exitCode: number,
+    modelOverride?: string
   ): AmpTelemetry {
     const toolCalls: any[] = [];
     let promptTokens = 0;
@@ -564,7 +567,7 @@ export class EnhancedDebugParser {
       promptTokens,
       completionTokens,
       totalTokens,
-      model: "anthropic/claude-sonnet-4-20250514",
+      model: modelOverride || "anthropic/claude-sonnet-4-20250514",
       ampVersion: "1.0.0",
       toolCalls,
     };

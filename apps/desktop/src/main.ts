@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const { join } = require('path');
-const { SessionStore, WorktreeManager, BatchController, getCurrentAmpThreadId, getDbPath, Notifier, MetricsAPI, SQLiteMetricsSink, MetricsEventBus, costCalculator, Logger } = require('@ampsm/core');
+const { SessionStore, WorktreeManager, BatchController, SweBenchRunner, getCurrentAmpThreadId, getDbPath, Notifier, MetricsAPI, SQLiteMetricsSink, MetricsEventBus, costCalculator, Logger } = require('@ampsm/core');
 
 let mainWindow: any;
 
@@ -47,8 +47,10 @@ app.on('activate', () => {
 let store: any;
 let worktreeManager: any;
 let batchController: any;
+let sweBenchRunner: any;
 let notifier: any;
 let metricsAPI: any;
+let servicesReady = false;
 
 async function initializeServices() {
   try {
@@ -65,6 +67,7 @@ async function initializeServices() {
     // Pass shared metrics bus to WorktreeManager and BatchController
     worktreeManager = new WorktreeManager(store, dbPath, metricsEventBus);
     batchController = new BatchController(store, dbPath, metricsEventBus);
+    sweBenchRunner = new SweBenchRunner(store, dbPath);
     notifier = new Notifier();
 
     notifier.setCallback(async (options: any) => {
@@ -79,6 +82,7 @@ async function initializeServices() {
       }
     });
 
+    servicesReady = true;
     console.log('Services initialized successfully');
   } catch (error) {
     console.error('Failed to initialize services:', error);
@@ -460,6 +464,47 @@ ipcMain.handle('test-notification', async (_, type: string) => {
   }
 });
 
+// Notification IPC handlers
+ipcMain.handle('notifications:getSettings', async () => {
+  try {
+    return notifier.getSettings();
+  } catch (error) {
+    console.error('Failed to get notification settings:', error);
+    return null;
+  }
+});
+
+ipcMain.handle('notifications:updateSettings', async (_, settings: any) => {
+  try {
+    notifier.setSettings(settings);
+    return true;
+  } catch (error) {
+    console.error('Failed to update notification settings:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('notifications:test', async (_, type: string) => {
+  try {
+    const testNotifications = {
+      sessionComplete: { type: 'success', title: 'Session Complete', message: 'Session "test-session" completed successfully' },
+      sessionFailed: { type: 'error', title: 'Session Failed', message: 'Session "test-session" failed with error' },
+      awaitingInput: { type: 'warning', title: 'Awaiting Input', message: 'Session "test-session" needs manual intervention' },
+      testPassed: { type: 'success', title: 'Tests Passed', message: 'All tests passed for session "test-session"' },
+      testFailed: { type: 'error', title: 'Tests Failed', message: 'Tests failed for session "test-session"' }
+    };
+    
+    const notification = testNotifications[type as keyof typeof testNotifications];
+    if (notification) {
+      notifier.notify(notification);
+    }
+    return true;
+  } catch (error) {
+    console.error('Failed to test notification:', error);
+    return false;
+  }
+});
+
 // Metrics IPC handlers
 ipcMain.handle('metrics:getSessionSummary', async (_, sessionId: string) => {
   try {
@@ -522,6 +567,115 @@ ipcMain.handle('metrics:exportMetrics', async (_, sessionId: string, options: an
     return { success: true, result };
   } catch (error) {
     console.error('Failed to export metrics:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception:', error);
+  app.quit();
+});
+
+// Benchmark IPC handlers
+ipcMain.handle('benchmarks:listRuns', async () => {
+  try {
+    console.log('📊 benchmarks:listRuns called, servicesReady:', servicesReady);
+    if (!servicesReady || !sweBenchRunner) {
+      console.error('❌ Services not ready or SweBenchRunner not initialized');
+      return [];
+    }
+    if (!store) {
+      console.error('❌ Store not initialized');
+      return [];
+    }
+    console.log('📊 Calling sweBenchRunner.listRuns()');
+    const sweBenchRuns = await sweBenchRunner.listRuns();
+    console.log('📊 Got sweBenchRuns:', sweBenchRuns?.length || 0, 'runs');
+    
+    // Transform to generic benchmark format
+    const benchmarkRuns = sweBenchRuns.map((run: any) => ({
+      runId: run.id, // Fix: use 'id' instead of 'runId'
+      type: 'swebench' as const,
+      createdAt: run.createdAt,
+      casesDir: run.casesDir,
+      totalCases: run.total, // Fix: use 'total' instead of 'totalCases'
+      completedCases: run.completed, // Fix: use 'completed' instead of 'completedCases'
+      passedCases: run.passed, // Fix: use 'passed' instead of 'passedCases'
+      failedCases: run.failed, // Fix: use 'failed' instead of 'failedCases'
+      status: run.status
+    }));
+    console.log('📊 Transformed benchmarkRuns:', benchmarkRuns);
+    return benchmarkRuns;
+  } catch (error) {
+    console.error('❌ Failed to list benchmark runs:', error);
+    return [];
+  }
+});
+
+ipcMain.handle('benchmarks:getRun', async (_, runId: string) => {
+  try {
+    console.log('📊 benchmarks:getRun called for runId:', runId);
+    const result = await sweBenchRunner.getRun(runId);
+    console.log('📊 benchmarks:getRun result:', result);
+    return result;
+  } catch (error) {
+    console.error('❌ Failed to get benchmark run:', error);
+    return null;
+  }
+});
+
+ipcMain.handle('benchmarks:getResults', async (_, runId: string) => {
+  try {
+    console.log('📊 benchmarks:getResults called for runId:', runId);
+    const result = await sweBenchRunner.getResults(runId);
+    console.log('📊 benchmarks:getResults result:', result?.length || 0, 'results');
+    return result;
+  } catch (error) {
+    console.error('❌ Failed to get benchmark results:', error);
+    return [];
+  }
+});
+
+ipcMain.handle('benchmarks:start', async (_, options: any) => {
+  try {
+    if (options.type === 'swebench') {
+      const runnerOptions = {
+        casesDir: options.casesDir,
+        name: `SWE-bench Run ${new Date().toISOString().slice(0, 19)}`,
+        parallel: options.parallel || 1,
+        maxIterations: options.maxIterations || 10,
+        timeoutSec: options.timeoutSec || 300,
+        filter: options.filter
+      };
+      const result = await sweBenchRunner.run(runnerOptions);
+      return { success: true, runId: result.runId };
+    } else {
+      // For custom benchmarks, we could extend this later
+      throw new Error('Custom benchmarks not yet implemented');
+    }
+  } catch (error) {
+    console.error('Failed to start benchmark:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('benchmarks:abort', async (_, runId: string) => {
+  try {
+    console.log('📊 benchmarks:abort called for runId:', runId);
+    await sweBenchRunner.abortRun(runId);
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Failed to abort benchmark run:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+});
+
+ipcMain.handle('benchmarks:delete', async (_, runId: string) => {
+  try {
+    await sweBenchRunner.deleteRun(runId);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to delete benchmark run:', error);
     return { success: false, error: error.message };
   }
 });

@@ -77,6 +77,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     exportMetrics: (sessionId: string, options: any) => ipcRenderer.invoke('metrics:exportMetrics', sessionId, options)
   },
 
+  benchmarks: {
+    listRuns: () => ipcRenderer.invoke('benchmarks:listRuns'),
+    getRun: (runId: string) => ipcRenderer.invoke('benchmarks:getRun', runId),
+    getResults: (runId: string) => ipcRenderer.invoke('benchmarks:getResults', runId),
+    start: (options: any) => ipcRenderer.invoke('benchmarks:start', options),
+    abort: (runId: string) => ipcRenderer.invoke('benchmarks:abort', runId),
+    delete: (runId: string) => ipcRenderer.invoke('benchmarks:delete', runId)
+  },
+
   // Auth and external links
   validateAuth: () => ipcRenderer.invoke('auth:validate') as Promise<{
     isAuthenticated: boolean;

@@ -48,6 +48,11 @@ export class CostCalculator {
         completionPricePer1k: 0.03
       },
       {
+        name: 'gpt-5',
+        promptPricePer1k: 0.01,
+        completionPricePer1k: 0.03
+      },
+      {
         name: 'gpt-4',
         promptPricePer1k: 0.03,
         completionPricePer1k: 0.06
