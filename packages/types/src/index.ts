@@ -34,6 +34,9 @@ export interface IterationRecord {
   exitCode?: number;
   ampArgs?: string;
   output?: string;
+  cliToolUsageCount?: number;
+  cliErrorCount?: number;
+  cliLogDurationMs?: number;
 }
 
 export interface ToolCall {

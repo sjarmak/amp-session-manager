@@ -5,6 +5,15 @@ interface SessionMetricsProps {
   className?: string;
 }
 
+interface CliMetrics {
+  totalToolCalls: number;
+  totalErrors: number;
+  totalDuration: number;
+  avgToolCallsPerIteration: number;
+  avgErrorsPerIteration: number;
+  avgDurationPerIteration: number;
+}
+
 interface MetricsSummary {
   sessionId: string;
   totalIterations: number;
@@ -48,6 +57,7 @@ export const SessionMetrics: React.FC<SessionMetricsProps> = ({ sessionId, class
   const [summary, setSummary] = useState<MetricsSummary | null>(null);
   const [realtimeMetrics, setRealtimeMetrics] = useState<RealtimeMetrics | null>(null);
   const [progress, setProgress] = useState<SessionProgress | null>(null);
+  const [cliMetrics, setCliMetrics] = useState<CliMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,10 +66,11 @@ export const SessionMetrics: React.FC<SessionMetricsProps> = ({ sessionId, class
       setLoading(true);
       setError(null);
 
-      const [summaryResult, realtimeResult, progressResult] = await Promise.all([
+      const [summaryResult, realtimeResult, progressResult, iterationsResult] = await Promise.all([
         window.electronAPI.metrics.getSessionSummary(sessionId),
         window.electronAPI.metrics.getRealtimeMetrics(sessionId),
-        window.electronAPI.metrics.getSessionProgress(sessionId)
+        window.electronAPI.metrics.getSessionProgress(sessionId),
+        window.electronAPI.sessions.getIterations(sessionId)
       ]);
 
       if (summaryResult.success) {
@@ -78,6 +89,30 @@ export const SessionMetrics: React.FC<SessionMetricsProps> = ({ sessionId, class
         setProgress(progressResult.progress);
       } else {
         console.warn('Failed to fetch progress:', progressResult.error);
+      }
+
+      // Calculate CLI metrics from iterations
+      if (iterationsResult.success) {
+        const iterations = iterationsResult.iterations || [];
+        const cliData = iterations.reduce((acc: any, iter: any) => {
+          return {
+            totalToolCalls: acc.totalToolCalls + (iter.cliToolUsageCount || 0),
+            totalErrors: acc.totalErrors + (iter.cliErrorCount || 0),
+            totalDuration: acc.totalDuration + (iter.cliLogDurationMs || 0),
+            iterationsWithData: acc.iterationsWithData + (iter.cliToolUsageCount !== undefined ? 1 : 0)
+          };
+        }, { totalToolCalls: 0, totalErrors: 0, totalDuration: 0, iterationsWithData: 0 });
+        
+        if (cliData.iterationsWithData > 0) {
+          setCliMetrics({
+            totalToolCalls: cliData.totalToolCalls,
+            totalErrors: cliData.totalErrors,
+            totalDuration: cliData.totalDuration,
+            avgToolCallsPerIteration: cliData.totalToolCalls / cliData.iterationsWithData,
+            avgErrorsPerIteration: cliData.totalErrors / cliData.iterationsWithData,
+            avgDurationPerIteration: cliData.totalDuration / cliData.iterationsWithData
+          });
+        }
       }
 
     } catch (err) {
@@ -349,6 +384,45 @@ export const SessionMetrics: React.FC<SessionMetricsProps> = ({ sessionId, class
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CLI Log Metrics */}
+      {cliMetrics && (
+        <div className="bg-white rounded-lg border">
+          <div className="p-4 border-b">
+            <h4 className="text-sm font-medium flex items-center">
+              <span className="mr-2 text-blue-600">🔧</span>
+              CLI Log Metrics
+            </h4>
+          </div>
+          <div className="p-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="text-center">
+                <p className="text-2xl font-semibold text-blue-600">{cliMetrics.totalToolCalls}</p>
+                <p className="text-xs text-gray-500">Total CLI Tool Calls</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Avg: {cliMetrics.avgToolCallsPerIteration.toFixed(1)}/iter
+                </p>
+              </div>
+              <div className="text-center">
+                <p className={`text-2xl font-semibold ${cliMetrics.totalErrors > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {cliMetrics.totalErrors}
+                </p>
+                <p className="text-xs text-gray-500">Total CLI Errors</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Avg: {cliMetrics.avgErrorsPerIteration.toFixed(1)}/iter
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-semibold text-gray-600">{formatDuration(cliMetrics.totalDuration)}</p>
+                <p className="text-xs text-gray-500">Total CLI Duration</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Avg: {formatDuration(cliMetrics.avgDurationPerIteration)}/iter
+                </p>
+              </div>
             </div>
           </div>
         </div>

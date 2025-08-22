@@ -138,6 +138,28 @@ export class TelemetryParser {
         continue;
       }
 
+      // Function call patterns (Amp often uses this format for tools like web_search)
+      const functionCallMatch = line.match(/<function_calls>.*?<invoke name="([^"]+)">/i);
+      if (functionCallMatch) {
+        events.push({
+          timestamp,
+          tool: functionCallMatch[1],
+          type: 'tool_start'
+        });
+        continue;
+      }
+
+      // Alternative function patterns
+      const altFunctionMatch = line.match(/(?:Invoking|Calling)\s+(\w+)\s+(?:function|tool)/i);
+      if (altFunctionMatch) {
+        events.push({
+          timestamp,
+          tool: altFunctionMatch[1],
+          type: 'tool_start'
+        });
+        continue;
+      }
+
       const toolFinishMatch = line.match(/^\[(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\].*?(\w+) tool.*?(completed|finished|failed).*?(\d+)ms/i);
       if (toolFinishMatch) {
         events.push({
@@ -158,6 +180,35 @@ export class TelemetryParser {
           tool: plainFinishMatch[1],
           success: true,
           duration: parseInt(plainFinishMatch[2], 10),
+          type: 'tool_finish'
+        });
+        continue;
+      }
+
+      // Function call completion patterns
+      const functionCompleteMatch = line.match(/<\/function_calls>/);
+      if (functionCompleteMatch) {
+        // Look for the most recent tool start to pair it with
+        const recentStarts = events.filter(e => e.type === 'tool_start').slice(-1);
+        if (recentStarts.length > 0) {
+          const recentStart = recentStarts[0];
+          events.push({
+            timestamp,
+            tool: recentStart.tool,
+            success: true,
+            type: 'tool_finish'
+          });
+        }
+        continue;
+      }
+
+      // Result patterns (often used after function calls)
+      const resultMatch = line.match(/(?:Result|Output|Response).*?(?:from|for)\s+(\w+)/i);
+      if (resultMatch) {
+        events.push({
+          timestamp,
+          tool: resultMatch[1],
+          success: true,
           type: 'tool_finish'
         });
         continue;

@@ -20,3 +20,4 @@ export { getSessionThreadUrl, getSessionThreadInfo } from './session-threads.js'
 
 // Export utilities
 export { Logger } from './utils/logger.js';
+export { AmpLogParser } from './amp-log-parser.js';

@@ -1,0 +1,72 @@
+[
+  {
+    "prompt": "List all Python files in the current directory",
+    "success": false,
+    "latency_s": 0.72,
+    "stdout": "",
+    "stderr": "Error: Unauthorized. Check your API key.\nError: Not logged in. Run 'amp login' to authenticate.\nUse 'amp threads share --support' to share this with the Amp team.\n\u001b[=0u\u001b[<u\u001b[?25h",
+    "thread_id": null,
+    "parsed_logs": {
+      "tool_calls": [],
+      "token_usage": {},
+      "perf": {}
+    },
+    "raw_log_sample": "{\"level\":\"info\",\"message\":\"Starting Amp CLI.\",\"timestamp\":\"2025-08-22T11:24:34.950Z\"}\n{\"level\":\"info\",\"message\":\"Using settings file\",\"settingsPath\":\"/Users/sjarmak/.config/amp/settings.json\",\"timestamp\":\"2025-08-22T11:24:34.958Z\"}\n{\"level\":\"debug\",\"message\":\"readSettings\",\"rawConfig\":{\"amp.dangerouslyAllowAll\":true,\"amp.git.commit.ampThread.enabled\":false,\"amp.git.commit.coauthor.enabled\":false,\"amp.notifications.enabled\":false},\"timestamp\":\"2025-08-22T11:24:34.967Z\"}\n{\"level\":\"debug\",\"message\":\"Stopped watching settings file\",\"settingsPath\":\"/Users/sjarmak/.config/amp/settings.json\",\"timestamp\":\"2025-08-22T11:24:34.967Z\"}\n{\"level\":\"debug\",\"message\":\"Started watching settings file\",\"settingsPath\":\"/Users/sjarmak/.config/amp/settings.json\",\"timestamp\":\"2025-08-22T11:24:34.967Z\"}\n{\"level\":\"debug\",\"message\":\"Admin settings loaded\",\"rawConfig\":{},\"timestamp\":\"2025-08-22T11:24:34.968Z\"}\n{\"hasCacheDirectory\":true,\"level\":\"debug\",\"message\":\"Global configuration initialized\",\"settingsKeys\":[\"dangerouslyAllowAll\",\"notifications.enabled\",\"git.commit.coauthor.enabled\",\"git.commit.ampThread.enabled\",\"url\",\"todos.enabled\",\"cacheDirectory\"],\"timestamp\":\"2025-08-22T11:24:34.982Z\"}\n{\"level\":\"info\",\"message\":\"Starting Amp background services\",\"timestamp\":\"2025-08-22T11:24:34.983Z\"}\n{\"level\":\"debug\",\"message\":\"Thread sync service initialized (on-demand sync mode)\",\"name\":\"ThreadSyncService\",\"timestamp\":\"2025-08-22T11:24:34.983Z\"}\n{\"level\":\"debug\",\"message\":\"Restored 0 backup files from disk\",\"timestamp\":\"2025-08-22T11:24:34.985Z\"}\n{\"level\":\"debug\",\"message\":\"Tracking files from thread history\",\"name\":\"trackFilesFromHistory\",\"threadID\":\"T-00cf7e49-8e2a-4574-9172-024bba38dd23\",\"timestamp\":\"2025-08-22T11:24:34.985Z\"}\n{\"level\":\"debug\",\"message\":\"Selected primary model\",\"model\":\"anthropic/claude-sonnet-4-20250514\",\"settings\":{},\"timestamp\":\"2025-08-22T11:24:34.987Z\"}\n{\"level\":\"debug\",\"message\":\"Selected primary model\",\"model\":\"anthropic/claude-sonnet-4-20250514\",\"settings\":{},\"timestamp\"..."
+  },
+  {
+    "prompt": "Search for the word 'TODO' in all files",
+    "success": false,
+    "latency_s": 0.63,
+    "stdout": "",
+    "stderr": "Error: Unauthorized. Check your API key.\nError: Not logged in. Run 'amp login' to authenticate.\nUse 'amp threads share --support' to share this with the Amp team.\n\u001b[=0u\u001b[<u\u001b[?25h",
+    "thread_id": null,
+    "parsed_logs": {
+      "tool_calls": [],
+      "token_usage": {},
+      "perf": {}
+    },
+    "raw_log_sample": "{\"level\":\"info\",\"message\":\"Starting Amp CLI.\",\"timestamp\":\"2025-08-22T11:24:35.600Z\"}\n{\"level\":\"info\",\"message\":\"Using settings file\",\"settingsPath\":\"/Users/sjarmak/.config/amp/settings.json\",\"timestamp\":\"2025-08-22T11:24:35.608Z\"}\n{\"level\":\"debug\",\"message\":\"readSettings\",\"rawConfig\":{\"amp.dangerouslyAllowAll\":true,\"amp.git.commit.ampThread.enabled\":false,\"amp.git.commit.coauthor.enabled\":false,\"amp.notifications.enabled\":false},\"timestamp\":\"2025-08-22T11:24:35.615Z\"}\n{\"level\":\"debug\",\"message\":\"Stopped watching settings file\",\"settingsPath\":\"/Users/sjarmak/.config/amp/settings.json\",\"timestamp\":\"2025-08-22T11:24:35.615Z\"}\n{\"level\":\"debug\",\"message\":\"Started watching settings file\",\"settingsPath\":\"/Users/sjarmak/.config/amp/settings.json\",\"timestamp\":\"2025-08-22T11:24:35.615Z\"}\n{\"level\":\"debug\",\"message\":\"Admin settings loaded\",\"rawConfig\":{},\"timestamp\":\"2025-08-22T11:24:35.616Z\"}\n{\"hasCacheDirectory\":true,\"level\":\"debug\",\"message\":\"Global configuration initialized\",\"settingsKeys\":[\"dangerouslyAllowAll\",\"notifications.enabled\",\"git.commit.coauthor.enabled\",\"git.commit.ampThread.enabled\",\"url\",\"todos.enabled\",\"cacheDirectory\"],\"timestamp\":\"2025-08-22T11:24:35.632Z\"}\n{\"level\":\"info\",\"message\":\"Starting Amp background services\",\"timestamp\":\"2025-08-22T11:24:35.632Z\"}\n{\"level\":\"debug\",\"message\":\"Thread sync service initialized (on-demand sync mode)\",\"name\":\"ThreadSyncService\",\"timestamp\":\"2025-08-22T11:24:35.633Z\"}\n{\"level\":\"debug\",\"message\":\"Restored 0 backup files from disk\",\"timestamp\":\"2025-08-22T11:24:35.637Z\"}\n{\"level\":\"debug\",\"message\":\"Tracking files from thread history\",\"name\":\"trackFilesFromHistory\",\"threadID\":\"T-e077b7a4-2a25-4428-a120-465f42da6503\",\"timestamp\":\"2025-08-22T11:24:35.637Z\"}\n{\"level\":\"debug\",\"message\":\"Selected primary model\",\"model\":\"anthropic/claude-sonnet-4-20250514\",\"settings\":{},\"timestamp\":\"2025-08-22T11:24:35.639Z\"}\n{\"level\":\"debug\",\"message\":\"Selected primary model\",\"model\":\"anthropic/claude-sonnet-4-20250514\",\"settings\":{},\"timestamp\"..."
+  },
+  {
+    "prompt": "Read the README.md file",
+    "success": false,
+    "latency_s": 0.63,
+    "stdout": "",
+    "stderr": "Error: Unauthorized. Check your API key.\nError: Not logged in. Run 'amp login' to authenticate.\nUse 'amp threads share --support' to share this with the Amp team.\n\u001b[=0u\u001b[<u\u001b[?25h",
+    "thread_id": null,
+    "parsed_logs": {
+      "tool_calls": [],
+      "token_usage": {},
+      "perf": {}
+    },
+    "raw_log_sample": "{\"level\":\"info\",\"message\":\"Starting Amp CLI.\",\"timestamp\":\"2025-08-22T11:24:36.233Z\"}\n{\"level\":\"info\",\"message\":\"Using settings file\",\"settingsPath\":\"/Users/sjarmak/.config/amp/settings.json\",\"timestamp\":\"2025-08-22T11:24:36.240Z\"}\n{\"level\":\"debug\",\"message\":\"readSettings\",\"rawConfig\":{\"amp.dangerouslyAllowAll\":true,\"amp.git.commit.ampThread.enabled\":false,\"amp.git.commit.coauthor.enabled\":false,\"amp.notifications.enabled\":false},\"timestamp\":\"2025-08-22T11:24:36.242Z\"}\n{\"level\":\"debug\",\"message\":\"Stopped watching settings file\",\"settingsPath\":\"/Users/sjarmak/.config/amp/settings.json\",\"timestamp\":\"2025-08-22T11:24:36.242Z\"}\n{\"level\":\"debug\",\"message\":\"Started watching settings file\",\"settingsPath\":\"/Users/sjarmak/.config/amp/settings.json\",\"timestamp\":\"2025-08-22T11:24:36.242Z\"}\n{\"level\":\"debug\",\"message\":\"Admin settings loaded\",\"rawConfig\":{},\"timestamp\":\"2025-08-22T11:24:36.242Z\"}\n{\"hasCacheDirectory\":true,\"level\":\"debug\",\"message\":\"Global configuration initialized\",\"settingsKeys\":[\"dangerouslyAllowAll\",\"notifications.enabled\",\"git.commit.coauthor.enabled\",\"git.commit.ampThread.enabled\",\"url\",\"todos.enabled\",\"cacheDirectory\"],\"timestamp\":\"2025-08-22T11:24:36.257Z\"}\n{\"level\":\"info\",\"message\":\"Starting Amp background services\",\"timestamp\":\"2025-08-22T11:24:36.258Z\"}\n{\"level\":\"debug\",\"message\":\"Thread sync service initialized (on-demand sync mode)\",\"name\":\"ThreadSyncService\",\"timestamp\":\"2025-08-22T11:24:36.258Z\"}\n{\"level\":\"debug\",\"message\":\"Restored 0 backup files from disk\",\"timestamp\":\"2025-08-22T11:24:36.262Z\"}\n{\"level\":\"debug\",\"message\":\"Tracking files from thread history\",\"name\":\"trackFilesFromHistory\",\"threadID\":\"T-ed83af26-800c-4576-b54f-0045c0e0b611\",\"timestamp\":\"2025-08-22T11:24:36.262Z\"}\n{\"level\":\"debug\",\"message\":\"Selected primary model\",\"model\":\"anthropic/claude-sonnet-4-20250514\",\"settings\":{},\"timestamp\":\"2025-08-22T11:24:36.265Z\"}\n{\"level\":\"debug\",\"message\":\"Selected primary model\",\"model\":\"anthropic/claude-sonnet-4-20250514\",\"settings\":{},\"timestamp\"..."
+  },
+  {
+    "prompt": "What is the current directory structure?",
+    "success": false,
+    "latency_s": 0.59,
+    "stdout": "",
+    "stderr": "Error: Unauthorized. Check your API key.\nError: Not logged in. Run 'amp login' to authenticate.\nUse 'amp threads share --support' to share this with the Amp team.\n\u001b[=0u\u001b[<u\u001b[?25h",
+    "thread_id": null,
+    "parsed_logs": {
+      "tool_calls": [],
+      "token_usage": {},
+      "perf": {}
+    },
+    "raw_log_sample": "{\"level\":\"info\",\"message\":\"Starting Amp CLI.\",\"timestamp\":\"2025-08-22T11:24:36.850Z\"}\n{\"level\":\"info\",\"message\":\"Using settings file\",\"settingsPath\":\"/Users/sjarmak/.config/amp/settings.json\",\"timestamp\":\"2025-08-22T11:24:36.859Z\"}\n{\"level\":\"debug\",\"message\":\"readSettings\",\"rawConfig\":{\"amp.dangerouslyAllowAll\":true,\"amp.git.commit.ampThread.enabled\":false,\"amp.git.commit.coauthor.enabled\":false,\"amp.notifications.enabled\":false},\"timestamp\":\"2025-08-22T11:24:36.866Z\"}\n{\"level\":\"debug\",\"message\":\"Stopped watching settings file\",\"settingsPath\":\"/Users/sjarmak/.config/amp/settings.json\",\"timestamp\":\"2025-08-22T11:24:36.866Z\"}\n{\"level\":\"debug\",\"message\":\"Started watching settings file\",\"settingsPath\":\"/Users/sjarmak/.config/amp/settings.json\",\"timestamp\":\"2025-08-22T11:24:36.866Z\"}\n{\"level\":\"debug\",\"message\":\"Admin settings loaded\",\"rawConfig\":{},\"timestamp\":\"2025-08-22T11:24:36.866Z\"}\n{\"hasCacheDirectory\":true,\"level\":\"debug\",\"message\":\"Global configuration initialized\",\"settingsKeys\":[\"dangerouslyAllowAll\",\"notifications.enabled\",\"git.commit.coauthor.enabled\",\"git.commit.ampThread.enabled\",\"url\",\"todos.enabled\",\"cacheDirectory\"],\"timestamp\":\"2025-08-22T11:24:36.880Z\"}\n{\"level\":\"info\",\"message\":\"Starting Amp background services\",\"timestamp\":\"2025-08-22T11:24:36.881Z\"}\n{\"level\":\"debug\",\"message\":\"Thread sync service initialized (on-demand sync mode)\",\"name\":\"ThreadSyncService\",\"timestamp\":\"2025-08-22T11:24:36.882Z\"}\n{\"level\":\"debug\",\"message\":\"Restored 0 backup files from disk\",\"timestamp\":\"2025-08-22T11:24:36.886Z\"}\n{\"level\":\"debug\",\"message\":\"Tracking files from thread history\",\"name\":\"trackFilesFromHistory\",\"threadID\":\"T-a28b6586-9666-4049-b808-5b666d7d930f\",\"timestamp\":\"2025-08-22T11:24:36.886Z\"}\n{\"level\":\"debug\",\"message\":\"Selected primary model\",\"model\":\"anthropic/claude-sonnet-4-20250514\",\"settings\":{},\"timestamp\":\"2025-08-22T11:24:36.888Z\"}\n{\"level\":\"debug\",\"message\":\"Selected primary model\",\"model\":\"anthropic/claude-sonnet-4-20250514\",\"settings\":{},\"timestamp\"..."
+  },
+  {
+    "prompt": "Check if there are any TypeScript files",
+    "success": false,
+    "latency_s": 0.63,
+    "stdout": "",
+    "stderr": "Error: Unauthorized. Check your API key.\nError: Not logged in. Run 'amp login' to authenticate.\nUse 'amp threads share --support' to share this with the Amp team.\n\u001b[=0u\u001b[<u\u001b[?25h",
+    "thread_id": null,
+    "parsed_logs": {
+      "tool_calls": [],
+      "token_usage": {},
+      "perf": {}
+    },
+    "raw_log_sample": "{\"level\":\"info\",\"message\":\"Starting Amp CLI.\",\"timestamp\":\"2025-08-22T11:24:37.451Z\"}\n{\"level\":\"info\",\"message\":\"Using settings file\",\"settingsPath\":\"/Users/sjarmak/.config/amp/settings.json\",\"timestamp\":\"2025-08-22T11:24:37.459Z\"}\n{\"level\":\"debug\",\"message\":\"readSettings\",\"rawConfig\":{\"amp.dangerouslyAllowAll\":true,\"amp.git.commit.ampThread.enabled\":false,\"amp.git.commit.coauthor.enabled\":false,\"amp.notifications.enabled\":false},\"timestamp\":\"2025-08-22T11:24:37.466Z\"}\n{\"level\":\"debug\",\"message\":\"Stopped watching settings file\",\"settingsPath\":\"/Users/sjarmak/.config/amp/settings.json\",\"timestamp\":\"2025-08-22T11:24:37.466Z\"}\n{\"level\":\"debug\",\"message\":\"Started watching settings file\",\"settingsPath\":\"/Users/sjarmak/.config/amp/settings.json\",\"timestamp\":\"2025-08-22T11:24:37.467Z\"}\n{\"level\":\"debug\",\"message\":\"Admin settings loaded\",\"rawConfig\":{},\"timestamp\":\"2025-08-22T11:24:37.467Z\"}\n{\"hasCacheDirectory\":true,\"level\":\"debug\",\"message\":\"Global configuration initialized\",\"settingsKeys\":[\"dangerouslyAllowAll\",\"notifications.enabled\",\"git.commit.coauthor.enabled\",\"git.commit.ampThread.enabled\",\"url\",\"todos.enabled\",\"cacheDirectory\"],\"timestamp\":\"2025-08-22T11:24:37.481Z\"}\n{\"level\":\"info\",\"message\":\"Starting Amp background services\",\"timestamp\":\"2025-08-22T11:24:37.482Z\"}\n{\"level\":\"debug\",\"message\":\"Thread sync service initialized (on-demand sync mode)\",\"name\":\"ThreadSyncService\",\"timestamp\":\"2025-08-22T11:24:37.482Z\"}\n{\"level\":\"debug\",\"message\":\"Restored 0 backup files from disk\",\"timestamp\":\"2025-08-22T11:24:37.485Z\"}\n{\"level\":\"debug\",\"message\":\"Tracking files from thread history\",\"name\":\"trackFilesFromHistory\",\"threadID\":\"T-82c03b15-eccb-4416-ae5d-3ffd7663cf8b\",\"timestamp\":\"2025-08-22T11:24:37.485Z\"}\n{\"level\":\"debug\",\"message\":\"Selected primary model\",\"model\":\"anthropic/claude-sonnet-4-20250514\",\"settings\":{},\"timestamp\":\"2025-08-22T11:24:37.487Z\"}\n{\"level\":\"debug\",\"message\":\"Selected primary model\",\"model\":\"anthropic/claude-sonnet-4-20250514\",\"settings\":{},\"timestamp\"..."
+  }
+]

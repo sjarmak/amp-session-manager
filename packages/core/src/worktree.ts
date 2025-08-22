@@ -14,6 +14,7 @@ import { withRepoLock } from './repo-lock.js';
 import { MetricsEventBus, SQLiteMetricsSink, NDJSONMetricsSink, GitInstrumentation, costCalculator, FileDiffTracker } from './metrics/index.js';
 import { JSONLSink } from './metrics/sinks/jsonl-sink.js';
 import { Logger } from './utils/logger.js';
+import { AmpLogParser } from './amp-log-parser.js';
 
 export class WorktreeManager {
   private ampAdapter: AmpAdapter;
@@ -196,6 +197,9 @@ export class WorktreeManager {
     const startTime = Date.now();
     const startSha = gitInstrumentation.getCurrentSha();
 
+    // Capture CLI log state before Amp iteration for metrics
+    const beforeIterationTime = new Date().toISOString();
+
     // Publish iteration start event
     await this.metricsEventBus.publishIterationStart(
       sessionId, 
@@ -369,6 +373,68 @@ export class WorktreeManager {
         );
       }
 
+      // Calculate CLI metrics from Amp CLI logs (session-isolated)
+      let cliMetrics: { toolUsageCount: number; errorCount: number; durationMs: number } | undefined;
+      try {
+        // Use shared CLI log with timestamp filtering since session logs don't contain tool execution details
+        console.log('DEBUG: Using shared CLI logs with timestamp filtering');
+        const logMetrics = AmpLogParser.extractIterationMetrics(iteration.startTime);
+        
+        const iterationDurationMs = Date.now() - new Date(iteration.startTime).getTime();
+        
+        // Debug: Log the parsed metrics
+        console.log('DEBUG: CLI log metrics:', {
+          toolUsages: logMetrics.toolUsages.length,
+          tools: logMetrics.toolUsages.map(t => t.toolName),
+          errors: logMetrics.errors.length,
+          duration: logMetrics.duration,
+          source: 'shared CLI log'
+        });
+        console.log('DEBUG: Fallback telemetry tools:', result.telemetry.toolCalls?.length || 0);
+        
+        // Prefer CLI log metrics, fallback to telemetry parsing
+        const toolCallCount = logMetrics.toolUsages.length > 0 
+          ? logMetrics.toolUsages.length 
+          : (result.telemetry.toolCalls?.length || 0);
+        const errorCount = logMetrics.errors.length > 0 
+          ? logMetrics.errors.length 
+          : (result.telemetry.exitCode !== 0 ? 1 : 0);
+        
+        cliMetrics = {
+          toolUsageCount: toolCallCount,
+          errorCount: errorCount,
+          durationMs: iterationDurationMs
+        };
+        
+        // Log the CLI metrics for debugging
+        console.log(`CLI Telemetry Metrics - Tools: ${cliMetrics.toolUsageCount}, Errors: ${cliMetrics.errorCount}, Duration: ${cliMetrics.durationMs}ms`);
+        
+        // Update iteration log with CLI metrics
+        const contextDir = join(session.worktreePath, 'AGENT_CONTEXT');
+        const iterationLogPath = join(contextDir, 'ITERATION_LOG.md');
+        
+        const toolList = logMetrics.toolUsages.length > 0
+          ? logMetrics.toolUsages.map(tu => `- ${tu.toolName} (${tu.permitted ? 'permitted' : 'denied'})`).join('\n')
+          : (result.telemetry.toolCalls?.map(tc => `- ${tc.toolName} (${tc.success ? 'success' : 'failed'})`).join('\n') || 'No tool calls captured');
+        
+        const metricsEntry = `\n### CLI Metrics (DEBUG)
+Timestamp: ${new Date().toISOString()}
+Tool Usages: ${toolCallCount}
+${toolList}
+Errors: ${errorCount}
+${errorCount > 0 ? `- Exit code: ${result.telemetry.exitCode}` : '- No errors'}
+Duration: ${iterationDurationMs}ms
+Raw Telemetry: ${JSON.stringify(result.telemetry, null, 2)}
+
+`;
+        
+        const existingLog = await readFile(iterationLogPath, 'utf-8').catch(() => '');
+        await writeFile(iterationLogPath, existingLog + metricsEntry);
+        
+      } catch (error) {
+        console.warn('Failed to extract CLI metrics:', error);
+      }
+
       // Publish iteration end event
       await this.metricsEventBus.publishIterationEnd(
         sessionId,
@@ -386,7 +452,8 @@ export class WorktreeManager {
         commitSha || undefined, 
         changedFiles,
         this.ampAdapter.lastUsedArgs?.join(' '),
-        result.output
+        result.output,
+        cliMetrics
       );
       
       // Save tool calls with correct sessionId

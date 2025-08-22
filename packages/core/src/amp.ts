@@ -1,8 +1,10 @@
 import { spawn } from 'child_process';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
+import { tmpdir } from 'os';
 import type { AmpTelemetry } from '@ampsm/types';
 import { TelemetryParser } from './telemetry-parser.js';
+import { EnhancedDebugParser } from './enhanced-debug-parser.js';
 
 /**
  * Redacts secrets from text based on environment variable keys
@@ -94,9 +96,10 @@ export class AmpAdapter {
       
       console.log(`🔄 Alternating model logic: existingIterations=${existingIterations}, useGpt5=${useGpt5}, model=${useGpt5 ? 'gpt-5' : 'default'}`);
       
-      const finalPrompt = `/continue\n\n${prompt}`;
+      // Build full conversation context from session follow-up prompts
+      const fullContextPrompt = await this.buildContinuePrompt(prompt, sessionId);
       const alternatingModel = useGpt5 ? 'gpt-5' : undefined; // undefined = default model
-      return this.runAmpCommand(finalPrompt, workingDir, alternatingModel);
+      return this.runAmpCommand(fullContextPrompt, workingDir, alternatingModel, sessionId);
     }
   }
 
@@ -113,11 +116,34 @@ export class AmpAdapter {
   private async runAmpCommand(
     finalPrompt: string,
     workingDir: string,
-    modelOverride?: string
+    modelOverride?: string,
+    sessionId?: string
   ): Promise<AmpIterationResult> {
     
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
       const args = ['-x', ...(this.config.ampArgs || []), ...(this.config.extraArgs || [])];
+      
+      // Try to enable debug logging for enhanced parsing (with fallback)
+      let debugLogFile: string | null = null;
+      try {
+        const tempLogFile = join(tmpdir(), `amp_debug_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.log`);
+        // Test write permissions by creating a test file
+        const { writeFileSync, unlinkSync } = await import('fs');
+        const testFile = tempLogFile + '.test';
+        writeFileSync(testFile, 'test', { mode: 0o600 }); // Secure permissions
+        unlinkSync(testFile);
+        
+        // If test succeeded, use debug logging
+        debugLogFile = tempLogFile;
+        args.push('--log-level', 'debug', '--log-file', debugLogFile);
+        console.log('Debug logging enabled for enhanced metrics parsing');
+      } catch (debugSetupError) {
+        console.warn('Debug logging unavailable, will use text parsing fallback:', (debugSetupError as Error).message);
+        debugLogFile = null;
+      }
+      
+      // Note: Session-specific log files don't capture tool execution details,
+      // so we rely on the shared CLI log with timing-based isolation
       
       // Add model override
       if (modelOverride === 'gpt-5') {
@@ -136,7 +162,9 @@ export class AmpAdapter {
         AMP_API_KEY: process.env.AMP_API_KEY ? '***exists***' : 'MISSING',
         ampPath: this.config.ampPath,
         modelOverride,
-        args
+        sessionId,
+        args,
+        workingDir
       });
       
       const ampStartTime = Date.now();
@@ -146,6 +174,28 @@ export class AmpAdapter {
       
       // Use environment variables for authentication
       const env = this.config.env ? { ...process.env, ...this.config.env } : { ...process.env };
+      
+      // Ensure AMP_API_KEY is available - check shell environment if missing
+      if (!env.AMP_API_KEY && process.env.SHELL) {
+        try {
+          const { spawn } = await import('child_process');
+          const result = await new Promise<string>((resolve) => {
+            const shell = spawn(process.env.SHELL!, ['-c', 'source ~/.zshrc && echo $AMP_API_KEY'], { 
+              stdio: ['pipe', 'pipe', 'pipe'] 
+            });
+            let output = '';
+            shell.stdout?.on('data', (data) => output += data.toString());
+            shell.on('close', () => resolve(output.trim()));
+          });
+          
+          if (result && result !== 'your-actual-api-key-here') {
+            env.AMP_API_KEY = result;
+            console.log('AMP_API_KEY sourced from shell environment');
+          }
+        } catch (error) {
+          console.warn('Failed to source AMP_API_KEY from shell:', error);
+        }
+      }
       
       // Handle alloy mode via environment variable
       if (modelOverride === 'alloy') {
@@ -171,7 +221,7 @@ export class AmpAdapter {
         child.stdin.end();
       }
       
-      child.on('close', (exitCode) => {
+      child.on('close', async (exitCode) => {
         const ampDuration = Date.now() - ampStartTime;
         const fullOutput = output + stderr;
         console.log('Amp process completed:', { 
@@ -185,9 +235,24 @@ export class AmpAdapter {
         console.log('Full output for telemetry parsing:', fullOutput.slice(-500)); // Log last 500 chars
         const redactedOutput = redactSecrets(fullOutput, this.config.env);
         console.log('Redacted output length:', redactedOutput.length);
-        const telemetry = this.telemetryParser.parseOutput(fullOutput);
-        console.log('Parsed telemetry:', telemetry);
-        telemetry.exitCode = exitCode || 0;
+        
+        // Use enhanced debug parser with fallback to text parsing
+        const telemetry = EnhancedDebugParser.parseWithFallback(
+          debugLogFile,
+          fullOutput,
+          exitCode || 0
+        );
+        console.log('Enhanced parsed telemetry:', telemetry);
+        
+        // Clean up debug log file
+        if (debugLogFile) {
+          try {
+            const { unlink } = await import('fs/promises');
+            await unlink(debugLogFile);
+          } catch (cleanupError) {
+            console.warn('Failed to clean up debug log file:', cleanupError);
+          }
+        }
 
         // Check for awaiting input condition
         const awaitingInput = this.detectAwaitingInput(fullOutput);
@@ -223,8 +288,27 @@ export class AmpAdapter {
   ): Promise<AmpIterationResult> {
     const oraclePrompt = this.buildOraclePrompt(query, context);
     
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
       const args = [...(this.config.ampArgs || []), ...(this.config.extraArgs || []), '--oracle'];
+      
+      // Try to enable debug logging for enhanced parsing (with fallback)
+      let debugLogFile: string | null = null;
+      try {
+        const tempLogFile = join(tmpdir(), `amp_oracle_debug_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.log`);
+        // Test write permissions by creating a test file
+        const { writeFileSync, unlinkSync } = await import('fs');
+        const testFile = tempLogFile + '.test';
+        writeFileSync(testFile, 'test', { mode: 0o600 }); // Secure permissions
+        unlinkSync(testFile);
+        
+        // If test succeeded, use debug logging
+        debugLogFile = tempLogFile;
+        args.push('--log-level', 'debug', '--log-file', debugLogFile);
+        console.log('Oracle debug logging enabled for enhanced metrics parsing');
+      } catch (debugSetupError) {
+        console.warn('Oracle debug logging unavailable, will use text parsing fallback:', (debugSetupError as Error).message);
+        debugLogFile = null;
+      }
       
       // Add model override for oracle
       if (modelOverride === 'gpt-5') {
@@ -234,6 +318,28 @@ export class AmpAdapter {
       }
       
       const env = this.config.env ? { ...process.env, ...this.config.env } : { ...process.env };
+      
+      // Ensure AMP_API_KEY is available - check shell environment if missing
+      if (!env.AMP_API_KEY && process.env.SHELL) {
+        try {
+          const { spawn } = await import('child_process');
+          const result = await new Promise<string>((resolve) => {
+            const shell = spawn(process.env.SHELL!, ['-c', 'source ~/.zshrc && echo $AMP_API_KEY'], { 
+              stdio: ['pipe', 'pipe', 'pipe'] 
+            });
+            let output = '';
+            shell.stdout?.on('data', (data) => output += data.toString());
+            shell.on('close', () => resolve(output.trim()));
+          });
+          
+          if (result && result !== 'your-actual-api-key-here') {
+            env.AMP_API_KEY = result;
+            console.log('AMP_API_KEY sourced from shell environment for Oracle');
+          }
+        } catch (error) {
+          console.warn('Failed to source AMP_API_KEY from shell for Oracle:', error);
+        }
+      }
       
       // Handle alloy mode for oracle
       if (modelOverride === 'alloy') {
@@ -257,11 +363,27 @@ export class AmpAdapter {
         child.stdin.end();
       }
       
-      child.on('close', (exitCode) => {
+      child.on('close', async (exitCode) => {
         const fullOutput = output + stderr;
         const redactedOutput = redactSecrets(fullOutput, this.config.env);
-        const telemetry = this.telemetryParser.parseOutput(fullOutput);
-        telemetry.exitCode = exitCode || 0;
+        
+        // Use enhanced debug parser with fallback to text parsing
+        const telemetry = EnhancedDebugParser.parseWithFallback(
+          debugLogFile,
+          fullOutput,
+          exitCode || 0
+        );
+        console.log('Enhanced parsed oracle telemetry:', telemetry);
+        
+        // Clean up debug log file
+        if (debugLogFile) {
+          try {
+            const { unlink } = await import('fs/promises');
+            await unlink(debugLogFile);
+          } catch (cleanupError) {
+            console.warn('Failed to clean up oracle debug log file:', cleanupError);
+          }
+        }
 
         resolve({
           success: exitCode === 0,
@@ -307,6 +429,41 @@ ${contextMd}`;
     } catch (error) {
       console.warn('Failed to build iteration prompt:', error);
       return prompt;
+    }
+  }
+
+  private async buildContinuePrompt(currentPrompt: string, sessionId?: string): Promise<string> {
+    try {
+      if (!sessionId) {
+        return `/continue\n\n${currentPrompt}`;
+      }
+
+      // Get session to retrieve follow-up prompts
+      const { SessionStore } = await import('./store.js');
+      const sessionStore = new SessionStore();
+      const session = sessionStore.getSession(sessionId);
+      
+      if (!session) {
+        return `/continue\n\n${currentPrompt}`;
+      }
+
+      const followUpPrompts = session.followUpPrompts || [];
+      
+      // If no follow-up prompts, just use current prompt
+      if (followUpPrompts.length === 0) {
+        return `/continue\n\n${currentPrompt}`;
+      }
+      
+      // Build conversation with original prompt + all follow-ups + current prompt
+      const fullConversation = [session.ampPrompt, ...followUpPrompts, currentPrompt];
+      const conversationText = fullConversation
+        .map((p, i) => i === 0 ? `Original Prompt\n${p}` : `Follow-up Message\n${p}`)
+        .join('\n\n---\n\n');
+      
+      return `/continue\n\n${conversationText}`;
+    } catch (error) {
+      console.warn('Failed to build continue prompt with full context:', error);
+      return `/continue\n\n${currentPrompt}`;
     }
   }
 
@@ -363,9 +520,31 @@ Please provide a thorough analysis and actionable recommendations.`;
     suggestion?: string;
     hasCredits?: boolean;
   }> {
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
       const testPrompt = 'echo "auth test"';
       const env = this.config.env ? { ...process.env, ...this.config.env } : { ...process.env };
+      
+      // Ensure AMP_API_KEY is available - check shell environment if missing
+      if (!env.AMP_API_KEY && process.env.SHELL) {
+        try {
+          const { spawn } = await import('child_process');
+          const result = await new Promise<string>((resolve) => {
+            const shell = spawn(process.env.SHELL!, ['-c', 'source ~/.zshrc && echo $AMP_API_KEY'], { 
+              stdio: ['pipe', 'pipe', 'pipe'] 
+            });
+            let output = '';
+            shell.stdout?.on('data', (data) => output += data.toString());
+            shell.on('close', () => resolve(output.trim()));
+          });
+          
+          if (result && result !== 'your-actual-api-key-here') {
+            env.AMP_API_KEY = result;
+            console.log('AMP_API_KEY sourced from shell environment for auth validation');
+          }
+        } catch (error) {
+          console.warn('Failed to source AMP_API_KEY from shell for auth validation:', error);
+        }
+      }
       
       const child = spawn(this.config.ampPath!, ['-x'], {
         stdio: ['pipe', 'pipe', 'pipe'],

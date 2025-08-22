@@ -226,6 +226,46 @@ export function OutputViewer({ sessionId, className }: OutputViewerProps) {
                     </div>
                   </div>
                 )}
+
+                {/* CLI Log Metrics */}
+                {((iteration as any).cliToolUsageCount !== undefined || 
+                  (iteration as any).cliErrorCount !== undefined || 
+                  (iteration as any).cliLogDurationMs !== undefined) && (
+                  <div className="pt-2 border-t">
+                    <h5 className="font-medium text-sm text-gray-700 mb-2">CLI Log Metrics</h5>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                      {(iteration as any).cliToolUsageCount !== undefined && (
+                        <div className="flex items-center space-x-2">
+                          <span className="text-blue-600">🔧</span>
+                          <div>
+                            <p className="text-xs text-gray-500">CLI Tool Calls</p>
+                            <p className="font-medium">{(iteration as any).cliToolUsageCount}</p>
+                          </div>
+                        </div>
+                      )}
+                      {(iteration as any).cliErrorCount !== undefined && (
+                        <div className="flex items-center space-x-2">
+                          <span className={`${(iteration as any).cliErrorCount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {(iteration as any).cliErrorCount > 0 ? '❌' : '✅'}
+                          </span>
+                          <div>
+                            <p className="text-xs text-gray-500">CLI Errors</p>
+                            <p className="font-medium">{(iteration as any).cliErrorCount}</p>
+                          </div>
+                        </div>
+                      )}
+                      {(iteration as any).cliLogDurationMs !== undefined && (
+                        <div className="flex items-center space-x-2">
+                          <span className="text-gray-600">⏱️</span>
+                          <div>
+                            <p className="text-xs text-gray-500">CLI Duration</p>
+                            <p className="font-medium">{(iteration as any).cliLogDurationMs}ms</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           );

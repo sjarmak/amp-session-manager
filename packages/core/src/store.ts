@@ -64,6 +64,9 @@ export class SessionStore {
         exitCode INTEGER,
         ampArgs TEXT,
         output TEXT,
+        cliToolUsageCount INTEGER,
+        cliErrorCount INTEGER,
+        cliLogDurationMs INTEGER,
         FOREIGN KEY(sessionId) REFERENCES sessions(id)
       );
 
@@ -143,6 +146,23 @@ export class SessionStore {
     // Migration: Add output column to iterations if it doesn't exist
     try {
       this.db.exec(`ALTER TABLE iterations ADD COLUMN output TEXT;`);
+    } catch (error) {
+      // Column already exists, ignore error
+    }
+    
+    // Migration: Add CLI metrics columns to iterations if they don't exist
+    try {
+      this.db.exec(`ALTER TABLE iterations ADD COLUMN cliToolUsageCount INTEGER;`);
+    } catch (error) {
+      // Column already exists, ignore error
+    }
+    try {
+      this.db.exec(`ALTER TABLE iterations ADD COLUMN cliErrorCount INTEGER;`);
+    } catch (error) {
+      // Column already exists, ignore error
+    }
+    try {
+      this.db.exec(`ALTER TABLE iterations ADD COLUMN cliLogDurationMs INTEGER;`);
     } catch (error) {
       // Column already exists, ignore error
     }
@@ -286,7 +306,7 @@ export class SessionStore {
     stmt.run(...values);
   }
 
-  finishIteration(iterationId: string, telemetry: AmpTelemetry, commitSha?: string, changedFiles?: number, ampArgs?: string, output?: string) {
+  finishIteration(iterationId: string, telemetry: AmpTelemetry, commitSha?: string, changedFiles?: number, ampArgs?: string, output?: string, cliMetrics?: { toolUsageCount: number; errorCount: number; durationMs: number }) {
     console.log('Finishing iteration:', {
       iterationId,
       outputLength: output?.length || 0,
@@ -303,7 +323,10 @@ export class SessionStore {
       ampVersion: telemetry.ampVersion,
       commitSha,
       changedFiles: changedFiles || 0,
-      output
+      output,
+      cliToolUsageCount: cliMetrics?.toolUsageCount,
+      cliErrorCount: cliMetrics?.errorCount,
+      cliLogDurationMs: cliMetrics?.durationMs
     } as Partial<IterationRecord>;
     
     if (ampArgs) {
@@ -340,7 +363,6 @@ export class SessionStore {
       : 'SELECT * FROM iterations WHERE sessionId = ? ORDER BY startTime ASC';
     const stmt = this.db.prepare(sql);
     const results = limit ? stmt.all(sessionId, limit) as IterationRecord[] : stmt.all(sessionId) as IterationRecord[];
-    console.log('Retrieved iterations:', results.map(r => ({ id: r.id, outputLength: r.output?.length || 0 })));
     return results;
   }
 
