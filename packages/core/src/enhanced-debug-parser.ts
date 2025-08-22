@@ -82,8 +82,8 @@ export class EnhancedDebugParser {
             console.log(`[EnhancedDebugParser] DEBUG: Found tool-related event:`, { name: j.name, kind, hasMessage: !!j.message, messagePreview: typeof j.message === 'string' ? j.message.substring(0, 100) : typeof j.message });
           }
           
-          // Look for events that might contain actual tool names (Read, Grep, create_file, etc.)
-          if (j.message && typeof j.message === 'string' && (j.message.includes('Read') || j.message.includes('Grep') || j.message.includes('create_file') || j.message.includes('edit_file') || j.message.includes('list_directory'))) {
+          // Look for events that might contain actual tool names (expanded list)
+          if (j.message && typeof j.message === 'string' && /Tool \w+ - checking permissions/.test(j.message)) {
             console.log(`[EnhancedDebugParser] DEBUG: Found event with tool name in message:`, { name: j.name, messagePreview: j.message.substring(0, 150) });
             
             // Extract tool name from permission check messages
@@ -132,8 +132,7 @@ export class EnhancedDebugParser {
               name: lastToolName || undefined // Use the most recent tool name from permission events
             };
             console.log(`[EnhancedDebugParser] Found invokeTool with ID: ${tool_id}, assigned tool name: ${lastToolName}`);
-            // Reset lastToolName after use
-            lastToolName = null;
+            // DON'T reset lastToolName here - it may be used by multiple consecutive invokeTool calls
           }
 
           // 2. Handle ChatML-delta single-line tool call format
@@ -421,6 +420,26 @@ export class EnhancedDebugParser {
       success: boolean;
     }> = [];
 
+    // Look for file operations anywhere in the text, not just at line starts
+    const creationMatches = output.match(/(?:created?|I've created?)\s+(?:a\s+)?\[([^\]]+)\]/gi);
+    if (creationMatches) {
+      for (const match of creationMatches) {
+        const filenameMatch = match.match(/\[([^\]]+)\]/);
+        if (filenameMatch) {
+          const filename = filenameMatch[1];
+          toolCalls.push({
+            toolName: "create_file",
+            timestamp: new Date().toISOString(),
+            args: { path: filename, line: match.trim() },
+            durationMs: 0,
+            success: true,
+          });
+          console.log(`[EnhancedDebugParser] Found file creation from text: ${filename}`);
+        }
+      }
+    }
+
+    // Also check for line-by-line patterns (existing logic)
     const lines = output.split('\n');
     for (const line of lines) {
       // Match both "Created [file]" and "Created a README" patterns
