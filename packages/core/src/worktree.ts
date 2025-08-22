@@ -230,11 +230,6 @@ export class WorktreeManager {
       const iterationPrompt = notes || session.ampPrompt;
       console.log('Iteration prompt:', iterationPrompt?.slice(0, 100) + '...');
       
-      // Track follow-up prompt when notes are provided
-      if (notes) {
-        this.store.addFollowUpPrompt(sessionId, notes);
-      }
-      
       const result = await this.ampAdapter.runIteration(
         iterationPrompt, 
         session.worktreePath, 
@@ -431,6 +426,12 @@ Raw Telemetry: ${JSON.stringify(result.telemetry, null, 2)}
         const existingLog = await readFile(iterationLogPath, 'utf-8').catch(() => '');
         await writeFile(iterationLogPath, existingLog + metricsEntry);
         
+        // Commit the metrics update if there are changes
+        const hasChanges = await git.hasChanges(session.worktreePath);
+        if (hasChanges) {
+          await git.commitChanges('amp: update iteration metrics', session.worktreePath);
+        }
+        
       } catch (error) {
         console.warn('Failed to extract CLI metrics:', error);
       }
@@ -472,6 +473,11 @@ Raw Telemetry: ${JSON.stringify(result.telemetry, null, 2)}
       
       // Update session status
       this.store.updateSessionStatus(sessionId, finalStatus);
+
+      // Track follow-up prompt when notes are provided (after successful iteration)
+      if (notes && result.success) {
+        this.store.addFollowUpPrompt(sessionId, notes, includeContext);
+      }
 
       // Print summary
       console.log(`\n✓ Iteration completed:`);

@@ -335,7 +335,14 @@ export function SessionView({
           </div>
 
           <div className="bg-white p-6 rounded-lg border">
-            <h3 className="text-lg font-semibold mb-4">Prompt</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Prompt</h3>
+              {session.contextIncluded && (
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                  CONTEXT.md included
+                </span>
+              )}
+            </div>
             <div className="space-y-4">
               <div className="bg-blue-50 p-4 rounded-md border-l-4 border-blue-400">
                 <h4 className="text-sm font-medium text-blue-800 mb-2">

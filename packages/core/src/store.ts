@@ -190,6 +190,13 @@ export class SessionStore {
     } catch (error) {
       // Column already exists, ignore error
     }
+    
+    // Migration: Add contextIncluded column if it doesn't exist
+    try {
+      this.db.exec(`ALTER TABLE sessions ADD COLUMN contextIncluded BOOLEAN;`);
+    } catch (error) {
+      // Column already exists, ignore error
+    }
   }
 
   createSession(options: SessionCreateOptions): Session {
@@ -201,6 +208,7 @@ export class SessionStore {
       id,
       name: options.name,
       ampPrompt: options.ampPrompt,
+      contextIncluded: options.includeContext,
       repoRoot: options.repoRoot,
       baseBranch: options.baseBranch || 'main',
       branchName: `amp/${slug}/${timestamp}`,
@@ -213,13 +221,13 @@ export class SessionStore {
     };
 
     const stmt = this.db.prepare(`
-      INSERT INTO sessions (id, name, ampPrompt, followUpPrompts, repoRoot, baseBranch, branchName, 
+      INSERT INTO sessions (id, name, ampPrompt, followUpPrompts, contextIncluded, repoRoot, baseBranch, branchName, 
         worktreePath, status, scriptCommand, modelOverride, threadId, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
-      session.id, session.name, session.ampPrompt, null,
+      session.id, session.name, session.ampPrompt, null, session.contextIncluded ? 1 : 0,
       session.repoRoot, session.baseBranch, session.branchName, session.worktreePath,
       session.status, session.scriptCommand ?? null, session.modelOverride ?? null,
       session.threadId ?? null, session.createdAt
@@ -235,7 +243,8 @@ export class SessionStore {
     
     return {
       ...row,
-      followUpPrompts: row.followUpPrompts ? JSON.parse(row.followUpPrompts) : undefined
+      followUpPrompts: row.followUpPrompts ? JSON.parse(row.followUpPrompts) : undefined,
+      contextIncluded: Boolean(row.contextIncluded)
     } as Session;
   }
 
@@ -244,7 +253,8 @@ export class SessionStore {
     const rows = stmt.all() as any[];
     return rows.map(row => ({
       ...row,
-      followUpPrompts: row.followUpPrompts ? JSON.parse(row.followUpPrompts) : undefined
+      followUpPrompts: row.followUpPrompts ? JSON.parse(row.followUpPrompts) : undefined,
+      contextIncluded: Boolean(row.contextIncluded)
     })) as Session[];
   }
 
@@ -258,15 +268,28 @@ export class SessionStore {
     stmt.run(threadId, id);
   }
 
-  addFollowUpPrompt(id: string, followUpPrompt: string) {
+  addFollowUpPrompt(id: string, followUpPrompt: string, includeContext?: boolean) {
     const session = this.getSession(id);
     if (!session) throw new Error(`Session ${id} not found`);
     
     const currentPrompts = session.followUpPrompts || [];
     const updatedPrompts = [...currentPrompts, followUpPrompt];
     
-    const stmt = this.db.prepare('UPDATE sessions SET followUpPrompts = ? WHERE id = ?');
-    stmt.run(JSON.stringify(updatedPrompts), id);
+    const updates: string[] = [];
+    const values: any[] = [];
+    
+    updates.push('followUpPrompts = ?');
+    values.push(JSON.stringify(updatedPrompts));
+    
+    if (includeContext !== undefined) {
+      updates.push('contextIncluded = ?');
+      values.push(includeContext ? 1 : 0);
+    }
+    
+    values.push(id);
+    
+    const stmt = this.db.prepare(`UPDATE sessions SET ${updates.join(', ')} WHERE id = ?`);
+    stmt.run(...values);
   }
 
   deleteSession(id: string): void {
