@@ -52,17 +52,47 @@ export class EnhancedDebugParser {
     } = {};
 
     // Maps internal toolId → {name, args}
-    const pending: Record<string, { tool_id: string }> = {};
+    const pending: Record<string, { tool_id: string; name?: string; arguments?: any; completed?: boolean }> = {};
+    
+    // Track the most recent tool name from permission events
+    let lastToolName: string | null = null;
+
+    // Helper function to normalize log lines into kind and payload
+    const normalise = (line: any) => {
+      const kind = line.name || line.event || line.type || 
+                   (line.role === "tool" ? "tool_result" : "") || "";
+      const msg = typeof line.message === "string" ? this.safeParseJSON(line.message) : line.message;
+      return { kind, msg };
+    };
 
     try {
       const content = readFileSync(logPath, "utf8");
       const lines = content.split("\n");
+      console.log(`[EnhancedDebugParser] Processing ${lines.length} lines from debug log`);
 
       for (const raw of lines) {
         if (!raw.trim()) continue;
 
         try {
           const j = JSON.parse(raw.trim());
+          const { kind, msg } = normalise(j);
+          
+          // Debug logging for tool-related events
+          if (j.name && (j.name.includes('tool') || j.name.includes('Tool') || j.name.includes('invoke') || j.name.includes('Invoke'))) {
+            console.log(`[EnhancedDebugParser] DEBUG: Found tool-related event:`, { name: j.name, kind, hasMessage: !!j.message, messagePreview: typeof j.message === 'string' ? j.message.substring(0, 100) : typeof j.message });
+          }
+          
+          // Look for events that might contain actual tool names (Read, Grep, create_file, etc.)
+          if (j.message && typeof j.message === 'string' && (j.message.includes('Read') || j.message.includes('Grep') || j.message.includes('create_file') || j.message.includes('edit_file') || j.message.includes('list_directory'))) {
+            console.log(`[EnhancedDebugParser] DEBUG: Found event with tool name in message:`, { name: j.name, messagePreview: j.message.substring(0, 150) });
+            
+            // Extract tool name from permission check messages
+            const toolCheckMatch = j.message.match(/Tool (\w+) - checking permissions/);
+            if (toolCheckMatch) {
+              lastToolName = toolCheckMatch[1];
+              console.log(`[EnhancedDebugParser] Captured tool name: ${lastToolName}`);
+            }
+          }
 
           // --- token usage aggregation (sum all ChatCompletion responses) ---
           if ("input_tokens" in j && "output_tokens" in j) {
@@ -97,8 +127,13 @@ export class EnhancedDebugParser {
           if (j.name === "invokeTool") {
             const message = j.message || "";
             const tool_id = message.split(",")[0].trim();
-            pending[tool_id] = { tool_id };
-            console.log(`[EnhancedDebugParser] Found invokeTool with ID: ${tool_id}`);
+            pending[tool_id] = { 
+              tool_id,
+              name: lastToolName || undefined // Use the most recent tool name from permission events
+            };
+            console.log(`[EnhancedDebugParser] Found invokeTool with ID: ${tool_id}, assigned tool name: ${lastToolName}`);
+            // Reset lastToolName after use
+            lastToolName = null;
           }
 
           // 2. Handle ChatML-delta single-line tool call format
@@ -129,42 +164,81 @@ export class EnhancedDebugParser {
             }
           }
 
-          // 4. Handle legacy toolCall messages (matches amp_runner.py exactly)
+          // 4. Handle modern tool call completion - both amp_runner.py format and new format
           if (j.name === "toolCall" || j.name === "toolCallCompleted") {
             try {
               const payload = JSON.parse(j.message);
               const t_id = payload.toolId || payload.id;
               if (t_id && t_id in pending) {
-                // Complete the pending tool call
-                const completedCall = {
-                  tool_id: t_id,
-                  name: payload.name || "unknown",
-                  arguments: payload.arguments || {},
-                };
+                // Update the pending tool call with name and arguments (matches amp_runner.py line 237-239)
+                pending[t_id].name = payload.name || "unknown";
+                pending[t_id].arguments = payload.arguments || {};
                 console.log(`[EnhancedDebugParser] Completed pending tool call: ${payload.name} (ID: ${t_id})`);
-                tool_calls.push(completedCall);
+                tool_calls.push(pending[t_id]);
                 delete pending[t_id];
-              } else if (payload.name) {
-                // Handle case where we don't have pending toolId but have a tool name
-                const toolCall = {
-                  tool_id: t_id || `tool_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                  name: payload.name,
-                  arguments: payload.arguments || {},
-                };
-                console.log(`[EnhancedDebugParser] Found direct tool call: ${payload.name}`);
-                tool_calls.push(toolCall);
               }
-            } catch (error) {
-              console.log(`[EnhancedDebugParser] Failed to parse toolCall message: ${error}`);
+            } catch (parseError) {
+              // Skip if message can't be parsed as JSON
             }
           }
+
+          // 5. Handle new tool completion format: handleThreadDelta(tool:data, TOOL_ID, done)
+          if (j.name && j.name.includes('handleThreadDelta(tool:data,') && j.name.includes(', done)')) {
+            // Extract tool ID from name like "handleThreadDelta(tool:data, toolu_01XXX, done)"
+            const toolIdMatch = j.name.match(/handleThreadDelta\(tool:data,\s*([^,]+),\s*done\)/);
+            if (toolIdMatch) {
+              const t_id = toolIdMatch[1].trim();
+              if (t_id && t_id in pending) {
+                // We need to look at the message to get the actual tool info
+                // For now, let's see if we can extract tool name from some other event
+                console.log(`[EnhancedDebugParser] Found tool completion for ${t_id}, message:`, j.message);
+                
+                // Mark this tool as completed but we still need to find the tool name
+                // This might come from a different event, so let's keep the pending entry but mark it as completed
+                pending[t_id].completed = true;
+              }
+            }
+          }
+
+          // 5. Detect file operations directly
+          if (["create_file", "edit_file", "delete_file"].includes(kind)) {
+            const toolCall = {
+              tool_id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              name: kind,
+              arguments: { path: j.path, ...(j.content ? { content: j.content } : {}) }
+            };
+            console.log(`[EnhancedDebugParser] Found file operation: ${kind} (${j.path})`);
+            tool_calls.push(toolCall);
+          }
         } catch {
-          // Skip non-JSON lines
-          continue;
+          // Check for plain-text file operations in Amp output
+          if (/^created\s+\[.*\]|^Created\s+\[.*\]/i.test(raw)) {
+            // Extract filename from markdown link like "Created [README.md](file://...)"
+            const fileMatch = raw.match(/\[([^\]]+)\]/);
+            const filename = fileMatch ? fileMatch[1] : 'unknown';
+            const toolCall = {
+              tool_id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              name: "create_file",
+              arguments: { path: filename, line: raw.trim() }
+            };
+            console.log(`[EnhancedDebugParser] Found plain-text file creation: ${filename} (${raw.trim().substring(0, 100)}...)`);
+            tool_calls.push(toolCall);
+          } else if (/^edited\s+\[.*\]|^Edited\s+\[.*\]/i.test(raw)) {
+            // Extract filename from markdown link like "Edited [file.js](file://...)"
+            const fileMatch = raw.match(/\[([^\]]+)\]/);
+            const filename = fileMatch ? fileMatch[1] : 'unknown';
+            const toolCall = {
+              tool_id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              name: "edit_file",
+              arguments: { path: filename, line: raw.trim() }
+            };
+            console.log(`[EnhancedDebugParser] Found plain-text file edit: ${filename} (${raw.trim().substring(0, 100)}...)`);
+            tool_calls.push(toolCall);
+          }
         }
       }
 
-      // Flush any partially-filled calls (matches amp_runner.py line 247)
+      // Flush any remaining pending calls (like amp_runner.py line 247)
       console.log(`[EnhancedDebugParser] Flushing ${Object.keys(pending).length} pending calls`);
       tool_calls.push(...Object.values(pending));
       
@@ -298,6 +372,17 @@ export class EnhancedDebugParser {
           parsed.token_usage.output_tokens
         ) {
           const telemetry = this.convertToTelemetry(parsed, exitCode);
+          
+          // Also check text output for file operations that might have been missed
+          console.log(`[EnhancedDebugParser] Checking text output for file operations:`, textOutput.substring(0, 200));
+          const textFileCalls = this.extractFileOperationsFromText(textOutput);
+          if (textFileCalls.length > 0) {
+            console.log(`[EnhancedDebugParser] Adding ${textFileCalls.length} file operations from text output`);
+            telemetry.toolCalls.push(...textFileCalls);
+          } else {
+            console.log(`[EnhancedDebugParser] No file operations found in text output`);
+          }
+          
           console.log("Successfully parsed telemetry from debug logs:", {
             toolCalls: telemetry.toolCalls.length,
             tokens: telemetry.totalTokens,
@@ -316,6 +401,78 @@ export class EnhancedDebugParser {
 
     // Fallback to pattern matching on text output
     return this.parseTextOutput(textOutput, exitCode);
+  }
+
+  /**
+   * Extract file operations from plain text output
+   */
+  private static extractFileOperationsFromText(output: string): Array<{
+    toolName: string;
+    timestamp: string;
+    args: Record<string, any>;
+    durationMs: number;
+    success: boolean;
+  }> {
+    const toolCalls: Array<{
+      toolName: string;
+      timestamp: string;
+      args: Record<string, any>;
+      durationMs: number;
+      success: boolean;
+    }> = [];
+
+    const lines = output.split('\n');
+    for (const line of lines) {
+      // Match both "Created [file]" and "Created a README" patterns
+      if (/^created\s+(\[.*\]|a?\s*\w+)|^Created\s+(\[.*\]|a?\s*\w+)/i.test(line)) {
+        // Try to extract filename from markdown link first: "Created [README.md](file://...)"
+        const markdownMatch = line.match(/\[([^\]]+)\]/);
+        let filename = 'unknown';
+        
+        if (markdownMatch) {
+          filename = markdownMatch[1];
+        } else {
+          // Extract from patterns like "Created a README" or "Created README.md"
+          const textMatch = line.match(/^Created\s+(?:a\s+)?(\w+(?:\.\w+)?)/i);
+          if (textMatch) {
+            filename = textMatch[1];
+          }
+        }
+        
+        toolCalls.push({
+          toolName: "create_file",
+          timestamp: new Date().toISOString(),
+          args: { path: filename, line: line.trim() },
+          durationMs: 0,
+          success: true,
+        });
+        console.log(`[EnhancedDebugParser] Found plain-text file creation: ${filename}`);
+      } else if (/^edited\s+(\[.*\]|a?\s*\w+)|^Edited\s+(\[.*\]|a?\s*\w+)/i.test(line)) {
+        // Similar logic for edits
+        const markdownMatch = line.match(/\[([^\]]+)\]/);
+        let filename = 'unknown';
+        
+        if (markdownMatch) {
+          filename = markdownMatch[1];
+        } else {
+          const textMatch = line.match(/^Edited\s+(?:a\s+)?(\w+(?:\.\w+)?)/i);
+          if (textMatch) {
+            filename = textMatch[1];
+          }
+        }
+        
+        toolCalls.push({
+          toolName: "edit_file",
+          timestamp: new Date().toISOString(),
+          args: { path: filename, line: line.trim() },
+          durationMs: 0,
+          success: true,
+        });
+        console.log(`[EnhancedDebugParser] Found plain-text file edit: ${filename}`);
+      }
+    }
+
+    return toolCalls;
   }
 
   /**

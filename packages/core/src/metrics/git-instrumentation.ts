@@ -493,7 +493,7 @@ export class GitInstrumentation {
 
   private execGit(args: string[]): Buffer {
     try {
-      return execSync(`git ${args.join(' ')}`, {
+      return execSync(`git ${args.map(arg => `"${arg}"`).join(' ')}`, {
         cwd: this.cwd,
         stdio: 'pipe',
         encoding: 'buffer'

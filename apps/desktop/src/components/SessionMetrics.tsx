@@ -165,7 +165,6 @@ export const SessionMetrics: React.FC<SessionMetricsProps> = ({ sessionId, class
   };
 
   const formatCost = (cost: number): string => {
-    if (cost < 0.001) return `$${(cost * 1000).toFixed(1)}k`;
     return `$${cost.toFixed(4)}`;
   };
 
