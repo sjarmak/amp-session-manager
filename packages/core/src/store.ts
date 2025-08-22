@@ -351,7 +351,7 @@ export class SessionStore {
       toolCall.timestamp,
       toolCall.toolName,
       toolCall.argsJson ?? null,
-      toolCall.success,
+      toolCall.success ? 1 : 0,
       toolCall.durationMs ?? null,
       toolCall.rawJson ?? null
     );

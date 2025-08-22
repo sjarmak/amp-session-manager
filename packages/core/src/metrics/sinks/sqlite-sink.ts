@@ -13,6 +13,7 @@ export class SQLiteMetricsSink implements MetricsSink {
   private insertLLMUsageStmt!: Database.Statement;
   private insertGitOpStmt!: Database.Statement;
   private insertTestResultStmt!: Database.Statement;
+  private insertFileEditStmt!: Database.Statement;
   private updateIterationStmt!: Database.Statement;
 
   constructor(dbPath: string, logger: Logger) {
@@ -108,12 +109,26 @@ export class SQLiteMetricsSink implements MetricsSink {
         FOREIGN KEY (iteration_id) REFERENCES metric_iterations(id)
       );
 
+      CREATE TABLE IF NOT EXISTS metric_file_edits (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        iteration_id TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        operation_type TEXT NOT NULL,
+        lines_added INTEGER DEFAULT 0,
+        lines_deleted INTEGER DEFAULT 0,
+        size_bytes INTEGER DEFAULT 0,
+        timestamp TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (iteration_id) REFERENCES metric_iterations(id)
+      );
+
       -- Create indexes for performance
       CREATE INDEX IF NOT EXISTS idx_metric_iterations_session_id ON metric_iterations(session_id);
       CREATE INDEX IF NOT EXISTS idx_metric_tool_calls_iteration_id ON metric_tool_calls(iteration_id);
       CREATE INDEX IF NOT EXISTS idx_metric_llm_usage_iteration_id ON metric_llm_usage(iteration_id);
       CREATE INDEX IF NOT EXISTS idx_metric_git_operations_iteration_id ON metric_git_operations(iteration_id);
       CREATE INDEX IF NOT EXISTS idx_metric_test_results_iteration_id ON metric_test_results(iteration_id);
+      CREATE INDEX IF NOT EXISTS idx_metric_file_edits_iteration_id ON metric_file_edits(iteration_id);
       CREATE INDEX IF NOT EXISTS idx_metric_iterations_started_at ON metric_iterations(started_at);
     `);
 
@@ -168,6 +183,13 @@ export class SQLiteMetricsSink implements MetricsSink {
         skipped, coverage_percent, duration_ms, exit_code, timestamp
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
+
+    this.insertFileEditStmt = this.db.prepare(`
+      INSERT INTO metric_file_edits (
+        iteration_id, file_path, operation_type, lines_added, lines_deleted, 
+        size_bytes, timestamp
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
   }
 
   async handle(event: MetricEventTypes): Promise<void> {
@@ -190,6 +212,9 @@ export class SQLiteMetricsSink implements MetricsSink {
           break;
         case 'test_result':
           this.handleTestResult(event);
+          break;
+        case 'file_edit':
+          this.handleFileEdit(event);
           break;
         default:
           this.logger.warn(`Unknown metric event type: ${(event as any).type}`);
@@ -299,6 +324,20 @@ export class SQLiteMetricsSink implements MetricsSink {
       event.data.coveragePercent || null,
       event.data.durationMs,
       event.data.exitCode,
+      event.timestamp
+    );
+  }
+
+  private handleFileEdit(event: MetricEventTypes): void {
+    if (event.type !== 'file_edit') return;
+
+    this.insertFileEditStmt.run(
+      event.iterationId,
+      event.data.path,
+      event.data.operation,
+      event.data.linesAdded || 0,
+      event.data.linesDeleted || 0,
+      0, // sizeBytes - not available in current event data
       event.timestamp
     );
   }

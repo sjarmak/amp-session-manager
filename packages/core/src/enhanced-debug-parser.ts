@@ -1,13 +1,13 @@
 /**
  * Enhanced Amp Debug Log Parser
- * 
+ *
  * Based on the proven parsing logic from amp_runner.py, this parser
  * extracts tool calls, token usage, and performance metrics from
  * Amp CLI debug logs with higher accuracy.
  */
 
-import type { AmpTelemetry } from '@ampsm/types';
-import { readFileSync } from 'fs';
+import type { AmpTelemetry } from "@ampsm/types";
+import { readFileSync } from "fs";
 
 export interface ParsedDebugLogs {
   tool_calls: Array<{
@@ -41,40 +41,44 @@ export class EnhancedDebugParser {
       name?: string;
       arguments?: Record<string, any>;
     }> = [];
-    
+
     let token_usage: { input_tokens?: number; output_tokens?: number } = {};
-    let perf: { inferenceDuration?: number; tokensPerSecond?: number; outputTokens?: number } = {};
-    
+    let perf: {
+      inferenceDuration?: number;
+      tokensPerSecond?: number;
+      outputTokens?: number;
+    } = {};
+
     // Maps internal toolId → {name, args}
     const pending: Record<string, { tool_id: string }> = {};
-    
+
     try {
-      const content = readFileSync(logPath, 'utf8');
-      const lines = content.split('\n');
-      
+      const content = readFileSync(logPath, "utf8");
+      const lines = content.split("\n");
+
       for (const raw of lines) {
         if (!raw.trim()) continue;
-        
+
         try {
           const j = JSON.parse(raw.trim());
-          
+
           // --- token usage --------------------------------------
           if ("input_tokens" in j && "output_tokens" in j) {
             token_usage = {
               input_tokens: j.input_tokens,
-              output_tokens: j.output_tokens
+              output_tokens: j.output_tokens,
             };
           }
-          
+
           // --- inference metrics -------------------------------
           if ("inferenceDuration" in j) {
             perf = {
               inferenceDuration: j.inferenceDuration,
               tokensPerSecond: j.tokensPerSecond,
-              outputTokens: j.outputTokens
+              outputTokens: j.outputTokens,
             };
           }
-          
+
           // --- tool invocation flow ----------------------------
           // 1. LLM decides to call a tool → "invokeTool" line
           if (j.name === "invokeTool") {
@@ -82,7 +86,7 @@ export class EnhancedDebugParser {
             const tool_id = message.split(",")[0].trim();
             pending[tool_id] = { tool_id };
           }
-          
+
           // 2. A later log entry contains the concrete call:
           //    {"name":"toolCall", "message":"{\"name\":\"Grep\", \"arguments\":{...}, \"toolId\":\"toolu_abc\"}"}
           if (j.name === "toolCall" || j.name === "toolCallCompleted") {
@@ -93,10 +97,22 @@ export class EnhancedDebugParser {
                 const toolCall = {
                   tool_id: t_id,
                   name: payload.name || "unknown",
-                  arguments: payload.arguments || {}
+                  arguments: payload.arguments || {},
                 };
                 tool_calls.push(toolCall);
                 delete pending[t_id];
+              } else if (payload.name) {
+                // Handle case where we don't have pending toolId but have a tool name
+                const toolCall = {
+                  tool_id:
+                    t_id ||
+                    `tool_${Date.now()}_${Math.random()
+                      .toString(36)
+                      .substr(2, 9)}`,
+                  name: payload.name,
+                  arguments: payload.arguments || {},
+                };
+                tool_calls.push(toolCall);
               }
             } catch {
               // Skip malformed tool call entries
@@ -107,20 +123,19 @@ export class EnhancedDebugParser {
           continue;
         }
       }
-      
+
       // Flush any partially-filled calls
       for (const pendingCall of Object.values(pending)) {
         tool_calls.push(pendingCall);
       }
-      
     } catch (error) {
-      console.warn('Failed to parse debug log:', error);
+      console.warn("Failed to parse debug log:", error);
     }
-    
+
     return {
       tool_calls,
       token_usage,
-      perf
+      perf,
     };
   }
 
@@ -129,15 +144,15 @@ export class EnhancedDebugParser {
    */
   static extractThreadId(logPath: string): string | null {
     try {
-      const content = readFileSync(logPath, 'utf8');
-      const lines = content.split('\n');
-      
+      const content = readFileSync(logPath, "utf8");
+      const lines = content.split("\n");
+
       for (const raw of lines) {
         if (!raw.trim()) continue;
-        
+
         try {
           const j = JSON.parse(raw.trim());
-          
+
           // Look for thread ID in various log formats
           if (j.threadId) {
             return j.threadId;
@@ -145,7 +160,7 @@ export class EnhancedDebugParser {
           if (j.thread_id) {
             return j.thread_id;
           }
-          
+
           // Sometimes it's in the message
           const message = j.message || "";
           if (message.toLowerCase().includes("thread")) {
@@ -160,28 +175,32 @@ export class EnhancedDebugParser {
         }
       }
     } catch (error) {
-      console.warn('Failed to extract thread ID:', error);
+      console.warn("Failed to extract thread ID:", error);
     }
-    
+
     return null;
   }
 
   /**
    * Convert parsed debug logs to AmpTelemetry format
    */
-  static convertToTelemetry(parsed: ParsedDebugLogs, exitCode: number = 0): AmpTelemetry {
+  static convertToTelemetry(
+    parsed: ParsedDebugLogs,
+    exitCode: number = 0
+  ): AmpTelemetry {
     // Convert tool calls to expected format
-    const toolCalls = parsed.tool_calls.map(toolCall => ({
-      toolName: toolCall.name || 'unknown',
+    const toolCalls = parsed.tool_calls.map((toolCall) => ({
+      toolName: toolCall.name || "unknown",
       timestamp: new Date().toISOString(),
       args: toolCall.arguments || {},
       durationMs: 0, // Not available in debug logs
-      success: true // Assume success unless we detect failure
+      success: true, // Assume success unless we detect failure
     }));
 
     // Calculate total tokens
     const inputTokens = parsed.token_usage.input_tokens || 0;
-    const outputTokens = parsed.token_usage.output_tokens || parsed.perf.outputTokens || 0;
+    const outputTokens =
+      parsed.token_usage.output_tokens || parsed.perf.outputTokens || 0;
     const totalTokens = inputTokens + outputTokens;
 
     return {
@@ -189,9 +208,9 @@ export class EnhancedDebugParser {
       promptTokens: inputTokens,
       completionTokens: outputTokens,
       totalTokens,
-      model: 'anthropic/claude-sonnet-4-20250514', // Default, could be extracted from logs
-      ampVersion: '1.0.0', // Could be extracted from logs
-      toolCalls
+      model: "anthropic/claude-sonnet-4-20250514", // Default, could be extracted from logs
+      ampVersion: "1.0.0", // Could be extracted from logs
+      toolCalls,
     };
   }
 
@@ -207,20 +226,27 @@ export class EnhancedDebugParser {
     if (debugLogPath) {
       try {
         const parsed = this.parseAmpDebugLogs(debugLogPath);
-        
+
         // If we got good data from debug logs, use it
-        if (parsed.tool_calls.length > 0 || parsed.token_usage.input_tokens || parsed.token_usage.output_tokens) {
+        if (
+          parsed.tool_calls.length > 0 ||
+          parsed.token_usage.input_tokens ||
+          parsed.token_usage.output_tokens
+        ) {
           const telemetry = this.convertToTelemetry(parsed, exitCode);
-          console.log('Successfully parsed telemetry from debug logs:', {
+          console.log("Successfully parsed telemetry from debug logs:", {
             toolCalls: telemetry.toolCalls.length,
             tokens: telemetry.totalTokens,
             inputTokens: telemetry.promptTokens,
-            outputTokens: telemetry.completionTokens
+            outputTokens: telemetry.completionTokens,
           });
           return telemetry;
         }
       } catch (error) {
-        console.warn('Debug log parsing failed, falling back to text parsing:', error);
+        console.warn(
+          "Debug log parsing failed, falling back to text parsing:",
+          error
+        );
       }
     }
 
@@ -231,7 +257,10 @@ export class EnhancedDebugParser {
   /**
    * Fallback text parsing using regex patterns (similar to existing TelemetryParser)
    */
-  private static parseTextOutput(output: string, exitCode: number): AmpTelemetry {
+  private static parseTextOutput(
+    output: string,
+    exitCode: number
+  ): AmpTelemetry {
     const toolCalls: any[] = [];
     let promptTokens = 0;
     let completionTokens = 0;
@@ -241,17 +270,17 @@ export class EnhancedDebugParser {
     const tokenPatterns = [
       /(\d+) prompt \+ (\d+) completion = (\d+) tokens/,
       /Input tokens: (\d+), Output tokens: (\d+)/,
-      /Tokens: (\d+)/
+      /Tokens: (\d+)/,
     ];
 
     for (const pattern of tokenPatterns) {
       const match = output.match(pattern);
       if (match) {
-        if (pattern.source.includes('prompt')) {
+        if (pattern.source.includes("prompt")) {
           promptTokens = parseInt(match[1], 10);
           completionTokens = parseInt(match[2], 10);
           totalTokens = parseInt(match[3], 10);
-        } else if (pattern.source.includes('Input')) {
+        } else if (pattern.source.includes("Input")) {
           promptTokens = parseInt(match[1], 10);
           completionTokens = parseInt(match[2], 10);
           totalTokens = promptTokens + completionTokens;
@@ -264,11 +293,11 @@ export class EnhancedDebugParser {
 
     // Basic tool detection from text patterns
     const toolPatterns = [
-      { pattern: /reading.*file/i, tool: 'Read' },
-      { pattern: /searching.*for/i, tool: 'Grep' },
-      { pattern: /found.*files/i, tool: 'glob' },
-      { pattern: /creating.*file/i, tool: 'create_file' },
-      { pattern: /editing.*file/i, tool: 'edit_file' },
+      { pattern: /reading.*file/i, tool: "Read" },
+      { pattern: /searching.*for/i, tool: "Grep" },
+      { pattern: /found.*files/i, tool: "glob" },
+      { pattern: /creating.*file/i, tool: "create_file" },
+      { pattern: /editing.*file/i, tool: "edit_file" },
     ];
 
     for (const { pattern, tool } of toolPatterns) {
@@ -278,16 +307,16 @@ export class EnhancedDebugParser {
           timestamp: new Date().toISOString(),
           args: {},
           durationMs: 0,
-          success: true
+          success: true,
         });
       }
     }
 
-    console.log('Fallback text parsing extracted:', {
+    console.log("Fallback text parsing extracted:", {
       toolCalls: toolCalls.length,
       tokens: totalTokens,
       inputTokens: promptTokens,
-      outputTokens: completionTokens
+      outputTokens: completionTokens,
     });
 
     return {
@@ -295,9 +324,9 @@ export class EnhancedDebugParser {
       promptTokens,
       completionTokens,
       totalTokens,
-      model: 'anthropic/claude-sonnet-4-20250514',
-      ampVersion: '1.0.0',
-      toolCalls
+      model: "anthropic/claude-sonnet-4-20250514",
+      ampVersion: "1.0.0",
+      toolCalls,
     };
   }
 }
