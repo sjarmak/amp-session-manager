@@ -235,6 +235,7 @@ ipcMain.handle('sessions:getToolCalls', async (_, sessionId: string) => {
   }
 });
 
+// Legacy handlers (keep for compatibility)
 ipcMain.handle('squash-session', async (_, sessionId: string, options: any) => {
   try {
     return await worktreeManager.squashCommits(sessionId, options);
@@ -250,6 +251,95 @@ ipcMain.handle('rebase-session', async (_, sessionId: string, options: any) => {
   } catch (error) {
     console.error('Failed to rebase session:', error);
     throw error;
+  }
+});
+
+// New session handlers
+ipcMain.handle('sessions:squash', async (_, sessionId: string, message: string) => {
+  try {
+    return await worktreeManager.squashCommits(sessionId, { message });
+  } catch (error) {
+    console.error('Failed to squash session:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to squash session' };
+  }
+});
+
+ipcMain.handle('sessions:rebase', async (_, sessionId: string, onto: string) => {
+  try {
+    const result = await worktreeManager.rebase(sessionId, onto);
+    return { success: true, result };
+  } catch (error) {
+    console.error('Failed to rebase session:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to rebase session' };
+  }
+});
+
+ipcMain.handle('sessions:preflight', async (_, sessionId: string) => {
+  try {
+    const result = await worktreeManager.preflight(sessionId);
+    return { success: true, result };
+  } catch (error) {
+    console.error('Failed to run preflight:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to run preflight' };
+  }
+});
+
+ipcMain.handle('sessions:squash-session', async (_, sessionId: string, message: string) => {
+  try {
+    return await worktreeManager.squashCommits(sessionId, { message });
+  } catch (error) {
+    console.error('Failed to squash session:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to squash session' };
+  }
+});
+
+ipcMain.handle('sessions:rebase-onto-base', async (_, sessionId: string) => {
+  try {
+    const result = await worktreeManager.rebaseOntoBase(sessionId);
+    return { success: true, result };
+  } catch (error) {
+    console.error('Failed to rebase onto base:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to rebase onto base' };
+  }
+});
+
+ipcMain.handle('sessions:continue-merge', async (_, sessionId: string) => {
+  try {
+    const result = await worktreeManager.continueMerge(sessionId);
+    return { success: true, result };
+  } catch (error) {
+    console.error('Failed to continue merge:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to continue merge' };
+  }
+});
+
+ipcMain.handle('sessions:abort-merge', async (_, sessionId: string) => {
+  try {
+    const result = await worktreeManager.abortMerge(sessionId);
+    return { success: true, result };
+  } catch (error) {
+    console.error('Failed to abort merge:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to abort merge' };
+  }
+});
+
+ipcMain.handle('sessions:fast-forward-merge', async (_, sessionId: string) => {
+  try {
+    const result = await worktreeManager.fastForwardMerge(sessionId);
+    return { success: true, result };
+  } catch (error) {
+    console.error('Failed to fast-forward merge:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to fast-forward merge' };
+  }
+});
+
+ipcMain.handle('sessions:export-patch', async (_, sessionId: string, outputPath: string) => {
+  try {
+    const result = await worktreeManager.exportPatch(sessionId, outputPath);
+    return { success: true, result };
+  } catch (error) {
+    console.error('Failed to export patch:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to export patch' };
   }
 });
 
@@ -629,7 +719,17 @@ ipcMain.handle('benchmarks:getResults', async (_, runId: string) => {
     console.log('📊 benchmarks:getResults called for runId:', runId);
     const result = await sweBenchRunner.getResults(runId);
     console.log('📊 benchmarks:getResults result:', result?.length || 0, 'results');
-    return result;
+    
+    // Transform database results to UI format
+    const transformed = result.map(r => ({
+      instanceId: r.caseId,
+      sessionId: r.sessionId,
+      passed: r.status === 'pass',
+      completedAt: null, // Could add this if needed
+      error: r.status === 'fail' ? 'Test failed' : null
+    }));
+    
+    return transformed;
   } catch (error) {
     console.error('❌ Failed to get benchmark results:', error);
     return [];

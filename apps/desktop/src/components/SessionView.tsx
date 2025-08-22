@@ -17,7 +17,16 @@ export function SessionView({
 }: SessionViewProps) {
   const [activeTab, setActiveTab] = useState<
     "overview" | "output" | "actions" | "metrics"
-  >("overview");
+  >(() => {
+    // Restore tab from localStorage
+    const saved = localStorage.getItem(`sessionTab_${session.id}`);
+    return (saved as any) || "overview";
+  });
+  
+  // Save active tab to localStorage when it changes
+  React.useEffect(() => {
+    localStorage.setItem(`sessionTab_${session.id}`, activeTab);
+  }, [activeTab, session.id]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [iterationNotes, setIterationNotes] = useState("");
@@ -47,7 +56,7 @@ export function SessionView({
       console.log("Calling cleanup for session:", session.id);
       const result = await window.electronAPI.sessions.cleanup(session.id);
       console.log("Cleanup result:", result);
-      if (result.success) {
+      if (result && result.success) {
         console.log("Cleanup successful, going back to session list");
         onSessionUpdated(); // Refresh session list
         onBack(); // Go back to session list
@@ -65,12 +74,12 @@ export function SessionView({
               session.id,
               true
             );
-            if (forceResult.success) {
+            if (forceResult && forceResult.success) {
               onSessionUpdated();
               onBack();
               return;
             } else {
-              setError(forceResult.error || "Failed to force delete session");
+              setError((forceResult && forceResult.error) || "Failed to force delete session");
             }
           } else {
             setError("Delete cancelled. Session has unmerged commits.");
@@ -98,12 +107,12 @@ export function SessionView({
         includeContext
       );
 
-      if (result.success) {
+      if (result && result.success) {
         onSessionUpdated();
         setIterationNotes("");
         setIncludeContext(false);
       } else {
-        setError(result.error || "Failed to continue thread");
+        setError((result && result.error) || "Failed to continue thread");
       }
     } catch (err) {
       setError(
@@ -129,11 +138,11 @@ export function SessionView({
         squashMessage
       );
 
-      if (result.success) {
+      if (result && result.success) {
         onSessionUpdated();
         setSquashMessage("");
       } else {
-        setError(result.error || "Failed to squash commits");
+        setError((result && result.error) || "Failed to squash commits");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to squash commits");
@@ -157,10 +166,10 @@ export function SessionView({
         rebaseTarget
       );
 
-      if (result.success) {
+      if (result && result.success) {
         onSessionUpdated();
       } else {
-        setError(result.error || "Failed to rebase");
+        setError((result && result.error) || "Failed to rebase");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to rebase");
