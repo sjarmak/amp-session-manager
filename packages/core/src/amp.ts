@@ -97,7 +97,7 @@ export class AmpAdapter {
       console.log(`🔄 Alternating model logic: existingIterations=${existingIterations}, useGpt5=${useGpt5}, model=${useGpt5 ? 'gpt-5' : 'default'}`);
       
       // Build full conversation context from session follow-up prompts
-      const fullContextPrompt = await this.buildContinuePrompt(prompt, sessionId);
+      const fullContextPrompt = await this.buildContinuePrompt(prompt, sessionId, workingDir, includeContext);
       const alternatingModel = useGpt5 ? 'gpt-5' : undefined; // undefined = default model
       return this.runAmpCommand(fullContextPrompt, workingDir, alternatingModel, sessionId);
     }
@@ -434,7 +434,7 @@ ${contextMd}`;
     }
   }
 
-  private async buildContinuePrompt(currentPrompt: string, sessionId?: string): Promise<string> {
+  private async buildContinuePrompt(currentPrompt: string, sessionId?: string, workingDir?: string, includeContext?: boolean): Promise<string> {
     try {
       if (!sessionId) {
         return `/continue\n\n${currentPrompt}`;
@@ -451,18 +451,28 @@ ${contextMd}`;
 
       const followUpPrompts = session.followUpPrompts || [];
       
-      // If no follow-up prompts, just use current prompt
+      // Build conversation - don't include currentPrompt as it's not stored yet
+      let conversationText: string;
       if (followUpPrompts.length === 0) {
-        return `/continue\n\n${currentPrompt}`;
+        conversationText = `Original Prompt\n${session.ampPrompt}\n\n---\n\nFollow-up Message\n${currentPrompt}`;
+      } else {
+        const fullConversation = [session.ampPrompt, ...followUpPrompts, currentPrompt];
+        conversationText = fullConversation
+          .map((p, i) => i === 0 ? `Original Prompt\n${p}` : `Follow-up Message\n${p}`)
+          .join('\n\n---\n\n');
       }
       
-      // Build conversation with original prompt + all follow-ups + current prompt
-      const fullConversation = [session.ampPrompt, ...followUpPrompts, currentPrompt];
-      const conversationText = fullConversation
-        .map((p, i) => i === 0 ? `Original Prompt\n${p}` : `Follow-up Message\n${p}`)
-        .join('\n\n---\n\n');
+      let finalPrompt = `/continue\n\n${conversationText}`;
       
-      return `/continue\n\n${conversationText}`;
+      // Include CONTEXT.md if requested and working directory is provided
+      if (includeContext && workingDir) {
+        const contextMd = await this.safeReadFile(join(workingDir, 'CONTEXT.md'));
+        if (contextMd.trim()) {
+          finalPrompt += `\n\n${contextMd}`;
+        }
+      }
+      
+      return finalPrompt;
     } catch (error) {
       console.warn('Failed to build continue prompt with full context:', error);
       return `/continue\n\n${currentPrompt}`;

@@ -164,16 +164,20 @@ export class SweBenchRunner extends EventEmitter {
       // Ensure repo exists locally
       console.log(`📦 Ensuring repo: ${caseItem.repo} at commit ${caseItem.bugCommit}`);
       const repoPath = await this.ensureRepo(caseItem.repo, caseItem.bugCommit);
+      console.log(`📦 Repository ensured at: ${repoPath}`);
       
-      // Create session
-      const session = this.store.createSession({
+      // Create session with worktree
+      const testCommand = (caseItem as any).testCommand || `pytest -xvs ${caseItem.testPath}`;
+      console.log(`💼 Creating session with testCommand: ${testCommand}`);
+      const session = await this.worktreeManager.createSession({
         name: `SWE-bench: ${caseItem.id}`,
         ampPrompt: caseItem.prompt || this.generateDefaultPrompt(caseItem),
         repoRoot: repoPath,
         baseBranch: caseItem.bugCommit,
-        scriptCommand: `pytest -xvs ${caseItem.testPath}`,
+        scriptCommand: testCommand,
         includeContext: false
       });
+      console.log(`💼 Session created with worktree: ${session.id} at ${session.worktreePath}`);
 
       // Update session notes with SWE-bench metadata  
       const notes = JSON.stringify({ sweBenchCaseId: caseItem.id, sweBenchRunId: runId });
@@ -181,7 +185,9 @@ export class SweBenchRunner extends EventEmitter {
       updateStmt.run(notes, session.id);
 
       // Run session with timeout
+      console.log(`🏃 Starting session execution for ${session.id}`);
       const result = await this.runSessionWithTimeout(session, maxIterations, timeoutSec);
+      console.log(`🏁 Session execution completed for ${session.id}:`, result);
       
       const wallTimeSec = (Date.now() - startTime) / 1000;
       const iterations = this.store.getIterations(session.id).length;
@@ -237,25 +243,34 @@ Fix the code to make the test pass while maintaining compatibility with existing
     const cacheKey = `${repo}#${commit}`;
     
     if (this.repoCache.has(cacheKey)) {
+      console.log(`📦 Using cached repo: ${this.repoCache.get(cacheKey)}`);
       return this.repoCache.get(cacheKey)!;
     }
 
     const repoName = repo.replace('/', '_');
     const repoPath = path.join(process.env.HOME || '~', '.amp-repos', repoName);
+    console.log(`📦 Repo path will be: ${repoPath}`);
     
     // Create repo cache directory
     const cacheDir = path.dirname(repoPath);
     if (!fs.existsSync(cacheDir)) {
+      console.log(`📦 Creating cache directory: ${cacheDir}`);
       fs.mkdirSync(cacheDir, { recursive: true });
     }
 
     // Clone if doesn't exist
     if (!fs.existsSync(repoPath)) {
+      console.log(`📦 Cloning repo: https://github.com/${repo}.git`);
       await this.execCommand(`git clone https://github.com/${repo}.git "${repoPath}"`);
+      console.log(`📦 Clone completed`);
+    } else {
+      console.log(`📦 Repo already exists at ${repoPath}`);
     }
 
     // Checkout the specific commit
+    console.log(`📦 Checking out commit: ${commit}`);
     await this.execCommand(`git checkout ${commit}`, repoPath);
+    console.log(`📦 Checkout completed`);
     
     this.repoCache.set(cacheKey, repoPath);
     return repoPath;
@@ -267,15 +282,44 @@ Fix the code to make the test pass while maintaining compatibility with existing
     timeoutSec: number
   ): Promise<{ success: boolean; reason: string }> {
     try {
-      // Run iterations until test passes or max iterations reached
-      for (let i = 0; i < maxIterations; i++) {
-        await this.worktreeManager.iterate(session.id);
+      // Check if test already passes after initial iteration from createSession
+      if (session.scriptCommand) {
+        try {
+          console.log(`🧪 Running initial test check: ${session.scriptCommand} in ${session.worktreePath}`);
+          const testResult = await this.execCommand(session.scriptCommand, session.worktreePath);
+          console.log(`🧪 Initial test result for ${session.id}:`, testResult);
+          if (testResult.includes('PASSED') || testResult.includes('passed') || testResult.includes('test passed')) {
+            return { success: true, reason: `Test passed after initial iteration` };
+          }
+        } catch (error) {
+          console.log(`🧪 Initial test failed for ${session.id}:`, error);
+          // Test failed, continue with additional iterations
+        }
+      }
+
+      // Run additional iterations until test passes or max iterations reached
+      for (let i = 0; i < maxIterations - 1; i++) {  // -1 because initial iteration already happened
+        console.log(`🔄 Starting iteration ${i + 2}/${maxIterations} for session ${session.id}`);
+        try {
+          await this.worktreeManager.iterate(session.id);
+          console.log(`✅ Iteration ${i + 2} completed for session ${session.id}`);
+        } catch (error) {
+          console.log(`❌ Iteration ${i + 2} failed for session ${session.id}:`, error);
+          return { success: false, reason: `Iteration failed: ${error instanceof Error ? error.message : String(error)}` };
+        }
         
         // Check if test passes
         if (session.scriptCommand) {
-          const testResult = await this.execCommand(session.scriptCommand, session.worktreePath);
-          if (testResult.includes('PASSED') || testResult.includes('passed')) {
-            return { success: true, reason: `Test passed after ${i + 1} iterations` };
+          try {
+            console.log(`🧪 Running test command: ${session.scriptCommand} in ${session.worktreePath}`);
+            const testResult = await this.execCommand(session.scriptCommand, session.worktreePath);
+            console.log(`🧪 Test result for ${session.id}:`, testResult);
+            if (testResult.includes('PASSED') || testResult.includes('passed') || testResult.includes('test passed')) {
+              return { success: true, reason: `Test passed after ${i + 2} iterations` };
+            }
+          } catch (error) {
+            console.log(`🧪 Test failed for ${session.id}:`, error);
+            // Test failed, continue iterating
           }
         }
       }
@@ -342,6 +386,22 @@ Fix the code to make the test pass while maintaining compatibility with existing
   }
 
   async deleteRun(runId: string): Promise<void> {
+    // Get all case results to find associated sessions
+    const caseResults = this.store.getSweBenchCaseResults(runId);
+    
+    // Clean up associated sessions
+    for (const result of caseResults) {
+      if (result.sessionId) {
+        try {
+          console.log(`🗑️ Cleaning up session ${result.sessionId} for deleted benchmark run`);
+          await this.worktreeManager.cleanup(result.sessionId);
+        } catch (error) {
+          console.warn(`⚠️ Failed to cleanup session ${result.sessionId}:`, error);
+        }
+      }
+    }
+    
+    // Delete the benchmark run and its results
     this.store.deleteSweBenchRun(runId);
   }
 

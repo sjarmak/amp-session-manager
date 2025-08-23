@@ -238,7 +238,7 @@ ipcMain.handle('sessions:getToolCalls', async (_, sessionId: string) => {
 // Legacy handlers (keep for compatibility)
 ipcMain.handle('squash-session', async (_, sessionId: string, options: any) => {
   try {
-    return await worktreeManager.squashCommits(sessionId, options);
+    return await worktreeManager.squashSession(sessionId, options);
   } catch (error) {
     console.error('Failed to squash session:', error);
     throw error;
@@ -257,7 +257,8 @@ ipcMain.handle('rebase-session', async (_, sessionId: string, options: any) => {
 // New session handlers
 ipcMain.handle('sessions:squash', async (_, sessionId: string, message: string) => {
   try {
-    return await worktreeManager.squashCommits(sessionId, { message });
+    await worktreeManager.squashSession(sessionId, { message });
+    return { success: true };
   } catch (error) {
     console.error('Failed to squash session:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Failed to squash session' };
@@ -284,9 +285,10 @@ ipcMain.handle('sessions:preflight', async (_, sessionId: string) => {
   }
 });
 
-ipcMain.handle('sessions:squash-session', async (_, sessionId: string, message: string) => {
+ipcMain.handle('sessions:squash-session', async (_, sessionId: string, options: any) => {
   try {
-    return await worktreeManager.squashCommits(sessionId, { message });
+    await worktreeManager.squashSession(sessionId, options);
+    return { success: true };
   } catch (error) {
     console.error('Failed to squash session:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Failed to squash session' };

@@ -21,9 +21,20 @@ export class Logger {
 
   private formatMessage(level: LogLevel, message: string, ...args: any[]): string {
     const timestamp = new Date().toISOString();
-    const formattedArgs = args.length > 0 ? ' ' + args.map(arg => 
-      typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-    ).join(' ') : '';
+    const formattedArgs = args.length > 0 ? ' ' + args.map(arg => {
+      if (typeof arg === 'object') {
+        try {
+          return JSON.stringify(arg, null, 2);
+        } catch (error) {
+          // Handle circular references or other stringify errors
+          if (arg instanceof Error) {
+            return `Error: ${arg.message}\n${arg.stack}`;
+          }
+          return `[Object ${arg.constructor?.name || 'Unknown'}]`;
+        }
+      }
+      return String(arg);
+    }).join(' ') : '';
     
     return `[${timestamp}] [${level.toUpperCase()}] [${this.namespace}] ${message}${formattedArgs}`;
   }

@@ -92,14 +92,14 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
     
     try {
       const result = await window.electronAPI.sessions.preflight(session.id);
-      if (result.success && result.result) {
+      if (result && result.success && result.result) {
         setPreflightResult(result.result);
         if (result.result.issues.length === 0) {
           markStepCompleted('preflight');
           setCurrentStep('squash');
         }
       } else {
-        setError(result.error || 'Preflight check failed');
+        setError((result && result.error) || 'Preflight check failed');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -123,12 +123,12 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
         includeManual
       });
       
-      if (result.success) {
+      if (result && result.success) {
         markStepCompleted('squash');
         setCurrentStep('rebase');
         await runRebase();
       } else {
-        setError(result.error || 'Squash failed');
+        setError((result && result.error) || 'Squash failed');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -144,7 +144,7 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
     try {
       const result = await window.electronAPI.sessions.rebaseOntoBase(session.id);
       
-      if (result.success && result.result) {
+      if (result && result.success && result.result) {
         if (result.result.status === 'conflict') {
           setConflictFiles(result.result.files || []);
           setCurrentStep('conflicts');
@@ -153,7 +153,7 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
           setCurrentStep('merge');
         }
       } else {
-        setError(result.error || 'Rebase failed');
+        setError((result && result.error) || 'Rebase failed');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -169,7 +169,7 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
     try {
       const result = await window.electronAPI.sessions.continueMerge(session.id);
       
-      if (result.success && result.result) {
+      if (result && result.success && result.result) {
         if (result.result.status === 'conflict') {
           setConflictFiles(result.result.files || []);
         } else {
@@ -177,7 +177,7 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
           setCurrentStep('merge');
         }
       } else {
-        setError(result.error || 'Continue merge failed');
+        setError((result && result.error) || 'Continue merge failed');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -193,10 +193,10 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
     try {
       const result = await window.electronAPI.sessions.abortMerge(session.id);
       
-      if (result.success) {
+      if (result && result.success) {
         onClose();
       } else {
-        setError(result.error || 'Abort merge failed');
+        setError((result && result.error) || 'Abort merge failed');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -213,8 +213,8 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
       // Export patch if requested
       if (exportPatch && patchPath) {
         const exportResult = await window.electronAPI.sessions.exportPatch(session.id, patchPath);
-        if (!exportResult.success) {
-          setError(exportResult.error || 'Export patch failed');
+        if (!exportResult || !exportResult.success) {
+          setError((exportResult && exportResult.error) || 'Export patch failed');
           return;
         }
       }
@@ -222,7 +222,7 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
       // Fast-forward merge
       const mergeResult = await window.electronAPI.sessions.fastForwardMerge(session.id, { noFF: false });
       
-      if (mergeResult.success) {
+      if (mergeResult && mergeResult.success) {
         markStepCompleted('merge');
         setCurrentStep('cleanup');
         
@@ -230,7 +230,7 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
           await runCleanup();
         }
       } else {
-        setError(mergeResult.error || 'Merge failed');
+        setError((mergeResult && mergeResult.error) || 'Merge failed');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -246,11 +246,11 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
     try {
       const result = await window.electronAPI.sessions.cleanup(session.id);
       
-      if (result.success) {
+      if (result && result.success) {
         markStepCompleted('cleanup');
         setCurrentStep('complete');
       } else {
-        setError(result.error || 'Cleanup failed');
+        setError((result && result.error) || 'Cleanup failed');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
