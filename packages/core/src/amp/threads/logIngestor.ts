@@ -1,8 +1,40 @@
-import type { ThreadToolCall, ThreadMetric, ThreadDiff } from '@ampsm/types';
+import type { ThreadToolCall as DatabaseThreadToolCall, ThreadMetric as DatabaseThreadMetric, ThreadDiff as DatabaseThreadDiff } from '@ampsm/types';
 
 export interface LogIngestorOptions {
   includeMetrics?: boolean;
   includeDiffs?: boolean;
+}
+
+// Legacy interfaces for backward compatibility with tests
+export interface ThreadToolCall {
+  id: string;
+  messageId?: string | null;
+  toolName: string;
+  parameters: any;
+  result?: any;
+  timestamp?: string;
+  durationMs?: number;
+}
+
+export interface ThreadMetric {
+  id: string | number;
+  messageId?: string;
+  model: string;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  durationMs?: number;
+  timestamp: string;
+}
+
+export interface ThreadDiff {
+  id: string;
+  messageId?: string;
+  filePath: string;
+  oldContent?: string;
+  newContent?: string;
+  operation?: string;
+  timestamp: string;
 }
 
 export interface LogIngestResult {
@@ -44,10 +76,10 @@ export class LogIngestor {
         }
 
         // Process tool calls
-        if (event.message === 'Tool call' || event.toolName) {
+        if (event.message && event.message.startsWith('Tool call') && event.toolName) {
           const toolCall = this.processToolCall(event);
           if (toolCall) {
-            pendingToolCalls.set(toolCall.toolName, toolCall);
+            pendingToolCalls.set(event.toolName, toolCall);
           }
         }
 

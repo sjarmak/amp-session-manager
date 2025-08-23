@@ -43,7 +43,12 @@ export class WorktreeManager {
         
         const ndjsonSink = new NDJSONMetricsSink(
           join(process.cwd(), 'metrics-events.ndjson'), 
-          this.logger
+          this.logger,
+          {
+            enableRealtimeBuffering: true,
+            bufferFlushIntervalMs: 1000,
+            enableStreaming: true
+          }
         );
         this.metricsEventBus.addSink(ndjsonSink);
       }
@@ -225,18 +230,31 @@ export class WorktreeManager {
         this.generateSessionContext(session)
       );
 
-      // Run Amp iteration
+      // Run Amp iteration with streaming metrics
       console.log('Running Amp iteration...');
       const iterationPrompt = notes || session.ampPrompt;
       console.log('Iteration prompt:', iterationPrompt?.slice(0, 100) + '...');
       
-      const result = await this.ampAdapter.runIteration(
-        iterationPrompt, 
-        session.worktreePath, 
-        session.modelOverride,
-        sessionId,
-        includeContext
+      // Connect streaming events from AmpAdapter to metrics
+      const cleanupStreamingMetrics = this.metricsEventBus.connectToAmpAdapter(
+        this.ampAdapter, 
+        sessionId, 
+        iterationId
       );
+      
+      let result;
+      try {
+        result = await this.ampAdapter.runIteration(
+          iterationPrompt, 
+          session.worktreePath, 
+          session.modelOverride,
+          sessionId,
+          includeContext
+        );
+      } finally {
+        // Always cleanup streaming metrics connection
+        cleanupStreamingMetrics();
+      }
 
       // Handle oracle consultation if needed
       if (result.output.toLowerCase().includes('consult the oracle')) {

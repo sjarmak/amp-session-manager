@@ -663,6 +663,46 @@ ipcMain.handle('metrics:exportMetrics', async (_, sessionId: string, options: an
   }
 });
 
+// Enhanced real-time metrics handlers
+ipcMain.handle('metrics:getRealtimeCostBreakdown', async (_, sessionId: string) => {
+  try {
+    if (!metricsAPI) {
+      throw new Error('Metrics API not initialized');
+    }
+    const costMetrics = await metricsAPI.getRealtimeCostBreakdown(sessionId);
+    return { success: true, costMetrics };
+  } catch (error) {
+    console.error('Failed to get realtime cost breakdown:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('metrics:getStreamingToolAnalytics', async (_, sessionId: string) => {
+  try {
+    if (!metricsAPI) {
+      throw new Error('Metrics API not initialized');
+    }
+    const analytics = await metricsAPI.getStreamingToolAnalytics(sessionId);
+    return { success: true, analytics };
+  } catch (error) {
+    console.error('Failed to get streaming tool analytics:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('metrics:getSessionTimeline', async (_, sessionId: string) => {
+  try {
+    if (!metricsAPI) {
+      throw new Error('Metrics API not initialized');
+    }
+    const timeline = await metricsAPI.getSessionTimeline(sessionId);
+    return { success: true, timeline };
+  } catch (error) {
+    console.error('Failed to get session timeline:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 process.on('uncaughtException', (error) => {
   console.error('Uncaught exception:', error);
   app.quit();

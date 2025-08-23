@@ -69,6 +69,35 @@ export interface LLMUsageEvent extends MetricEvent {
   };
 }
 
+export interface StreamingTokenUsageEvent extends MetricEvent {
+  type: 'streaming_token_usage';
+  data: {
+    model: string;
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    costUsd?: number;
+    isIncremental: boolean;
+  };
+}
+
+export interface StreamingToolStartEvent extends MetricEvent {
+  type: 'streaming_tool_start';
+  data: {
+    toolName: string;
+    args: Record<string, any>;
+  };
+}
+
+export interface StreamingToolFinishEvent extends MetricEvent {
+  type: 'streaming_tool_finish';
+  data: {
+    toolName: string;
+    durationMs?: number;
+    success: boolean;
+  };
+}
+
 export interface TestResultEvent extends MetricEvent {
   type: 'test_result';
   data: {
@@ -101,6 +130,9 @@ export type MetricEventTypes =
   | GitOperationEvent
   | ToolCallEvent
   | LLMUsageEvent
+  | StreamingTokenUsageEvent
+  | StreamingToolStartEvent
+  | StreamingToolFinishEvent
   | TestResultEvent
   | FileEditEvent;
 
@@ -339,5 +371,128 @@ export class MetricsEventBus extends EventEmitter {
         ...details
       }
     });
+  }
+
+  // Streaming event methods
+  async publishStreamingTokenUsage(
+    sessionId: string,
+    iterationId: string,
+    model: string,
+    tokens: {
+      promptTokens?: number;
+      completionTokens?: number;
+      totalTokens?: number;
+      costUsd?: number;
+    },
+    isIncremental = true
+  ): Promise<void> {
+    await this.publish({
+      type: 'streaming_token_usage',
+      sessionId,
+      iterationId,
+      timestamp: new Date().toISOString(),
+      data: {
+        model,
+        ...tokens,
+        isIncremental
+      }
+    });
+  }
+
+  async publishStreamingToolStart(
+    sessionId: string,
+    iterationId: string,
+    toolName: string,
+    args: Record<string, any>
+  ): Promise<void> {
+    await this.publish({
+      type: 'streaming_tool_start',
+      sessionId,
+      iterationId,
+      timestamp: new Date().toISOString(),
+      data: {
+        toolName,
+        args
+      }
+    });
+  }
+
+  async publishStreamingToolFinish(
+    sessionId: string,
+    iterationId: string,
+    toolName: string,
+    durationMs?: number,
+    success = true
+  ): Promise<void> {
+    await this.publish({
+      type: 'streaming_tool_finish',
+      sessionId,
+      iterationId,
+      timestamp: new Date().toISOString(),
+      data: {
+        toolName,
+        durationMs,
+        success
+      }
+    });
+  }
+
+  // Connect to AmpAdapter streaming events
+  connectToAmpAdapter(ampAdapter: any, sessionId: string, iterationId: string): () => void {
+    const handleStreamingEvent = async (streamingEvent: any) => {
+      try {
+        const { type, data } = streamingEvent;
+        
+        switch (type) {
+          case 'token_usage':
+            if (data.tokens && data.model) {
+              await this.publishStreamingTokenUsage(
+                sessionId,
+                iterationId,
+                data.model,
+                {
+                  promptTokens: data.tokens.prompt,
+                  completionTokens: data.tokens.completion,
+                  totalTokens: data.tokens.total
+                }
+              );
+            }
+            break;
+            
+          case 'tool_start':
+            if (data.tool) {
+              await this.publishStreamingToolStart(
+                sessionId,
+                iterationId,
+                data.tool,
+                data.args || {}
+              );
+            }
+            break;
+            
+          case 'tool_finish':
+            if (data.tool) {
+              await this.publishStreamingToolFinish(
+                sessionId,
+                iterationId,
+                data.tool,
+                data.duration,
+                data.success
+              );
+            }
+            break;
+        }
+      } catch (error) {
+        this.logger.error('Error handling streaming event:', error);
+      }
+    };
+
+    // Listen to streaming events
+    ampAdapter.on('streaming-event', handleStreamingEvent);
+
+    // Return cleanup function
+    return () => {
+      ampAdapter.removeListener('streaming-event', handleStreamingEvent);
+    };
   }
 }

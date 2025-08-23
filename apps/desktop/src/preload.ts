@@ -74,7 +74,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getIterationMetrics: (sessionId: string) => ipcRenderer.invoke('metrics:getIterationMetrics', sessionId),
     getRealtimeMetrics: (sessionId: string) => ipcRenderer.invoke('metrics:getRealtimeMetrics', sessionId),
     getSessionProgress: (sessionId: string) => ipcRenderer.invoke('metrics:getSessionProgress', sessionId),
-    exportMetrics: (sessionId: string, options: any) => ipcRenderer.invoke('metrics:exportMetrics', sessionId, options)
+    exportMetrics: (sessionId: string, options: any) => ipcRenderer.invoke('metrics:exportMetrics', sessionId, options),
+    // Enhanced real-time metrics methods
+    getRealtimeCostBreakdown: (sessionId: string) => ipcRenderer.invoke('metrics:getRealtimeCostBreakdown', sessionId),
+    getStreamingToolAnalytics: (sessionId: string) => ipcRenderer.invoke('metrics:getStreamingToolAnalytics', sessionId),
+    getSessionTimeline: (sessionId: string) => ipcRenderer.invoke('metrics:getSessionTimeline', sessionId)
   },
 
   benchmarks: {

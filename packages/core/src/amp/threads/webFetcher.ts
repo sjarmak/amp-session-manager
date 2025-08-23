@@ -41,9 +41,11 @@ export class ThreadWebFetcher {
       for (const msg of data.messages) {
         messages.push({
           id: msg.id,
+          thread_id: data.id,
           role: msg.role,
           content: msg.content,
-          timestamp: msg.timestamp
+          created_at: msg.timestamp,
+          idx: msg.idx || 0
         });
 
         // Extract tool calls
@@ -51,12 +53,14 @@ export class ThreadWebFetcher {
           for (const toolCall of msg.toolCalls) {
             toolCalls.push({
               id: toolCall.id,
-              messageId: msg.id,
-              toolName: toolCall.toolName,
-              parameters: toolCall.parameters,
-              result: toolCall.result,
-              timestamp: toolCall.timestamp,
-              durationMs: toolCall.durationMs
+              thread_id: data.id,
+              message_id: msg.id,
+              tool_name: toolCall.toolName,
+              arguments_json: JSON.stringify(toolCall.parameters || {}),
+              started_at: toolCall.timestamp,
+              finished_at: toolCall.durationMs ? new Date(new Date(toolCall.timestamp).getTime() + toolCall.durationMs).toISOString() : null,
+              status: toolCall.result ? 'completed' : 'pending',
+              result_json: toolCall.result ? JSON.stringify(toolCall.result) : null
             });
           }
         }
@@ -66,12 +70,11 @@ export class ThreadWebFetcher {
           for (const diff of msg.diffs) {
             diffs.push({
               id: diff.id,
-              messageId: msg.id,
-              filePath: diff.filePath,
-              oldContent: diff.oldContent,
-              newContent: diff.newContent,
-              operation: diff.operation,
-              timestamp: diff.timestamp
+              thread_id: data.id,
+              message_id: msg.id,
+              file_path: diff.filePath,
+              patch: diff.patch || `--- ${diff.filePath}\n+++ ${diff.filePath}\n${diff.newContent || ''}`,
+              created_at: diff.timestamp
             });
           }
         }
@@ -81,28 +84,34 @@ export class ThreadWebFetcher {
     // Extract global metrics
     if (data.metrics) {
       metrics.push({
-        id: 'metric-1',
-        messageId: undefined,
-        model: data.metrics.model,
-        promptTokens: data.metrics.promptTokens,
-        completionTokens: data.metrics.completionTokens,
-        totalTokens: data.metrics.totalTokens,
-        durationMs: data.metrics.durationMs,
-        timestamp: data.lastUpdatedAt
+        id: 1,
+        thread_id: data.id,
+        at: data.lastUpdatedAt,
+        input_tokens: data.metrics.promptTokens,
+        output_tokens: data.metrics.completionTokens,
+        cache_creation_input_tokens: null,
+        cache_read_input_tokens: null,
+        inference_duration_ms: data.metrics.durationMs,
+        tokens_per_second: null,
+        active_tool_count: null,
+        file_tracker_records: null,
+        service_tier: null,
+        raw_event_json: JSON.stringify(data.metrics)
       });
     }
 
     return {
       id: data.id,
-      title: data.title,
-      createdAt: data.createdAt,
-      lastUpdatedAt: data.lastUpdatedAt,
-      messageCount: messages.length,
-      totalTokens: data.metrics?.totalTokens || 0,
-      modelUsed: data.metrics?.model || 'unknown',
-      status: 'active',
+      url: `https://ampcode.com/threads/${data.id}`,
+      repo: null,
+      branch: null,
+      latest_commit_sha: null,
+      created_at: data.createdAt,
+      updated_at: data.lastUpdatedAt,
+      last_sync_at: new Date().toISOString(),
+      source: 'web',
       messages,
-      toolCalls,
+      tool_calls: toolCalls,
       diffs,
       metrics
     };

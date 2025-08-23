@@ -546,6 +546,12 @@ export class MetricsAPI {
     progress: number;
     estimatedCompletion?: string;
     currentStatus: string;
+    realtimeMetrics?: {
+      tokensGenerated: number;
+      activeTools: string[];
+      costAccrued: number;
+      timeElapsed: number;
+    };
   }> {
     try {
       const iterations = await this.getIterationMetrics(sessionId);
@@ -560,17 +566,45 @@ export class MetricsAPI {
         };
       }
 
+      // Get real-time metrics from NDJSON sink if available
+      const realtimeMetrics = this.getRealtimeMetricsFromSink(sessionId, latest.id);
+
       return {
         currentIteration: latest.iterationNumber,
         totalIterations: iterations.length,
         progress: latest.status === 'success' ? 100 : 50,
-        currentStatus: latest.status
+        currentStatus: latest.status,
+        realtimeMetrics
       };
 
     } catch (error) {
       this.logger.error(`Error getting session progress for ${sessionId}:`, error);
       throw error;
     }
+  }
+
+  private getRealtimeMetricsFromSink(sessionId: string, iterationId: string) {
+    if (!this.ndjsonSink || typeof this.ndjsonSink.getRealtimeSessionMetrics !== 'function') {
+      return undefined;
+    }
+
+    const metrics = this.ndjsonSink.getRealtimeSessionMetrics(sessionId, iterationId);
+    if (!metrics) return undefined;
+
+    return {
+      tokensGenerated: metrics.tokenUsage.totalTokens,
+      activeTools: metrics.activeTools,
+      costAccrued: this.calculateRealtimeCost(metrics.tokenUsage),
+      timeElapsed: metrics.tokenUsage.lastUpdate ? 
+        Date.now() - new Date(metrics.tokenUsage.lastUpdate).getTime() : 0
+    };
+  }
+
+  private calculateRealtimeCost(tokenUsage: any): number {
+    // Simple cost calculation - could be enhanced with model-specific pricing
+    const promptCost = (tokenUsage.promptTokens || 0) * 0.01 / 1000; // $0.01 per 1K prompt tokens
+    const completionCost = (tokenUsage.completionTokens || 0) * 0.03 / 1000; // $0.03 per 1K completion tokens
+    return promptCost + completionCost;
   }
 
   async getRealtimeMetrics(sessionId: string): Promise<{
@@ -607,6 +641,275 @@ export class MetricsAPI {
 
     } catch (error) {
       this.logger.error(`Error getting realtime metrics for ${sessionId}:`, error);
+      throw error;
+    }
+  }
+
+  // Enhanced real-time metrics methods
+  async getStreamingToolAnalytics(sessionId: string, iterationId?: string): Promise<{
+    toolSuccessRates: Record<string, number>;
+    averageToolTimes: Record<string, number>;
+    activeToolCount: number;
+    totalToolCalls: number;
+    mostUsedTools: Array<{ name: string; count: number; avgTime: number }>;
+  }> {
+    if (!this.ndjsonSink || typeof this.ndjsonSink.getRealtimeSessionMetrics !== 'function') {
+      return {
+        toolSuccessRates: {},
+        averageToolTimes: {},
+        activeToolCount: 0,
+        totalToolCalls: 0,
+        mostUsedTools: []
+      };
+    }
+
+    const metrics = this.ndjsonSink.getRealtimeSessionMetrics(sessionId, iterationId);
+    if (!metrics) {
+      return {
+        toolSuccessRates: {},
+        averageToolTimes: {},
+        activeToolCount: 0,
+        totalToolCalls: 0,
+        mostUsedTools: []
+      };
+    }
+
+    const toolStats: Record<string, { success: number; total: number; totalTime: number }> = {};
+    
+    // Analyze completed tools
+    for (const tool of metrics.completedTools) {
+      if (!toolStats[tool.toolName]) {
+        toolStats[tool.toolName] = { success: 0, total: 0, totalTime: 0 };
+      }
+      
+      toolStats[tool.toolName].total++;
+      toolStats[tool.toolName].totalTime += tool.durationMs || 0;
+      
+      if (tool.success) {
+        toolStats[tool.toolName].success++;
+      }
+    }
+
+    const toolSuccessRates: Record<string, number> = {};
+    const averageToolTimes: Record<string, number> = {};
+    const mostUsedTools: Array<{ name: string; count: number; avgTime: number }> = [];
+
+    for (const [toolName, stats] of Object.entries(toolStats)) {
+      toolSuccessRates[toolName] = stats.total > 0 ? stats.success / stats.total : 0;
+      averageToolTimes[toolName] = stats.total > 0 ? stats.totalTime / stats.total : 0;
+      mostUsedTools.push({
+        name: toolName,
+        count: stats.total,
+        avgTime: averageToolTimes[toolName]
+      });
+    }
+
+    mostUsedTools.sort((a, b) => b.count - a.count);
+
+    return {
+      toolSuccessRates,
+      averageToolTimes,
+      activeToolCount: metrics.activeTools.length,
+      totalToolCalls: metrics.completedTools.length,
+      mostUsedTools: mostUsedTools.slice(0, 10) // Top 10 most used
+    };
+  }
+
+  async getRealtimeCostBreakdown(sessionId: string, iterationId?: string): Promise<{
+    currentCost: number;
+    costByModel: Record<string, number>;
+    costTrend: Array<{ timestamp: string; cost: number; tokens: number }>;
+    estimatedFinalCost?: number;
+  }> {
+    if (!this.ndjsonSink || typeof this.ndjsonSink.getRealtimeSessionMetrics !== 'function') {
+      return {
+        currentCost: 0,
+        costByModel: {},
+        costTrend: [],
+        estimatedFinalCost: 0
+      };
+    }
+
+    const metrics = this.ndjsonSink.getRealtimeSessionMetrics(sessionId, iterationId);
+    if (!metrics) {
+      return {
+        currentCost: 0,
+        costByModel: {},
+        costTrend: [],
+        estimatedFinalCost: 0
+      };
+    }
+
+    const currentCost = this.calculateRealtimeCost(metrics.tokenUsage);
+    const costByModel: Record<string, number> = {};
+
+    // Calculate cost per model
+    for (const model of metrics.tokenUsage.models) {
+      costByModel[model] = this.calculateModelSpecificCost(model, metrics.tokenUsage);
+    }
+
+    // Simple cost trend (would be enhanced with historical data)
+    const costTrend = [{
+      timestamp: metrics.tokenUsage.lastUpdate || new Date().toISOString(),
+      cost: currentCost,
+      tokens: metrics.tokenUsage.totalTokens
+    }];
+
+    return {
+      currentCost,
+      costByModel,
+      costTrend,
+      estimatedFinalCost: currentCost * 1.2 // Simple estimation
+    };
+  }
+
+  private calculateModelSpecificCost(model: string, tokenUsage: any): number {
+    // Enhanced model-specific pricing (placeholder implementation)
+    const modelPricing: Record<string, { prompt: number; completion: number }> = {
+      'gpt-4': { prompt: 0.03, completion: 0.06 },
+      'gpt-3.5-turbo': { prompt: 0.0015, completion: 0.002 },
+      'claude-3-opus': { prompt: 0.015, completion: 0.075 },
+      'default': { prompt: 0.01, completion: 0.03 }
+    };
+
+    const pricing = modelPricing[model] || modelPricing['default'];
+    const promptCost = (tokenUsage.promptTokens || 0) * pricing.prompt / 1000;
+    const completionCost = (tokenUsage.completionTokens || 0) * pricing.completion / 1000;
+    
+    return promptCost + completionCost;
+  }
+
+  async getSessionTimeline(sessionId: string): Promise<{
+    events: Array<{
+      id: string;
+      timestamp: string;
+      type: string;
+      data: any;
+      duration?: number;
+      iterationId?: string;
+    }>;
+    totalDuration: number;
+    currentTime: number;
+    sessionStatus: string;
+    iterations: Array<{
+      id: string;
+      startTime: string;
+      endTime?: string;
+      status: string;
+      toolCalls: number;
+      tokensUsed: number;
+    }>;
+    realtimeEvents: any[];
+  }> {
+    try {
+      const iterations = this.store.getIterations(sessionId);
+      const session = this.store.getSession(sessionId);
+      
+      if (!session) {
+        throw new Error(`Session ${sessionId} not found`);
+      }
+
+      // Get all events for the timeline
+      const events: any[] = [];
+      let totalToolCalls = 0;
+      let totalTokens = 0;
+
+      // Create timeline events from iterations
+      iterations.forEach((iteration, index) => {
+        // Iteration start event
+        events.push({
+          id: `iter-start-${iteration.id}`,
+          timestamp: iteration.startTime,
+          type: 'iteration_start',
+          data: {
+            iterationNumber: index + 1,
+            model: iteration.model
+          },
+          iterationId: iteration.id
+        });
+
+        // Token usage event
+        if (iteration.totalTokens) {
+          totalTokens += iteration.totalTokens;
+          events.push({
+            id: `tokens-${iteration.id}`,
+            timestamp: iteration.startTime,
+            type: 'token_usage',
+            data: {
+              totalTokens: iteration.totalTokens,
+              promptTokens: iteration.promptTokens,
+              completionTokens: iteration.completionTokens,
+              model: iteration.model
+            },
+            iterationId: iteration.id
+          });
+        }
+
+        // Iteration end event
+        if (iteration.endTime) {
+          const duration = new Date(iteration.endTime).getTime() - new Date(iteration.startTime).getTime();
+          events.push({
+            id: `iter-end-${iteration.id}`,
+            timestamp: iteration.endTime,
+            type: 'iteration_end',
+            data: {
+              iterationNumber: index + 1,
+              exitCode: iteration.exitCode,
+              duration: duration
+            },
+            duration: duration,
+            iterationId: iteration.id
+          });
+        }
+      });
+
+      // Sort events by timestamp
+      events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+      // Calculate total duration
+      const startTime = events.length > 0 ? new Date(events[0].timestamp).getTime() : Date.now();
+      const endTime = events.length > 0 ? new Date(events[events.length - 1].timestamp).getTime() : Date.now();
+      const totalDuration = endTime - startTime;
+
+      // Process iterations for timeline
+      const timelineIterations = iterations.map((iter, index) => ({
+        id: iter.id,
+        startTime: iter.startTime,
+        endTime: iter.endTime,
+        status: iter.testResult === 'pass' ? 'completed' : iter.testResult === 'fail' ? 'error' : 'running',
+        toolCalls: 0, // Would need tool call data
+        tokensUsed: iter.totalTokens || 0
+      }));
+
+      // Get real-time events if available
+      let realtimeEvents: any[] = [];
+      if (this.ndjsonSink && typeof this.ndjsonSink.getRealtimeSessionMetrics === 'function') {
+        const metrics = this.ndjsonSink.getRealtimeSessionMetrics(sessionId);
+        if (metrics && metrics.completedTools) {
+          realtimeEvents = metrics.completedTools.map((tool: any) => ({
+            id: `tool-${tool.toolName}-${tool.endTime}`,
+            timestamp: tool.endTime,
+            type: 'tool_finish',
+            data: {
+              toolName: tool.toolName,
+              success: tool.success,
+              durationMs: tool.durationMs
+            }
+          }));
+        }
+      }
+
+      return {
+        events,
+        totalDuration,
+        currentTime: Date.now(),
+        sessionStatus: session.status,
+        iterations: timelineIterations,
+        realtimeEvents
+      };
+
+    } catch (error) {
+      this.logger.error(`Error getting session timeline for ${sessionId}:`, error);
       throw error;
     }
   }

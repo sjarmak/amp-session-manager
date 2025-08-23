@@ -37,7 +37,7 @@ export class TelemetryParser {
     return this.buildTelemetry(events, output);
   }
 
-  private parseJSONL(lines: string[]): LogEvent[] {
+  public parseJSONL(lines: string[]): LogEvent[] {
     const events: LogEvent[] = [];
     
     for (const line of lines) {

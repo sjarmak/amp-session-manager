@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { EventEmitter } from 'events';
 import type { AmpTelemetry } from '@ampsm/types';
 import { TelemetryParser } from './telemetry-parser.js';
 import { EnhancedDebugParser } from './enhanced-debug-parser.js';
@@ -37,17 +38,24 @@ export interface AmpIterationResult {
   awaitingInput: boolean;
 }
 
-export class AmpAdapter {
+export interface StreamingEvent {
+  type: 'tool_start' | 'tool_finish' | 'token_usage' | 'model_info' | 'output' | 'error';
+  timestamp: string;
+  data: any;
+}
+
+export class AmpAdapter extends EventEmitter {
   private config: AmpAdapterConfig;
   private telemetryParser = new TelemetryParser();
   public lastUsedArgs?: string[];
   private store?: any;
 
   constructor(config: AmpAdapterConfig = {}, store?: any) {
+    super();
     this.config = {
       ampPath: config.ampPath || process.env.AMP_BIN || 'amp',
       ampArgs: config.ampArgs || [],
-      enableJSONLogs: config.enableJSONLogs || false, // Default to false for compatibility
+      enableJSONLogs: config.enableJSONLogs !== false, // Default to true for streaming
       env: config.env,
       extraArgs: config.extraArgs || []
     };
@@ -155,7 +163,8 @@ export class AmpAdapter {
         args.push('--model', modelOverride);
       }
 
-      // Note: Real Amp CLI doesn't support --jsonl-logs, so we skip this
+      // Note: JSON streaming logs not yet available in current Amp CLI version
+      // Will use debug log file parsing for enhanced telemetry instead
 
       // Add the prompt (use stdin for long prompts)
       console.log('Amp environment check:', {
@@ -210,9 +219,47 @@ export class AmpAdapter {
       
       let output = '';
       let stderr = '';
+      let streamBuffer = '';
       
-      child.stdout?.on('data', (data) => output += data.toString());
-      child.stderr?.on('data', (data) => stderr += data.toString());
+      // Real-time telemetry tracking
+      const realtimeTelemetry: AmpTelemetry = {
+        exitCode: 0,
+        toolCalls: []
+      };
+      
+      child.stdout?.on('data', (data) => {
+        const chunk = data.toString();
+        output += chunk;
+        
+        // Emit raw output event
+        this.emit('streaming-event', {
+          type: 'output',
+          timestamp: new Date().toISOString(),
+          data: { chunk }
+        } as StreamingEvent);
+        
+        // Process streaming JSON if enabled
+        if (this.config.enableJSONLogs) {
+          this.processStreamingJSON(chunk, realtimeTelemetry, sessionId);
+        }
+      });
+      
+      child.stderr?.on('data', (data) => {
+        const chunk = data.toString();
+        stderr += chunk;
+        
+        // Emit error event
+        this.emit('streaming-event', {
+          type: 'error',
+          timestamp: new Date().toISOString(),
+          data: { chunk }
+        } as StreamingEvent);
+        
+        // Also process stderr for JSON logs (some tools log to stderr)
+        if (this.config.enableJSONLogs) {
+          this.processStreamingJSON(chunk, realtimeTelemetry, sessionId);
+        }
+      });
       
       // Send prompt via stdin
       if (child.stdin) {
@@ -318,6 +365,11 @@ export class AmpAdapter {
         args.push('--model', modelOverride);
       }
       
+      // Enable JSON logging for oracle if supported and configured
+      if (this.config.enableJSONLogs) {
+        args.push('--jsonl-logs');
+      }
+      
       const env = this.config.env ? { ...process.env, ...this.config.env } : { ...process.env };
       
       // Ensure AMP_API_KEY is available - check shell environment if missing
@@ -356,8 +408,45 @@ export class AmpAdapter {
       let output = '';
       let stderr = '';
       
-      child.stdout?.on('data', (data) => output += data.toString());
-      child.stderr?.on('data', (data) => stderr += data.toString());
+      // Real-time telemetry tracking for oracle
+      const realtimeTelemetry: AmpTelemetry = {
+        exitCode: 0,
+        toolCalls: []
+      };
+      
+      child.stdout?.on('data', (data) => {
+        const chunk = data.toString();
+        output += chunk;
+        
+        // Emit raw output event
+        this.emit('streaming-event', {
+          type: 'output',
+          timestamp: new Date().toISOString(),
+          data: { chunk, isOracle: true }
+        } as StreamingEvent);
+        
+        // Process streaming JSON if enabled
+        if (this.config.enableJSONLogs) {
+          this.processStreamingJSON(chunk, realtimeTelemetry);
+        }
+      });
+      
+      child.stderr?.on('data', (data) => {
+        const chunk = data.toString();
+        stderr += chunk;
+        
+        // Emit error event
+        this.emit('streaming-event', {
+          type: 'error',
+          timestamp: new Date().toISOString(),
+          data: { chunk, isOracle: true }
+        } as StreamingEvent);
+        
+        // Also process stderr for JSON logs (some tools log to stderr)
+        if (this.config.enableJSONLogs) {
+          this.processStreamingJSON(chunk, realtimeTelemetry);
+        }
+      });
       
       if (child.stdin) {
         child.stdin.write(oraclePrompt);
@@ -612,5 +701,121 @@ Please provide a thorough analysis and actionable recommendations.`;
         });
       });
     });
+  }
+  
+  /**
+   * Process streaming JSON chunks and emit real-time telemetry events
+   */
+  private processStreamingJSON(chunk: string, realtimeTelemetry: AmpTelemetry, sessionId?: string) {
+    // Split chunk into lines and process each line
+    const lines = chunk.split('\n');
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith('{')) continue;
+      
+      try {
+        const parsed = JSON.parse(trimmed);
+        const events = this.telemetryParser.parseJSONL([trimmed]);
+        
+        for (const event of events) {
+          // Update real-time telemetry
+          this.updateRealtimeTelemetry(realtimeTelemetry, event);
+          
+          // Emit specific streaming events based on type
+          switch (event.type) {
+            case 'tool_start':
+              this.emit('streaming-event', {
+                type: 'tool_start',
+                timestamp: event.timestamp,
+                data: {
+                  tool: event.tool,
+                  args: event.args,
+                  sessionId
+                }
+              } as StreamingEvent);
+              break;
+              
+            case 'tool_finish':
+              this.emit('streaming-event', {
+                type: 'tool_finish',
+                timestamp: event.timestamp,
+                data: {
+                  tool: event.tool,
+                  duration: event.duration,
+                  success: event.success,
+                  sessionId
+                }
+              } as StreamingEvent);
+              break;
+              
+            case 'token_usage':
+              this.emit('streaming-event', {
+                type: 'token_usage',
+                timestamp: event.timestamp,
+                data: {
+                  tokens: event.tokens,
+                  model: event.model,
+                  sessionId
+                }
+              } as StreamingEvent);
+              break;
+              
+            case 'model_info':
+              this.emit('streaming-event', {
+                type: 'model_info',
+                timestamp: event.timestamp,
+                data: {
+                  model: event.model,
+                  sessionId
+                }
+              } as StreamingEvent);
+              break;
+          }
+        }
+      } catch (error) {
+        // Not valid JSON, skip silently
+      }
+    }
+  }
+  
+  /**
+   * Update real-time telemetry with new event data
+   */
+  private updateRealtimeTelemetry(telemetry: AmpTelemetry, event: any) {
+    if (event.type === 'token_usage' && event.tokens) {
+      telemetry.promptTokens = (telemetry.promptTokens || 0) + (event.tokens.prompt || 0);
+      telemetry.completionTokens = (telemetry.completionTokens || 0) + (event.tokens.completion || 0);
+      telemetry.totalTokens = (telemetry.totalTokens || 0) + (event.tokens.total || 0);
+      
+      if (event.model && !telemetry.model) {
+        telemetry.model = event.model;
+      }
+    }
+    
+    if (event.type === 'model_info' && event.model && !telemetry.model) {
+      telemetry.model = event.model;
+    }
+    
+    if ((event.type === 'tool_start' || event.type === 'tool_finish') && event.tool) {
+      // Find existing tool call or create new one
+      let toolCall = telemetry.toolCalls.find(tc => 
+        tc.toolName === event.tool && 
+        Math.abs(new Date(tc.timestamp).getTime() - new Date(event.timestamp).getTime()) < 300000 // 5 min window
+      );
+      
+      if (!toolCall && event.type === 'tool_start') {
+        toolCall = {
+          toolName: event.tool,
+          args: event.args || {},
+          success: true,
+          timestamp: event.timestamp
+        };
+        telemetry.toolCalls.push(toolCall);
+      } else if (toolCall && event.type === 'tool_finish') {
+        toolCall.success = event.success !== false;
+        toolCall.durationMs = event.duration;
+      }
+    }
   }
 }

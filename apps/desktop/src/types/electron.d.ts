@@ -60,6 +60,10 @@ declare global {
         getRealtimeMetrics: (sessionId: string) => Promise<{ success: boolean; metrics?: any; error?: string }>;
         getSessionProgress: (sessionId: string) => Promise<{ success: boolean; progress?: any; error?: string }>;
         exportMetrics: (sessionId: string, options: any) => Promise<{ success: boolean; result?: any; error?: string }>;
+        // Enhanced real-time metrics methods
+        getRealtimeCostBreakdown: (sessionId: string) => Promise<{ success: boolean; costMetrics?: any; error?: string }>;
+        getStreamingToolAnalytics: (sessionId: string) => Promise<{ success: boolean; analytics?: any; error?: string }>;
+        getSessionTimeline: (sessionId: string) => Promise<{ success: boolean; timeline?: any; error?: string }>;
       };
       benchmarks: {
         listRuns: () => Promise<any[]>;
