@@ -37,6 +37,7 @@ interface ParsedStreamMetrics {
     total: number;
   };
   models: string[];
+  filesCreated: string[];
   filesModified: string[];
 }
 
@@ -131,6 +132,7 @@ export function JSONMetrics({ sessionId, className = '' }: JSONMetricsProps) {
           toolUsage: [],
           totalTokens: { input: 0, output: 0, cacheCreation: 0, cacheRead: 0, total: 0 },
           models: [],
+          filesCreated: [],
           filesModified: []
         };
         
@@ -266,11 +268,62 @@ export function JSONMetrics({ sessionId, className = '' }: JSONMetricsProps) {
           }
         }
         
-        // Extract files from tool usage (create_file, edit_file)
-        parsedMetrics.filesModified = parsedMetrics.toolUsage
-          .filter(tool => ['create_file', 'edit_file'].includes(tool.toolName))
-          .map(tool => tool.args?.path || 'unknown')
-          .filter((path, index, arr) => arr.indexOf(path) === index); // dedupe
+        // Extract files from assistant messages (markdown links) with action detection
+        const filesCreatedFromMessages: string[] = [];
+        const filesModifiedFromMessages: string[] = [];
+        
+        for (const msg of parsedMetrics.assistantMessages) {
+          const linkRegex = /\[([^\]]+)\]\((file:\/\/\/[^\)]+)\)/g;
+          let match;
+          while ((match = linkRegex.exec(msg.content)) !== null) {
+            // Extract filename from the markdown link text (first capture group)
+            const filename = match[1];
+            // Extract file path from URL (second capture group)
+            const filePath = match[2].replace('file:///', '');
+            
+            // Use filename if it looks like a simple filename, otherwise use full path
+            const displayPath = filename.includes('/') ? filePath : filename;
+            
+            // Determine if this is a creation or modification based on context
+            const beforeLink = msg.content.substring(0, match.index);
+            const contextWords = beforeLink.toLowerCase().split(/\s+/).slice(-10); // Last 10 words before the link
+            
+            const creationWords = ['created', 'added', 'generated', 'new', 'initialized'];
+            const modificationWords = ['updated', 'modified', 'changed', 'edited', 'fixed'];
+            
+            const isCreation = creationWords.some(word => contextWords.includes(word));
+            const isModification = modificationWords.some(word => contextWords.includes(word));
+            
+            if (isCreation && !isModification) {
+              filesCreatedFromMessages.push(displayPath);
+            } else if (isModification) {
+              filesModifiedFromMessages.push(displayPath);
+            } else {
+              // If unclear, default to modified (safer assumption)
+              filesModifiedFromMessages.push(displayPath);
+            }
+          }
+        }
+        
+        // Extract files from tool usage
+        const filesCreatedFromTools = parsedMetrics.toolUsage
+          .filter(tool => tool.toolName === 'create_file')
+          .map(tool => tool.args?.path)
+          .filter(Boolean);
+          
+        const filesModifiedFromTools = parsedMetrics.toolUsage
+          .filter(tool => tool.toolName === 'edit_file')
+          .map(tool => tool.args?.path)
+          .filter(Boolean);
+        
+        // Combine and dedupe files by category
+        parsedMetrics.filesCreated = Array.from(
+          new Set([...filesCreatedFromMessages, ...filesCreatedFromTools])
+        );
+        
+        parsedMetrics.filesModified = Array.from(
+          new Set([...filesModifiedFromMessages, ...filesModifiedFromTools])
+        );
         
         setMetrics(parsedMetrics);
         
@@ -373,6 +426,10 @@ export function JSONMetrics({ sessionId, className = '' }: JSONMetricsProps) {
               <span className="font-mono">{metrics.assistantMessages.length}</span>
             </div>
             <div className="flex justify-between">
+              <span>Files Created:</span>
+              <span className="font-mono">{metrics.filesCreated.length}</span>
+            </div>
+            <div className="flex justify-between">
               <span>Files Modified:</span>
               <span className="font-mono">{metrics.filesModified.length}</span>
             </div>
@@ -417,16 +474,60 @@ export function JSONMetrics({ sessionId, className = '' }: JSONMetricsProps) {
         </div>
       )}
 
+      {/* Files Created */}
+      {metrics.filesCreated.length > 0 && (
+        <div className="bg-white border rounded-lg p-4">
+          <h4 className="font-semibold mb-3 text-green-700">Files Created ({metrics.filesCreated.length})</h4>
+          <div className="space-y-1">
+            {metrics.filesCreated.map((file, index) => {
+              const isFullPath = file.includes('/');
+              const filename = isFullPath ? file.replace(/^.*\//, '') : file;
+              const fileUrl = isFullPath ? `file:///${file}` : null;
+              
+              return (
+                <div key={index} className="text-sm font-mono text-gray-700 bg-green-50 border-l-2 border-green-300 px-2 py-1 rounded flex justify-between items-center">
+                  <span>{filename}</span>
+                  {fileUrl && (
+                    <a 
+                      href={fileUrl} 
+                      className="text-blue-600 hover:text-blue-800 text-xs"
+                      title="Open file"
+                    >
+                      📄
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Files Modified */}
       {metrics.filesModified.length > 0 && (
         <div className="bg-white border rounded-lg p-4">
-          <h4 className="font-semibold mb-3">Files Modified ({metrics.filesModified.length})</h4>
+          <h4 className="font-semibold mb-3 text-blue-700">Files Modified ({metrics.filesModified.length})</h4>
           <div className="space-y-1">
-            {metrics.filesModified.map((file, index) => (
-              <div key={index} className="text-sm font-mono text-gray-700 bg-gray-50 px-2 py-1 rounded">
-                {file.replace(/^.*\//, '')} {/* Show just filename */}
-              </div>
-            ))}
+            {metrics.filesModified.map((file, index) => {
+              const isFullPath = file.includes('/');
+              const filename = isFullPath ? file.replace(/^.*\//, '') : file;
+              const fileUrl = isFullPath ? `file:///${file}` : null;
+              
+              return (
+                <div key={index} className="text-sm font-mono text-gray-700 bg-blue-50 border-l-2 border-blue-300 px-2 py-1 rounded flex justify-between items-center">
+                  <span>{filename}</span>
+                  {fileUrl && (
+                    <a 
+                      href={fileUrl} 
+                      className="text-blue-600 hover:text-blue-800 text-xs"
+                      title="Open file"
+                    >
+                      📄
+                    </a>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
