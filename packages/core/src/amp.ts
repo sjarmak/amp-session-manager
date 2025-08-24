@@ -99,16 +99,23 @@ export class AmpAdapter extends EventEmitter {
       const finalPrompt = await this.buildIterationPrompt(prompt, workingDir, sessionId, includeContext);
       return this.runAmpCommand(finalPrompt, workingDir, modelOverride, sessionId);
     } else {
+      // For thread continuation, get the thread ID and use proper CLI command
+      const session = this.store?.getSession(sessionId);
+      if (!session?.threadId) {
+        console.warn('Session has no threadId, falling back to new thread');
+        const finalPrompt = await this.buildIterationPrompt(prompt, workingDir, sessionId, includeContext);
+        return this.runAmpCommand(finalPrompt, workingDir, modelOverride, sessionId);
+      }
+      
       // Get existing iterations to determine which model to use (alternate)
       const existingIterations = await this.getIterationCount(sessionId);
       const useGpt5 = existingIterations % 2 === 1; // Odd iterations (2nd, 4th, etc.) use GPT-5
       
-      console.log(`🔄 Alternating model logic: existingIterations=${existingIterations}, useGpt5=${useGpt5}, model=${useGpt5 ? 'gpt-5' : 'default'}`);
+      console.log(`🔄 Continuing thread ${session.threadId}: existingIterations=${existingIterations}, useGpt5=${useGpt5}, model=${useGpt5 ? 'gpt-5' : 'default'}`);
       
-      // Build full conversation context from session follow-up prompts
-      const fullContextPrompt = await this.buildContinuePrompt(prompt, sessionId, workingDir, includeContext);
+      // Use proper thread continuation command instead of /continue text
       const alternatingModel = useGpt5 ? 'gpt-5' : undefined; // undefined = default model
-      return this.runAmpCommand(fullContextPrompt, workingDir, alternatingModel, sessionId);
+      return this.runThreadContinue(session.threadId, prompt, workingDir, alternatingModel, sessionId, includeContext);
     }
   }
 
@@ -122,18 +129,122 @@ export class AmpAdapter extends EventEmitter {
     return this.continueThread(prompt, workingDir, modelOverride, sessionId, includeContext);
   }
 
+  async runThreadContinue(
+    threadId: string,
+    prompt: string, 
+    workingDir: string, 
+    modelOverride?: string,
+    sessionId?: string,
+    includeContext?: boolean
+  ): Promise<AmpIterationResult> {
+    // Prepare final prompt with context if needed
+    let finalPrompt = prompt;
+    if (includeContext) {
+      const contextMd = await this.safeReadFile(join(workingDir, 'CONTEXT.md'));
+      if (contextMd.trim()) {
+        finalPrompt = `${prompt}\n\n${contextMd}`;
+      }
+    }
+
+    console.log('Thread continue command:', {
+      threadId,
+      workingDir,
+      promptLength: finalPrompt.length
+    });
+
+    // For thread continuation, use --execute mode with the message
+    // Format: amp threads continue <threadId> --execute "message" [options]
+    const args = ['threads', 'continue', threadId, '--execute', finalPrompt];
+    
+    // Add model override
+    if (modelOverride === 'gpt-5') {
+      args.push('--try-gpt5');
+    } else if (modelOverride === 'alloy') {
+      // For alloy mode, we need to set the config instead of a flag
+      // This will be handled via environment variable  
+    } else if (modelOverride) {
+      args.push('--model', modelOverride);
+    }
+
+    // Enable streaming JSON for real-time telemetry if configured
+    if (this.config.enableJSONLogs) {
+      args.push('--stream-json');
+    }
+
+    // Add debug logging if available
+    try {
+      const tempLogFile = join(tmpdir(), `amp_debug_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.log`);
+      // Test write permissions by creating a test file
+      const { writeFileSync, unlinkSync } = await import('fs');
+      const testFile = tempLogFile + '.test';
+      writeFileSync(testFile, 'test', { mode: 0o600 }); // Secure permissions
+      unlinkSync(testFile);
+      
+      // If test succeeded, use debug logging
+      args.push('--log-level', 'debug', '--log-file', tempLogFile);
+      console.log('Debug logging enabled for thread continuation');
+    } catch (debugSetupError) {
+      console.warn('Debug logging unavailable for thread continuation:', (debugSetupError as Error).message);
+    }
+
+    return this.executeAmpCommandNoStdin(args, workingDir, sessionId);
+  }
+
   private async runAmpCommand(
     finalPrompt: string,
     workingDir: string,
     modelOverride?: string,
     sessionId?: string
   ): Promise<AmpIterationResult> {
+    // Use -x for interactive mode for new threads
+    const args = ['-x', ...(this.config.ampArgs || []), ...(this.config.extraArgs || [])];
+    return this.runAmpCommandWithArgs(args, finalPrompt, workingDir, modelOverride, sessionId);
+  }
+
+  private async runAmpCommandWithArgs(
+    baseArgs: string[],
+    finalPrompt: string,
+    workingDir: string,
+    modelOverride?: string,
+    sessionId?: string
+  ): Promise<AmpIterationResult> {
+    const args = [...baseArgs];
+    
+    // Add model override
+    if (modelOverride === 'gpt-5') {
+      args.push('--try-gpt5');
+    } else if (modelOverride === 'alloy') {
+      // For alloy mode, we need to set the config instead of a flag
+      // This will be handled via environment variable
+    } else if (modelOverride) {
+      args.push('--model', modelOverride);
+    }
+
+    return this.executeAmpCommand(args, finalPrompt, workingDir, sessionId);
+  }
+
+  private async executeAmpCommandNoStdin(
+    args: string[],
+    workingDir: string,
+    sessionId?: string
+  ): Promise<AmpIterationResult> {
+    // For commands that don't need stdin (like --execute commands)
+    return this.executeAmpCommand(args, '', workingDir, sessionId, false);
+  }
+
+  private async executeAmpCommand(
+    args: string[],
+    finalPrompt: string,
+    workingDir: string,
+    sessionId?: string,
+    useStdin: boolean = true
+  ): Promise<AmpIterationResult> {
     
     return new Promise(async (resolve) => {
-      const args = ['-x', ...(this.config.ampArgs || []), ...(this.config.extraArgs || [])];
-      
-      // Try to enable debug logging (with fallback)
+      // Setup debug logging if available
       let debugLogFile: string | null = null;
+      
+      // Try to enable debug logging (with fallback) - handle missing config gracefully
       try {
         const tempLogFile = join(tmpdir(), `amp_debug_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.log`);
         // Test write permissions by creating a test file
@@ -153,16 +264,6 @@ export class AmpAdapter extends EventEmitter {
       
       // Note: Session-specific log files don't capture tool execution details,
       // so we rely on the shared CLI log with timing-based isolation
-      
-      // Add model override
-      if (modelOverride === 'gpt-5') {
-        args.push('--try-gpt5');
-      } else if (modelOverride === 'alloy') {
-        // For alloy mode, we need to set the config instead of a flag
-        // This will be handled via environment variable
-      } else if (modelOverride) {
-        args.push('--model', modelOverride);
-      }
 
       // Enable streaming JSON for real-time telemetry if configured
       if (this.config.enableJSONLogs) {
@@ -173,7 +274,6 @@ export class AmpAdapter extends EventEmitter {
       console.log('Amp environment check:', {
         AMP_API_KEY: process.env.AMP_API_KEY ? '***exists***' : 'MISSING',
         ampPath: this.config.ampPath,
-        modelOverride,
         sessionId,
         args,
         workingDir
@@ -209,8 +309,9 @@ export class AmpAdapter extends EventEmitter {
         }
       }
       
-      // Handle alloy mode via environment variable
-      if (modelOverride === 'alloy') {
+      // Handle alloy mode via environment variable - check if alloy model is in args
+      const hasAlloyModel = args.some(arg => arg.includes('alloy'));
+      if (hasAlloyModel) {
         env['amp.internal.alloy.enable'] = 'true';
       }
       
@@ -264,10 +365,13 @@ export class AmpAdapter extends EventEmitter {
         }
       });
       
-      // Send prompt via stdin
-      if (child.stdin) {
+      // Send prompt via stdin only if needed (not for --execute commands)
+      if (useStdin && child.stdin && finalPrompt) {
         console.log('Sending prompt to Amp (first 200 chars):', finalPrompt.slice(0, 200));
         child.stdin.write(finalPrompt);
+        child.stdin.end();
+      } else if (child.stdin) {
+        // Close stdin even if not sending data
         child.stdin.end();
       }
       
@@ -533,50 +637,7 @@ ${contextMd}`;
     }
   }
 
-  private async buildContinuePrompt(currentPrompt: string, sessionId?: string, workingDir?: string, includeContext?: boolean): Promise<string> {
-    try {
-      if (!sessionId) {
-        return `/continue\n\n${currentPrompt}`;
-      }
-
-      // Get session to retrieve follow-up prompts
-      const { SessionStore } = await import('./store.js');
-      const sessionStore = new SessionStore();
-      const session = sessionStore.getSession(sessionId);
-      
-      if (!session) {
-        return `/continue\n\n${currentPrompt}`;
-      }
-
-      const followUpPrompts = session.followUpPrompts || [];
-      
-      // Build conversation - don't include currentPrompt as it's not stored yet
-      let conversationText: string;
-      if (followUpPrompts.length === 0) {
-        conversationText = `Original Prompt\n${session.ampPrompt}\n\n---\n\nFollow-up Message\n${currentPrompt}`;
-      } else {
-        const fullConversation = [session.ampPrompt, ...followUpPrompts, currentPrompt];
-        conversationText = fullConversation
-          .map((p, i) => i === 0 ? `Original Prompt\n${p}` : `Follow-up Message\n${p}`)
-          .join('\n\n---\n\n');
-      }
-      
-      let finalPrompt = `/continue\n\n${conversationText}`;
-      
-      // Include CONTEXT.md if requested and working directory is provided
-      if (includeContext && workingDir) {
-        const contextMd = await this.safeReadFile(join(workingDir, 'CONTEXT.md'));
-        if (contextMd.trim()) {
-          finalPrompt += `\n\n${contextMd}`;
-        }
-      }
-      
-      return finalPrompt;
-    } catch (error) {
-      console.warn('Failed to build continue prompt with full context:', error);
-      return `/continue\n\n${currentPrompt}`;
-    }
-  }
+  // Note: buildContinuePrompt is no longer used - thread continuation now uses proper CLI commands
 
   private buildOraclePrompt(query: string, context?: string): string {
     return `Please analyze this query and provide expert guidance:
