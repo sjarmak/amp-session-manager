@@ -5,7 +5,7 @@ import { tmpdir } from 'os';
 import { EventEmitter } from 'events';
 import type { AmpTelemetry } from '@ampsm/types';
 import { TelemetryParser } from './telemetry-parser.js';
-import { EnhancedDebugParser } from './enhanced-debug-parser.js';
+
 
 /**
  * Redacts secrets from text based on environment variable keys
@@ -39,7 +39,7 @@ export interface AmpIterationResult {
 }
 
 export interface StreamingEvent {
-  type: 'tool_start' | 'tool_finish' | 'token_usage' | 'model_info' | 'output' | 'error';
+  type: 'tool_start' | 'tool_finish' | 'token_usage' | 'model_info' | 'model_change' | 'assistant_message' | 'session_result' | 'output' | 'error';
   timestamp: string;
   data: any;
 }
@@ -49,6 +49,7 @@ export class AmpAdapter extends EventEmitter {
   private telemetryParser = new TelemetryParser();
   public lastUsedArgs?: string[];
   private store?: any;
+  private jsonBuffer: string = '';
 
   constructor(config: AmpAdapterConfig = {}, store?: any) {
     super();
@@ -96,7 +97,7 @@ export class AmpAdapter extends EventEmitter {
     
     if (isFirstRun) {
       const finalPrompt = await this.buildIterationPrompt(prompt, workingDir, sessionId, includeContext);
-      return this.runAmpCommand(finalPrompt, workingDir, modelOverride);
+      return this.runAmpCommand(finalPrompt, workingDir, modelOverride, sessionId);
     } else {
       // Get existing iterations to determine which model to use (alternate)
       const existingIterations = await this.getIterationCount(sessionId);
@@ -131,7 +132,7 @@ export class AmpAdapter extends EventEmitter {
     return new Promise(async (resolve) => {
       const args = ['-x', ...(this.config.ampArgs || []), ...(this.config.extraArgs || [])];
       
-      // Try to enable debug logging for enhanced parsing (with fallback)
+      // Try to enable debug logging (with fallback)
       let debugLogFile: string | null = null;
       try {
         const tempLogFile = join(tmpdir(), `amp_debug_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.log`);
@@ -144,7 +145,7 @@ export class AmpAdapter extends EventEmitter {
         // If test succeeded, use debug logging
         debugLogFile = tempLogFile;
         args.push('--log-level', 'debug', '--log-file', debugLogFile);
-        console.log('Debug logging enabled for enhanced metrics parsing');
+        console.log('Debug logging enabled for metrics parsing');
       } catch (debugSetupError) {
         console.warn('Debug logging unavailable, will use text parsing fallback:', (debugSetupError as Error).message);
         debugLogFile = null;
@@ -163,8 +164,10 @@ export class AmpAdapter extends EventEmitter {
         args.push('--model', modelOverride);
       }
 
-      // Note: JSON streaming logs not yet available in current Amp CLI version
-      // Will use debug log file parsing for enhanced telemetry instead
+      // Enable streaming JSON for real-time telemetry if configured
+      if (this.config.enableJSONLogs) {
+        args.push('--stream-json');
+      }
 
       // Add the prompt (use stdin for long prompts)
       console.log('Amp environment check:', {
@@ -271,6 +274,10 @@ export class AmpAdapter extends EventEmitter {
       child.on('close', async (exitCode) => {
         const ampDuration = Date.now() - ampStartTime;
         const fullOutput = output + stderr;
+        
+        // Clean up JSON buffer when process completes
+        this.jsonBuffer = '';
+        
         console.log('Amp process completed:', { 
           exitCode, 
           durationMs: ampDuration,
@@ -283,14 +290,19 @@ export class AmpAdapter extends EventEmitter {
         const redactedOutput = redactSecrets(fullOutput, this.config.env);
         console.log('Redacted output length:', redactedOutput.length);
         
-        // Use enhanced debug parser with fallback to text parsing
-        const telemetry = EnhancedDebugParser.parseWithFallback(
-          debugLogFile,
-          fullOutput,
-          exitCode || 0,
-          modelOverride
-        );
-        console.log('Enhanced parsed telemetry:', telemetry);
+        // Parse telemetry from output
+        const parsedTelemetry = this.telemetryParser.parseOutput(fullOutput);
+        
+        // Merge real-time telemetry with parsed telemetry
+        const telemetry = {
+          ...parsedTelemetry,
+          toolCalls: [
+            ...(parsedTelemetry.toolCalls || []),
+            ...(realtimeTelemetry.toolCalls || [])
+          ]
+        };
+        
+        console.log(`[DEBUG] Final telemetry - Parsed tools: ${parsedTelemetry.toolCalls?.length || 0}, Realtime tools: ${realtimeTelemetry.toolCalls?.length || 0}, Total: ${telemetry.toolCalls.length}`);
         
         // Clean up debug log file
         if (debugLogFile) {
@@ -339,7 +351,7 @@ export class AmpAdapter extends EventEmitter {
     return new Promise(async (resolve) => {
       const args = [...(this.config.ampArgs || []), ...(this.config.extraArgs || []), '--oracle'];
       
-      // Try to enable debug logging for enhanced parsing (with fallback)
+      // Try to enable debug logging (with fallback)
       let debugLogFile: string | null = null;
       try {
         const tempLogFile = join(tmpdir(), `amp_oracle_debug_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.log`);
@@ -352,7 +364,7 @@ export class AmpAdapter extends EventEmitter {
         // If test succeeded, use debug logging
         debugLogFile = tempLogFile;
         args.push('--log-level', 'debug', '--log-file', debugLogFile);
-        console.log('Oracle debug logging enabled for enhanced metrics parsing');
+        console.log('Oracle debug logging enabled for metrics parsing');
       } catch (debugSetupError) {
         console.warn('Oracle debug logging unavailable, will use text parsing fallback:', (debugSetupError as Error).message);
         debugLogFile = null;
@@ -365,9 +377,9 @@ export class AmpAdapter extends EventEmitter {
         args.push('--model', modelOverride);
       }
       
-      // Enable JSON logging for oracle if supported and configured
+      // Enable streaming JSON for oracle if supported and configured
       if (this.config.enableJSONLogs) {
-        args.push('--jsonl-logs');
+        args.push('--stream-json');
       }
       
       const env = this.config.env ? { ...process.env, ...this.config.env } : { ...process.env };
@@ -455,16 +467,14 @@ export class AmpAdapter extends EventEmitter {
       
       child.on('close', async (exitCode) => {
         const fullOutput = output + stderr;
+        
+        // Clean up JSON buffer when oracle process completes  
+        this.jsonBuffer = '';
+        
         const redactedOutput = redactSecrets(fullOutput, this.config.env);
         
-        // Use enhanced debug parser with fallback to text parsing
-        const telemetry = EnhancedDebugParser.parseWithFallback(
-          debugLogFile,
-          fullOutput,
-          exitCode || 0,
-          modelOverride
-        );
-        console.log('Enhanced parsed oracle telemetry:', telemetry);
+        // Parse telemetry from output
+        const telemetry = this.telemetryParser.parseOutput(fullOutput);
         
         // Clean up debug log file
         if (debugLogFile) {
@@ -705,32 +715,56 @@ Please provide a thorough analysis and actionable recommendations.`;
   
   /**
    * Process streaming JSON chunks and emit real-time telemetry events
+   * Handles multi-line JSON objects and partial chunks across data reads
    */
   private processStreamingJSON(chunk: string, realtimeTelemetry: AmpTelemetry, sessionId?: string) {
-    // Split chunk into lines and process each line
-    const lines = chunk.split('\n');
+    // Add chunk to buffer
+    this.jsonBuffer += chunk;
     
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || !trimmed.startsWith('{')) continue;
-      
+    console.log(`[DEBUG] Stream JSON chunk received (${chunk.length} chars):`, chunk.slice(0, 200));
+    console.log(`[DEBUG] Current buffer size: ${this.jsonBuffer.length} chars`);
+    
+    // Process complete JSON objects from buffer
+    const completeObjects = this.extractCompleteJSONObjects();
+    
+    console.log(`[DEBUG] Extracted ${completeObjects.length} complete JSON objects`);
+    
+    for (const jsonString of completeObjects) {
       try {
-        const parsed = JSON.parse(trimmed);
-        const events = this.telemetryParser.parseJSONL([trimmed]);
+        const parsed = JSON.parse(jsonString);
         
-        for (const event of events) {
+        console.log(`[DEBUG] Parsed JSON object:`, { type: parsed.type, keys: Object.keys(parsed) });
+        
+        // Process stream-json format directly (no need for JSONL parser)
+        const streamEvent = this.parseStreamJSONEvent(parsed);
+        
+        console.log(`[DEBUG] Stream event result:`, streamEvent ? { type: streamEvent.type, hasContent: !!(streamEvent.content || streamEvent.result) } : 'null');
+        
+        if (streamEvent) {
           // Update real-time telemetry
-          this.updateRealtimeTelemetry(realtimeTelemetry, event);
+          this.updateRealtimeTelemetry(realtimeTelemetry, streamEvent);
+          
+          // Persist stream event to store if sessionId provided
+          if (sessionId && this.store) {
+            try {
+              console.log(`[DEBUG] Persisting stream event to store:`, { sessionId, type: streamEvent.type });
+              this.store.addStreamEvent(sessionId, streamEvent.type, streamEvent.timestamp, streamEvent);
+            } catch (error) {
+              console.warn('Failed to persist stream event:', error);
+            }
+          } else {
+            console.log(`[DEBUG] Not persisting stream event - store:`, !!this.store, 'sessionId:', sessionId);
+          }
           
           // Emit specific streaming events based on type
-          switch (event.type) {
+          switch (streamEvent.type) {
             case 'tool_start':
               this.emit('streaming-event', {
                 type: 'tool_start',
-                timestamp: event.timestamp,
+                timestamp: streamEvent.timestamp,
                 data: {
-                  tool: event.tool,
-                  args: event.args,
+                  toolName: streamEvent.tool,
+                  args: streamEvent.args,
                   sessionId
                 }
               } as StreamingEvent);
@@ -739,11 +773,11 @@ Please provide a thorough analysis and actionable recommendations.`;
             case 'tool_finish':
               this.emit('streaming-event', {
                 type: 'tool_finish',
-                timestamp: event.timestamp,
+                timestamp: streamEvent.timestamp,
                 data: {
-                  tool: event.tool,
-                  duration: event.duration,
-                  success: event.success,
+                  toolName: streamEvent.tool,
+                  durationMs: streamEvent.duration,
+                  success: streamEvent.success,
                   sessionId
                 }
               } as StreamingEvent);
@@ -752,21 +786,51 @@ Please provide a thorough analysis and actionable recommendations.`;
             case 'token_usage':
               this.emit('streaming-event', {
                 type: 'token_usage',
-                timestamp: event.timestamp,
+                timestamp: streamEvent.timestamp,
                 data: {
-                  tokens: event.tokens,
-                  model: event.model,
+                  totalTokens: streamEvent.tokens?.total || streamEvent.tokens,
+                  promptTokens: streamEvent.tokens?.input_tokens || streamEvent.tokens?.prompt,
+                  completionTokens: streamEvent.tokens?.output_tokens || streamEvent.tokens?.completion,
+                  cost: streamEvent.cost,
+                  model: streamEvent.model,
                   sessionId
+                }
+              } as StreamingEvent);
+              break;
+              
+            case 'assistant_message':
+              this.emit('streaming-event', {
+                type: 'assistant_message',
+                timestamp: streamEvent.timestamp,
+                data: {
+                  content: streamEvent.content,
+                  model: streamEvent.model,
+                  usage: streamEvent.usage,
+                  sessionId: streamEvent.session_id || sessionId
+                }
+              } as StreamingEvent);
+              break;
+              
+            case 'session_result':
+              this.emit('streaming-event', {
+                type: 'session_result',
+                timestamp: streamEvent.timestamp,
+                data: {
+                  result: streamEvent.result,
+                  durationMs: streamEvent.duration_ms,
+                  numTurns: streamEvent.num_turns,
+                  isError: streamEvent.is_error,
+                  sessionId: streamEvent.session_id || sessionId
                 }
               } as StreamingEvent);
               break;
               
             case 'model_info':
               this.emit('streaming-event', {
-                type: 'model_info',
-                timestamp: event.timestamp,
+                type: 'model_change',
+                timestamp: streamEvent.timestamp,
                 data: {
-                  model: event.model,
+                  model: streamEvent.model,
                   sessionId
                 }
               } as StreamingEvent);
@@ -774,9 +838,274 @@ Please provide a thorough analysis and actionable recommendations.`;
           }
         }
       } catch (error) {
-        // Not valid JSON, skip silently
+        // Log parse errors for debugging but continue processing
+        console.warn('JSON parse error in streaming data:', error instanceof Error ? error.message : String(error));
+        console.warn('Failed JSON string:', jsonString.slice(0, 200));
       }
     }
+  }
+
+  /**
+   * Extract complete JSON objects from the buffer
+   * Handles both single-line and multi-line JSON objects
+   */
+  private extractCompleteJSONObjects(): string[] {
+    const completeObjects: string[] = [];
+    let position = 0;
+    
+    console.log(`[DEBUG] Extracting from buffer (${this.jsonBuffer.length} chars):`, this.jsonBuffer.slice(0, 200));
+    
+    while (position < this.jsonBuffer.length) {
+      // Skip non-JSON content (text, whitespace, etc.)
+      const jsonStart = this.findNextJSONStart(position);
+      if (jsonStart === -1) {
+        // No more JSON objects found, keep remaining content in buffer
+        console.log(`[DEBUG] No more JSON objects found, remaining buffer:`, this.jsonBuffer.slice(position, position + 100));
+        this.jsonBuffer = this.jsonBuffer.slice(position);
+        break;
+      }
+      
+      console.log(`[DEBUG] Found JSON start at position ${jsonStart}`);
+      
+      // Try to extract complete JSON object starting at jsonStart
+      const jsonEnd = this.findJSONObjectEnd(jsonStart);
+      if (jsonEnd === -1) {
+        // Incomplete JSON object, keep from jsonStart onwards in buffer
+        console.log(`[DEBUG] Incomplete JSON object, keeping from position ${jsonStart}`);
+        this.jsonBuffer = this.jsonBuffer.slice(jsonStart);
+        break;
+      }
+      
+      // Extract complete JSON object
+      const jsonString = this.jsonBuffer.slice(jsonStart, jsonEnd + 1);
+      completeObjects.push(jsonString);
+      position = jsonEnd + 1;
+    }
+    
+    // If we processed all complete objects, remove them from buffer
+    if (completeObjects.length > 0 && position >= this.jsonBuffer.length) {
+      this.jsonBuffer = '';
+    }
+    
+    // Clear buffer if it gets too large without valid JSON (prevent memory leaks)
+    if (this.jsonBuffer.length > 50000) {
+      // Try to salvage any JSON objects that might be at the end
+      const lastBraceIndex = this.jsonBuffer.lastIndexOf('{');
+      if (lastBraceIndex > 0) {
+        this.jsonBuffer = this.jsonBuffer.slice(lastBraceIndex);
+      } else {
+        console.warn('Clearing large JSON buffer without recoverable JSON');
+        this.jsonBuffer = '';
+      }
+    }
+    
+    return completeObjects;
+  }
+  
+  /**
+   * Find the next JSON object start position (opening brace)
+   */
+  private findNextJSONStart(fromPosition: number): number {
+    for (let i = fromPosition; i < this.jsonBuffer.length; i++) {
+      if (this.jsonBuffer[i] === '{') {
+        return i;
+      }
+    }
+    return -1;
+  }
+  
+  /**
+   * Find the end of a JSON object starting at the given position
+   * Returns the position of the closing brace, or -1 if incomplete
+   */
+  private findJSONObjectEnd(startPosition: number): number {
+    let braceCount = 0;
+    let inString = false;
+    let escapeNext = false;
+    
+    for (let i = startPosition; i < this.jsonBuffer.length; i++) {
+      const char = this.jsonBuffer[i];
+      
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+      
+      if (char === '\\') {
+        escapeNext = true;
+        continue;
+      }
+      
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+      
+      if (inString) {
+        continue;
+      }
+      
+      if (char === '{') {
+        braceCount++;
+      } else if (char === '}') {
+        braceCount--;
+        
+        if (braceCount === 0) {
+          return i; // Found complete JSON object
+        }
+      }
+    }
+    
+    return -1; // Incomplete JSON object
+  }
+  
+  /**
+   * Convert a flat stream-json object into the internal StreamingEvent shape
+   * Returns null for unknown / unhandled record types.
+   */
+  private parseStreamJSONEvent(parsed: any): any | null {
+    if (!parsed || typeof parsed !== 'object' || !parsed.type) return null;
+
+    // Normalise timestamp – fall back to "now" if the record does not supply one
+    const ts = parsed.timestamp ?? new Date().toISOString();
+
+    switch (parsed.type) {
+      /* ──────────────────────────────── tool execution ─────────────────────────────── */
+      case 'tool_start':
+        return {
+          type: 'tool_start',
+          timestamp: ts,
+          tool: parsed.tool,
+          args: parsed.args ?? parsed.input   // both names appear in the wild
+        };
+
+      case 'tool_finish':
+        return {
+          type: 'tool_finish',
+          timestamp: ts,
+          tool: parsed.tool,
+          success: parsed.success !== false,   // default to true when field absent
+          duration: parsed.duration ?? parsed.elapsed ?? 0
+        };
+
+      /* ──────────────────────────────── token usage ─────────────────────────────── */
+      case 'token_usage': {
+        // The parser must always expose a "tokens" object with prompt/completion/total.
+        const tk = parsed.tokens ?? {
+          prompt:  parsed.prompt_tokens     ?? parsed.prompt    ?? 0,
+          completion: parsed.completion_tokens ?? parsed.completion ?? 0,
+          total:   parsed.total_tokens      ?? parsed.total     ??
+                   ((parsed.prompt_tokens ?? 0) + (parsed.completion_tokens ?? 0))
+        };
+
+        return {
+          type: 'token_usage',
+          timestamp: ts,
+          tokens: tk,
+          model: parsed.model,
+          cost: parsed.cost ?? this.calculateCost(tk, parsed.model)
+        };
+      }
+
+      /* ──────────────────────────────── assistant messages ─────────────────────────────── */
+      case 'assistant':
+        // Extract assistant message content and usage metrics
+        if (parsed.message) {
+          const message = parsed.message;
+          
+          // Extract token usage from message
+          if (message.usage) {
+            setTimeout(() => {
+              this.emit('streaming-event', {
+                type: 'token_usage',
+                timestamp: ts,
+                data: {
+                  totalTokens: (message.usage.input_tokens || 0) + (message.usage.output_tokens || 0),
+                  promptTokens: message.usage.input_tokens || message.usage.cache_read_input_tokens || 0,
+                  completionTokens: message.usage.output_tokens || 0,
+                  cacheCreationTokens: message.usage.cache_creation_input_tokens || 0,
+                  model: message.model || 'unknown',
+                  sessionId: parsed.session_id
+                }
+              });
+            }, 0);
+          }
+          
+          // Extract text content for display
+          const textContent = message.content
+            ?.filter((item: any) => item.type === 'text')
+            ?.map((item: any) => item.text)
+            ?.join('') || '';
+          
+          // Extract tool usage from content
+          const toolUses = message.content
+            ?.filter((item: any) => item.type === 'tool_use') || [];
+          
+          // Emit tool events for each tool use
+          for (const toolUse of toolUses) {
+            if (toolUse.name) {
+              console.log(`[DEBUG] Emitting tool_start event for tool: ${toolUse.name}`);
+              setTimeout(() => {
+                this.emit('streaming-event', {
+                  type: 'tool_start',
+                  timestamp: ts,
+                  data: {
+                    tool: toolUse.name,
+                    args: toolUse.input || {},
+                    sessionId: parsed.session_id
+                  }
+                });
+              }, 0);
+            }
+          }
+          
+          return {
+            type: 'assistant_message',
+            timestamp: ts,
+            content: textContent,
+            model: message.model,
+            usage: message.usage,
+            session_id: parsed.session_id,
+            tools: toolUses.map((tool: any) => tool.name).filter(Boolean)
+          };
+        }
+        break;
+
+      /* ──────────────────────────────── result summary ─────────────────────────────── */
+      case 'result':
+        return {
+          type: 'session_result',
+          timestamp: ts,
+          result: parsed.result,
+          duration_ms: parsed.duration_ms,
+          num_turns: parsed.num_turns,
+          is_error: parsed.is_error,
+          session_id: parsed.session_id
+        };
+
+      /* ──────────────────────────────── model selection / info ───────────────────── */
+      case 'model_info':
+      case 'model_change':
+        return {
+          type: 'model_info',
+          timestamp: ts,
+          model: parsed.model
+        };
+
+      default:
+        // Unknown record type – safely ignore
+        return null;
+    }
+  }
+  
+  /**
+   * Calculate token cost based on usage and model
+   */
+  private calculateCost(tokens: any, model?: string): number {
+    // Basic cost calculation - adjust rates as needed
+    const inputCost = (tokens.prompt || tokens.input_tokens || 0) * 0.00001; // $0.01 per 1K tokens
+    const outputCost = (tokens.completion || tokens.output_tokens || 0) * 0.00003; // $0.03 per 1K tokens
+    return inputCost + outputCost;
   }
   
   /**
@@ -795,6 +1124,21 @@ Please provide a thorough analysis and actionable recommendations.`;
     
     if (event.type === 'model_info' && event.model && !telemetry.model) {
       telemetry.model = event.model;
+    }
+    
+    // Handle assistant_message events with tools
+    if (event.type === 'assistant_message' && event.tools && event.tools.length > 0) {
+      console.log(`[DEBUG] Adding ${event.tools.length} tools from assistant message to telemetry`);
+      for (const toolName of event.tools) {
+        const toolCall = {
+          toolName: toolName,
+          args: {},
+          success: true,
+          timestamp: event.timestamp
+        };
+        telemetry.toolCalls.push(toolCall);
+        console.log(`[DEBUG] Added tool call: ${toolName}`);
+      }
     }
     
     if ((event.type === 'tool_start' || event.type === 'tool_finish') && event.tool) {

@@ -3,47 +3,10 @@ import type { Session } from "@ampsm/types";
 import { MergeWizard } from "./MergeWizard";
 import { OutputViewer } from "./OutputViewer";
 import { SessionMetrics } from "./SessionMetrics";
-import { EnhancedMetricsDashboard } from "./enhanced";
+import { JSONMetrics } from "./JSONMetrics";
 
-// Simple error boundary for the enhanced dashboard
-class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean; error?: Error }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
 
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Enhanced Dashboard Error:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="p-6 bg-red-50 border border-red-200 rounded-md">
-          <div className="text-red-800 font-medium">Enhanced Metrics Error</div>
-          <div className="text-red-600 text-sm mt-1">
-            {this.state.error?.message || 'Unknown error in enhanced metrics dashboard'}
-          </div>
-          <button 
-            onClick={() => this.setState({ hasError: false })}
-            className="mt-2 px-3 py-1 bg-red-600 text-white text-sm rounded"
-          >
-            Retry
-          </button>
-        </div>
-      );
-    }
-
-    return this.props.children;
-  }
-}
 
 interface SessionViewProps {
   session: Session;
@@ -57,13 +20,13 @@ export function SessionView({
   onSessionUpdated,
 }: SessionViewProps) {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "output" | "actions" | "metrics" | "enhanced"
+    "overview" | "output" | "actions" | "metrics" | "json-metrics"
   >("overview");
   
   // Temporarily disabled localStorage tab restoration for debugging
   // React.useEffect(() => {
   //   const saved = localStorage.getItem(`sessionTab_${session.id}`);
-  //   const validTabs = ["overview", "output", "actions", "metrics", "enhanced"];
+  //   const validTabs = ["overview", "output", "actions", "metrics", "json-metrics"];
   //   if (saved && validTabs.includes(saved)) {
   //     setActiveTab(saved as any);
   //   }
@@ -274,7 +237,7 @@ export function SessionView({
       )}
 
       <div className="flex space-x-1 border-b border-gray-200">
-        {["overview", "actions", "output", "metrics", "enhanced"].map((tab) => (
+        {["overview", "actions", "output", "metrics", "json-metrics"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as any)}
@@ -284,7 +247,7 @@ export function SessionView({
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
-            {tab}
+            {tab === "json-metrics" ? "JSON Metrics" : tab}
           </button>
         ))}
       </div>
@@ -566,13 +529,13 @@ export function SessionView({
         </div>
       )}
 
-      {activeTab === "enhanced" && (
-        <React.Suspense fallback={<div className="p-6">Loading enhanced metrics...</div>}>
-          <ErrorBoundary>
-            <EnhancedMetricsDashboard sessionId={session.id} className="w-full" />
-          </ErrorBoundary>
-        </React.Suspense>
+      {activeTab === "json-metrics" && (
+        <div className="bg-white rounded-lg border">
+          <JSONMetrics sessionId={session.id} className="p-6" />
+        </div>
       )}
+
+
 
       {showMergeWizard && (
         <MergeWizard

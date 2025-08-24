@@ -170,38 +170,53 @@ export class MetricsAPI {
     }
   }
 
+  private transformRawMetrics(raw: any): IterationMetrics {
+    return {
+      id: raw.id,
+      sessionId: raw.session_id,
+      iterationNumber: raw.iteration_number,
+      startedAt: raw.started_at,
+      endedAt: raw.ended_at,
+      durationMs: raw.duration_ms || 0,
+      status: raw.status || 'success',
+      exitCode: raw.exit_code,
+      gitShaStart: raw.git_sha_start,
+      gitShaEnd: raw.git_sha_end,
+      filesChanged: raw.files_changed || 0,
+      locAdded: raw.loc_added || 0,
+      locDeleted: raw.loc_deleted || 0,
+      totalCostUsd: raw.total_cost_usd || 0,
+      toolCallsCount: raw.tool_calls_count || 0,
+      toolFailures: raw.tool_failures || 0,
+      avgToolDuration: raw.avg_tool_duration || 0,
+      promptTokens: raw.prompt_tokens || 0,
+      completionTokens: raw.completion_tokens || 0,
+      totalTokens: raw.total_tokens || 0,
+      testsResult: raw.total_tests ? {
+        passed: raw.tests_passed || 0,
+        failed: raw.tests_failed || 0,
+        total: raw.total_tests,
+        passRate: raw.total_tests > 0 ? (raw.tests_passed || 0) / raw.total_tests : 0
+      } : undefined
+    };
+  }
+
+  async getAllIterationMetrics(): Promise<IterationMetrics[]> {
+    try {
+      const rawMetrics = this.sqliteSink.getAllIterationMetrics();
+      
+      return rawMetrics.map(raw => this.transformRawMetrics(raw));
+    } catch (error) {
+      this.logger.error('Error getting all iteration metrics:', error);
+      return [];
+    }
+  }
+
   async getIterationMetrics(sessionId: string): Promise<IterationMetrics[]> {
     try {
       const rawMetrics = this.sqliteSink.getIterationMetrics(sessionId);
       
-      return rawMetrics.map(raw => ({
-        id: raw.id,
-        sessionId: raw.session_id,
-        iterationNumber: raw.iteration_number,
-        startedAt: raw.started_at,
-        endedAt: raw.ended_at,
-        durationMs: raw.duration_ms || 0,
-        status: raw.status || 'success',
-        exitCode: raw.exit_code,
-        gitShaStart: raw.git_sha_start,
-        gitShaEnd: raw.git_sha_end,
-        filesChanged: raw.files_changed || 0,
-        locAdded: raw.loc_added || 0,
-        locDeleted: raw.loc_deleted || 0,
-        totalCostUsd: raw.total_cost_usd || 0,
-        toolCallsCount: raw.tool_calls_count || 0,
-        toolFailures: raw.tool_failures || 0,
-        avgToolDuration: raw.avg_tool_duration || 0,
-        promptTokens: raw.prompt_tokens || 0,
-        completionTokens: raw.completion_tokens || 0,
-        totalTokens: raw.total_tokens || 0,
-        testsResult: raw.total_tests ? {
-          passed: raw.tests_passed || 0,
-          failed: raw.tests_failed || 0,
-          total: raw.total_tests,
-          passRate: raw.total_tests > 0 ? (raw.tests_passed || 0) / raw.total_tests : 0
-        } : undefined
-      }));
+      return rawMetrics.map(raw => this.transformRawMetrics(raw));
 
     } catch (error) {
       this.logger.error(`Error getting iteration metrics for ${sessionId}:`, error);
@@ -546,16 +561,12 @@ export class MetricsAPI {
     progress: number;
     estimatedCompletion?: string;
     currentStatus: string;
-    realtimeMetrics?: {
-      tokensGenerated: number;
-      activeTools: string[];
-      costAccrued: number;
-      timeElapsed: number;
-    };
   }> {
     try {
       const iterations = await this.getIterationMetrics(sessionId);
       const latest = iterations[iterations.length - 1];
+      
+      this.logger.info(`Getting session progress for ${sessionId}: found ${iterations.length} iterations, latest: ${latest?.id}`);
       
       if (!latest) {
         return {
@@ -573,8 +584,7 @@ export class MetricsAPI {
         currentIteration: latest.iterationNumber,
         totalIterations: iterations.length,
         progress: latest.status === 'success' ? 100 : 50,
-        currentStatus: latest.status,
-        realtimeMetrics
+        currentStatus: latest.status
       };
 
     } catch (error) {
@@ -607,21 +617,51 @@ export class MetricsAPI {
     return promptCost + completionCost;
   }
 
-  async getRealtimeMetrics(sessionId: string): Promise<{
+  async getRealtimeMetrics(sessionId?: string): Promise<{
     tokensPerSecond: number;
     costPerMinute: number;
     filesChangedPerIteration: number;
     averageToolResponseTime: number;
+    currentTokens: number;
+    currentCost: number;
+    activeTools: Array<{
+      toolName: string;
+      startTime: string;
+      args?: any;
+    }>;
+    completedTools: Array<{
+      toolName: string;
+      durationMs: number;
+      success: boolean;
+      startTime: string;
+      endTime: string;
+      args?: any;
+    }>;
+    modelBreakdown: Record<string, {
+      tokens: number;
+      cost: number;
+      callCount: number;
+    }>;
   }> {
     try {
-      const iterations = await this.getIterationMetrics(sessionId);
+      // If no specific session provided, get metrics from all sessions
+      const iterations = sessionId 
+        ? await this.getIterationMetrics(sessionId)
+        : await this.getAllIterationMetrics();
+      
+      this.logger.info(`Getting realtime metrics for ${sessionId || 'all sessions'}: found ${iterations.length} iterations`);
       
       if (iterations.length === 0) {
         return {
           tokensPerSecond: 0,
           costPerMinute: 0,
           filesChangedPerIteration: 0,
-          averageToolResponseTime: 0
+          averageToolResponseTime: 0,
+          currentTokens: 0,
+          currentCost: 0,
+          activeTools: [],
+          completedTools: [],
+          modelBreakdown: {}
         };
       }
 
@@ -632,11 +672,37 @@ export class MetricsAPI {
       const totalToolTime = iterations.reduce((sum, iter) => sum + (iter.avgToolDuration * iter.toolCallsCount), 0);
       const totalToolCalls = iterations.reduce((sum, iter) => sum + iter.toolCallsCount, 0);
 
+      // Get tool call information from the latest iteration
+      const latestIteration = iterations[iterations.length - 1];
+      let completedTools: any[] = [];
+      let modelBreakdown: Record<string, any> = {};
+
+      if (latestIteration) {
+        // Extract tool information from metrics if available
+        // For now, create mock data based on available metrics
+        // TODO: Parse actual tool calls from metrics when available
+        completedTools = [];
+
+        // Build model breakdown from iteration data
+        modelBreakdown = {
+          'gpt-4': {
+            tokens: totalTokens,
+            cost: totalCost,
+            callCount: iterations.length
+          }
+        };
+      }
+
       return {
         tokensPerSecond: totalDurationSeconds > 0 ? totalTokens / totalDurationSeconds : 0,
         costPerMinute: totalDurationSeconds > 0 ? (totalCost / totalDurationSeconds) * 60 : 0,
         filesChangedPerIteration: iterations.length > 0 ? totalFiles / iterations.length : 0,
-        averageToolResponseTime: totalToolCalls > 0 ? totalToolTime / totalToolCalls : 0
+        averageToolResponseTime: totalToolCalls > 0 ? totalToolTime / totalToolCalls : 0,
+        currentTokens: totalTokens,
+        currentCost: totalCost,
+        activeTools: [], // Would need real-time tracking
+        completedTools,
+        modelBreakdown
       };
 
     } catch (error) {
@@ -645,272 +711,5 @@ export class MetricsAPI {
     }
   }
 
-  // Enhanced real-time metrics methods
-  async getStreamingToolAnalytics(sessionId: string, iterationId?: string): Promise<{
-    toolSuccessRates: Record<string, number>;
-    averageToolTimes: Record<string, number>;
-    activeToolCount: number;
-    totalToolCalls: number;
-    mostUsedTools: Array<{ name: string; count: number; avgTime: number }>;
-  }> {
-    if (!this.ndjsonSink || typeof this.ndjsonSink.getRealtimeSessionMetrics !== 'function') {
-      return {
-        toolSuccessRates: {},
-        averageToolTimes: {},
-        activeToolCount: 0,
-        totalToolCalls: 0,
-        mostUsedTools: []
-      };
-    }
 
-    const metrics = this.ndjsonSink.getRealtimeSessionMetrics(sessionId, iterationId);
-    if (!metrics) {
-      return {
-        toolSuccessRates: {},
-        averageToolTimes: {},
-        activeToolCount: 0,
-        totalToolCalls: 0,
-        mostUsedTools: []
-      };
-    }
-
-    const toolStats: Record<string, { success: number; total: number; totalTime: number }> = {};
-    
-    // Analyze completed tools
-    for (const tool of metrics.completedTools) {
-      if (!toolStats[tool.toolName]) {
-        toolStats[tool.toolName] = { success: 0, total: 0, totalTime: 0 };
-      }
-      
-      toolStats[tool.toolName].total++;
-      toolStats[tool.toolName].totalTime += tool.durationMs || 0;
-      
-      if (tool.success) {
-        toolStats[tool.toolName].success++;
-      }
-    }
-
-    const toolSuccessRates: Record<string, number> = {};
-    const averageToolTimes: Record<string, number> = {};
-    const mostUsedTools: Array<{ name: string; count: number; avgTime: number }> = [];
-
-    for (const [toolName, stats] of Object.entries(toolStats)) {
-      toolSuccessRates[toolName] = stats.total > 0 ? stats.success / stats.total : 0;
-      averageToolTimes[toolName] = stats.total > 0 ? stats.totalTime / stats.total : 0;
-      mostUsedTools.push({
-        name: toolName,
-        count: stats.total,
-        avgTime: averageToolTimes[toolName]
-      });
-    }
-
-    mostUsedTools.sort((a, b) => b.count - a.count);
-
-    return {
-      toolSuccessRates,
-      averageToolTimes,
-      activeToolCount: metrics.activeTools.length,
-      totalToolCalls: metrics.completedTools.length,
-      mostUsedTools: mostUsedTools.slice(0, 10) // Top 10 most used
-    };
-  }
-
-  async getRealtimeCostBreakdown(sessionId: string, iterationId?: string): Promise<{
-    currentCost: number;
-    costByModel: Record<string, number>;
-    costTrend: Array<{ timestamp: string; cost: number; tokens: number }>;
-    estimatedFinalCost?: number;
-  }> {
-    if (!this.ndjsonSink || typeof this.ndjsonSink.getRealtimeSessionMetrics !== 'function') {
-      return {
-        currentCost: 0,
-        costByModel: {},
-        costTrend: [],
-        estimatedFinalCost: 0
-      };
-    }
-
-    const metrics = this.ndjsonSink.getRealtimeSessionMetrics(sessionId, iterationId);
-    if (!metrics) {
-      return {
-        currentCost: 0,
-        costByModel: {},
-        costTrend: [],
-        estimatedFinalCost: 0
-      };
-    }
-
-    const currentCost = this.calculateRealtimeCost(metrics.tokenUsage);
-    const costByModel: Record<string, number> = {};
-
-    // Calculate cost per model
-    for (const model of metrics.tokenUsage.models) {
-      costByModel[model] = this.calculateModelSpecificCost(model, metrics.tokenUsage);
-    }
-
-    // Simple cost trend (would be enhanced with historical data)
-    const costTrend = [{
-      timestamp: metrics.tokenUsage.lastUpdate || new Date().toISOString(),
-      cost: currentCost,
-      tokens: metrics.tokenUsage.totalTokens
-    }];
-
-    return {
-      currentCost,
-      costByModel,
-      costTrend,
-      estimatedFinalCost: currentCost * 1.2 // Simple estimation
-    };
-  }
-
-  private calculateModelSpecificCost(model: string, tokenUsage: any): number {
-    // Enhanced model-specific pricing (placeholder implementation)
-    const modelPricing: Record<string, { prompt: number; completion: number }> = {
-      'gpt-4': { prompt: 0.03, completion: 0.06 },
-      'gpt-3.5-turbo': { prompt: 0.0015, completion: 0.002 },
-      'claude-3-opus': { prompt: 0.015, completion: 0.075 },
-      'default': { prompt: 0.01, completion: 0.03 }
-    };
-
-    const pricing = modelPricing[model] || modelPricing['default'];
-    const promptCost = (tokenUsage.promptTokens || 0) * pricing.prompt / 1000;
-    const completionCost = (tokenUsage.completionTokens || 0) * pricing.completion / 1000;
-    
-    return promptCost + completionCost;
-  }
-
-  async getSessionTimeline(sessionId: string): Promise<{
-    events: Array<{
-      id: string;
-      timestamp: string;
-      type: string;
-      data: any;
-      duration?: number;
-      iterationId?: string;
-    }>;
-    totalDuration: number;
-    currentTime: number;
-    sessionStatus: string;
-    iterations: Array<{
-      id: string;
-      startTime: string;
-      endTime?: string;
-      status: string;
-      toolCalls: number;
-      tokensUsed: number;
-    }>;
-    realtimeEvents: any[];
-  }> {
-    try {
-      const iterations = this.store.getIterations(sessionId);
-      const session = this.store.getSession(sessionId);
-      
-      if (!session) {
-        throw new Error(`Session ${sessionId} not found`);
-      }
-
-      // Get all events for the timeline
-      const events: any[] = [];
-      let totalToolCalls = 0;
-      let totalTokens = 0;
-
-      // Create timeline events from iterations
-      iterations.forEach((iteration, index) => {
-        // Iteration start event
-        events.push({
-          id: `iter-start-${iteration.id}`,
-          timestamp: iteration.startTime,
-          type: 'iteration_start',
-          data: {
-            iterationNumber: index + 1,
-            model: iteration.model
-          },
-          iterationId: iteration.id
-        });
-
-        // Token usage event
-        if (iteration.totalTokens) {
-          totalTokens += iteration.totalTokens;
-          events.push({
-            id: `tokens-${iteration.id}`,
-            timestamp: iteration.startTime,
-            type: 'token_usage',
-            data: {
-              totalTokens: iteration.totalTokens,
-              promptTokens: iteration.promptTokens,
-              completionTokens: iteration.completionTokens,
-              model: iteration.model
-            },
-            iterationId: iteration.id
-          });
-        }
-
-        // Iteration end event
-        if (iteration.endTime) {
-          const duration = new Date(iteration.endTime).getTime() - new Date(iteration.startTime).getTime();
-          events.push({
-            id: `iter-end-${iteration.id}`,
-            timestamp: iteration.endTime,
-            type: 'iteration_end',
-            data: {
-              iterationNumber: index + 1,
-              exitCode: iteration.exitCode,
-              duration: duration
-            },
-            duration: duration,
-            iterationId: iteration.id
-          });
-        }
-      });
-
-      // Sort events by timestamp
-      events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-      // Calculate total duration
-      const startTime = events.length > 0 ? new Date(events[0].timestamp).getTime() : Date.now();
-      const endTime = events.length > 0 ? new Date(events[events.length - 1].timestamp).getTime() : Date.now();
-      const totalDuration = endTime - startTime;
-
-      // Process iterations for timeline
-      const timelineIterations = iterations.map((iter, index) => ({
-        id: iter.id,
-        startTime: iter.startTime,
-        endTime: iter.endTime,
-        status: iter.testResult === 'pass' ? 'completed' : iter.testResult === 'fail' ? 'error' : 'running',
-        toolCalls: 0, // Would need tool call data
-        tokensUsed: iter.totalTokens || 0
-      }));
-
-      // Get real-time events if available
-      let realtimeEvents: any[] = [];
-      if (this.ndjsonSink && typeof this.ndjsonSink.getRealtimeSessionMetrics === 'function') {
-        const metrics = this.ndjsonSink.getRealtimeSessionMetrics(sessionId);
-        if (metrics && metrics.completedTools) {
-          realtimeEvents = metrics.completedTools.map((tool: any) => ({
-            id: `tool-${tool.toolName}-${tool.endTime}`,
-            timestamp: tool.endTime,
-            type: 'tool_finish',
-            data: {
-              toolName: tool.toolName,
-              success: tool.success,
-              durationMs: tool.durationMs
-            }
-          }));
-        }
-      }
-
-      return {
-        events,
-        totalDuration,
-        currentTime: Date.now(),
-        sessionStatus: session.status,
-        iterations: timelineIterations,
-        realtimeEvents
-      };
-
-    } catch (error) {
-      this.logger.error(`Error getting session timeline for ${sessionId}:`, error);
-      throw error;
-    }
-  }
 }

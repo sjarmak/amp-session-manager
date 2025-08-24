@@ -235,6 +235,16 @@ ipcMain.handle('sessions:getToolCalls', async (_, sessionId: string) => {
   }
 });
 
+ipcMain.handle('sessions:getStreamEvents', async (_, sessionId: string) => {
+  try {
+    const streamEvents = store.getStreamEvents(sessionId);
+    return { success: true, streamEvents };
+  } catch (error) {
+    console.error('Failed to get stream events:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to get stream events' };
+  }
+});
+
 // Legacy handlers (keep for compatibility)
 ipcMain.handle('squash-session', async (_, sessionId: string, options: any) => {
   try {
@@ -629,8 +639,16 @@ ipcMain.handle('metrics:getRealtimeMetrics', async (_, sessionId: string) => {
     if (!metricsAPI) {
       throw new Error('Metrics API not initialized');
     }
-    const metrics = await metricsAPI.getRealtimeMetrics(sessionId);
-    return { success: true, metrics };
+    // Aggregate data from all sessions if specific session has no data
+    const sessionMetrics = await metricsAPI.getRealtimeMetrics(sessionId);
+    
+    // If session-specific data is empty, fallback to all sessions data
+    if (sessionMetrics.currentTokens === 0 && sessionMetrics.currentCost === 0) {
+      const allMetrics = await metricsAPI.getRealtimeMetrics();
+      return { success: true, metrics: allMetrics };
+    }
+    
+    return { success: true, metrics: sessionMetrics };
   } catch (error) {
     console.error('Failed to get realtime metrics:', error);
     return { success: false, error: error.message };
@@ -663,45 +681,7 @@ ipcMain.handle('metrics:exportMetrics', async (_, sessionId: string, options: an
   }
 });
 
-// Enhanced real-time metrics handlers
-ipcMain.handle('metrics:getRealtimeCostBreakdown', async (_, sessionId: string) => {
-  try {
-    if (!metricsAPI) {
-      throw new Error('Metrics API not initialized');
-    }
-    const costMetrics = await metricsAPI.getRealtimeCostBreakdown(sessionId);
-    return { success: true, costMetrics };
-  } catch (error) {
-    console.error('Failed to get realtime cost breakdown:', error);
-    return { success: false, error: error.message };
-  }
-});
 
-ipcMain.handle('metrics:getStreamingToolAnalytics', async (_, sessionId: string) => {
-  try {
-    if (!metricsAPI) {
-      throw new Error('Metrics API not initialized');
-    }
-    const analytics = await metricsAPI.getStreamingToolAnalytics(sessionId);
-    return { success: true, analytics };
-  } catch (error) {
-    console.error('Failed to get streaming tool analytics:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle('metrics:getSessionTimeline', async (_, sessionId: string) => {
-  try {
-    if (!metricsAPI) {
-      throw new Error('Metrics API not initialized');
-    }
-    const timeline = await metricsAPI.getSessionTimeline(sessionId);
-    return { success: true, timeline };
-  } catch (error) {
-    console.error('Failed to get session timeline:', error);
-    return { success: false, error: error.message };
-  }
-});
 
 process.on('uncaughtException', (error) => {
   console.error('Uncaught exception:', error);

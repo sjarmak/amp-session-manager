@@ -144,6 +144,15 @@ export class SessionStore {
         FOREIGN KEY(runId) REFERENCES swebench_runs(id),
         FOREIGN KEY(sessionId) REFERENCES sessions(id)
       );
+
+      CREATE TABLE IF NOT EXISTS stream_events (
+        id TEXT PRIMARY KEY,
+        sessionId TEXT NOT NULL,
+        type TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        data TEXT NOT NULL,
+        FOREIGN KEY(sessionId) REFERENCES sessions(id)
+      );
     `);
     
     // Migration: Add threadId column if it doesn't exist
@@ -315,6 +324,7 @@ export class SessionStore {
     this.db.prepare('DELETE FROM iterations WHERE sessionId = ?').run(id);
     this.db.prepare('DELETE FROM merge_history WHERE sessionId = ?').run(id);
     this.db.prepare('DELETE FROM batch_items WHERE sessionId = ?').run(id);
+    this.db.prepare('DELETE FROM stream_events WHERE sessionId = ?').run(id);
     this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
   }
 
@@ -781,6 +791,36 @@ export class SessionStore {
     
     // Then delete the run record
     this.db.prepare('DELETE FROM swebench_runs WHERE id = ?').run(id);
+  }
+
+  // Stream events methods
+  addStreamEvent(sessionId: string, type: string, timestamp: string, data: any): void {
+    const id = randomUUID();
+    const stmt = this.db.prepare(`
+      INSERT INTO stream_events (id, sessionId, type, timestamp, data)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    stmt.run(id, sessionId, type, timestamp, JSON.stringify(data));
+  }
+
+  getStreamEvents(sessionId: string): Array<{
+    id: string;
+    sessionId: string;
+    type: string;
+    timestamp: string;
+    data: any;
+  }> {
+    const stmt = this.db.prepare('SELECT * FROM stream_events WHERE sessionId = ? ORDER BY timestamp ASC');
+    const rows = stmt.all(sessionId) as any[];
+    return rows.map(row => ({
+      ...row,
+      data: JSON.parse(row.data)
+    }));
+  }
+
+  deleteStreamEvents(sessionId: string): void {
+    const stmt = this.db.prepare('DELETE FROM stream_events WHERE sessionId = ?');
+    stmt.run(sessionId);
   }
 
   close() {

@@ -216,6 +216,25 @@ export class SQLiteMetricsSink implements MetricsSink {
         case 'file_edit':
           this.handleFileEdit(event);
           break;
+        case 'streaming_tool_start':
+          // Convert streaming tool start to regular tool_call format
+          if ((event as any).data?.tool) {
+            this.handleToolCall({
+              type: 'tool_call',
+              iterationId: (event as any).iterationId || 'unknown',
+              sessionId: (event as any).sessionId || (event as any).data?.sessionId,
+              timestamp: (event as any).timestamp || new Date().toISOString(),
+              data: {
+                toolName: (event as any).data.tool,
+                args: (event as any).data.args || {},
+                startTime: (event as any).timestamp || new Date().toISOString(),
+                endTime: (event as any).timestamp || new Date().toISOString(),
+                success: true,
+                durationMs: 0
+              }
+            });
+          }
+          break;
         default:
           this.logger.warn(`Unknown metric event type: ${(event as any).type}`);
       }
@@ -388,6 +407,26 @@ export class SQLiteMetricsSink implements MetricsSink {
   }
 
   // Query methods for metrics API
+  getAllIterationMetrics(): any[] {
+    return this.db.prepare(`
+      SELECT 
+        i.*,
+        COUNT(tc.id) as tool_calls_count,
+        AVG(tc.duration_ms) as avg_tool_duration,
+        SUM(CASE WHEN tc.success = 0 THEN 1 ELSE 0 END) as tool_failures,
+        0 as prompt_tokens,
+        0 as completion_tokens,
+        0 as total_tokens,
+        0 as tests_passed,
+        0 as tests_failed,
+        0 as total_tests
+      FROM metric_iterations i
+      LEFT JOIN metric_tool_calls tc ON i.id = tc.iteration_id
+      GROUP BY i.id
+      ORDER BY i.created_at DESC
+    `).all();
+  }
+
   getIterationMetrics(sessionId: string): any[] {
     return this.db.prepare(`
       SELECT 
@@ -395,16 +434,14 @@ export class SQLiteMetricsSink implements MetricsSink {
         COUNT(tc.id) as tool_calls_count,
         AVG(tc.duration_ms) as avg_tool_duration,
         SUM(CASE WHEN tc.success = 0 THEN 1 ELSE 0 END) as tool_failures,
-        SUM(lu.prompt_tokens) as prompt_tokens,
-        SUM(lu.completion_tokens) as completion_tokens,
-        SUM(lu.total_tokens) as total_tokens,
-        tr.passed as tests_passed,
-        tr.failed as tests_failed,
-        tr.total_tests
+        0 as prompt_tokens,
+        0 as completion_tokens,
+        0 as total_tokens,
+        0 as tests_passed,
+        0 as tests_failed,
+        0 as total_tests
       FROM metric_iterations i
       LEFT JOIN metric_tool_calls tc ON i.id = tc.iteration_id
-      LEFT JOIN metric_llm_usage lu ON i.id = lu.iteration_id
-      LEFT JOIN metric_test_results tr ON i.id = tr.iteration_id
       WHERE i.session_id = ?
       GROUP BY i.id
       ORDER BY i.iteration_number

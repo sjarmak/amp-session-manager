@@ -25,7 +25,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     diff: (sessionId: string) => ipcRenderer.invoke('sessions:diff', sessionId) as Promise<{ success: boolean; diff?: string; error?: string }>,
     thread: (sessionId: string) => ipcRenderer.invoke('sessions:thread', sessionId) as Promise<{ success: boolean; threadConversation?: string; error?: string }>,
     getIterations: (sessionId: string) => ipcRenderer.invoke('sessions:getIterations', sessionId) as Promise<{ success: boolean; iterations?: any[]; error?: string }>,
-    getToolCalls: (sessionId: string) => ipcRenderer.invoke('sessions:getToolCalls', sessionId) as Promise<{ success: boolean; toolCalls?: any[]; error?: string }>
+    getToolCalls: (sessionId: string) => ipcRenderer.invoke('sessions:getToolCalls', sessionId) as Promise<{ success: boolean; toolCalls?: any[]; error?: string }>,
+    getStreamEvents: (sessionId: string) => ipcRenderer.invoke('sessions:getStreamEvents', sessionId) as Promise<{ success: boolean; streamEvents?: any[]; error?: string }>
   },
   
   dialog: {
@@ -74,11 +75,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getIterationMetrics: (sessionId: string) => ipcRenderer.invoke('metrics:getIterationMetrics', sessionId),
     getRealtimeMetrics: (sessionId: string) => ipcRenderer.invoke('metrics:getRealtimeMetrics', sessionId),
     getSessionProgress: (sessionId: string) => ipcRenderer.invoke('metrics:getSessionProgress', sessionId),
-    exportMetrics: (sessionId: string, options: any) => ipcRenderer.invoke('metrics:exportMetrics', sessionId, options),
-    // Enhanced real-time metrics methods
-    getRealtimeCostBreakdown: (sessionId: string) => ipcRenderer.invoke('metrics:getRealtimeCostBreakdown', sessionId),
-    getStreamingToolAnalytics: (sessionId: string) => ipcRenderer.invoke('metrics:getStreamingToolAnalytics', sessionId),
-    getSessionTimeline: (sessionId: string) => ipcRenderer.invoke('metrics:getSessionTimeline', sessionId)
+    exportMetrics: (sessionId: string, options: any) => ipcRenderer.invoke('metrics:exportMetrics', sessionId, options)
   },
 
   benchmarks: {
