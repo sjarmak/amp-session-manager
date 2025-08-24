@@ -124,6 +124,17 @@ export interface FileEditEvent extends MetricEvent {
   };
 }
 
+export interface UserMessageEvent extends MetricEvent {
+  type: 'user_message';
+  data: {
+    message: string;
+    messageId?: string;
+    threadId?: string;
+    attachedFiles?: string[];
+    userState?: Record<string, any>;
+  };
+}
+
 export type MetricEventTypes = 
   | IterationStartEvent
   | IterationEndEvent
@@ -134,7 +145,8 @@ export type MetricEventTypes =
   | StreamingToolStartEvent
   | StreamingToolFinishEvent
   | TestResultEvent
-  | FileEditEvent;
+  | FileEditEvent
+  | UserMessageEvent;
 
 export interface MetricsSink {
   name: string;
@@ -368,6 +380,29 @@ export class MetricsEventBus extends EventEmitter {
       timestamp: new Date().toISOString(),
       data: {
         path,
+        ...details
+      }
+    });
+  }
+
+  async publishUserMessage(
+    sessionId: string,
+    iterationId: string,
+    message: string,
+    details?: {
+      messageId?: string;
+      threadId?: string;
+      attachedFiles?: string[];
+      userState?: Record<string, any>;
+    }
+  ): Promise<void> {
+    await this.publish({
+      type: 'user_message',
+      sessionId,
+      iterationId,
+      timestamp: new Date().toISOString(),
+      data: {
+        message,
         ...details
       }
     });

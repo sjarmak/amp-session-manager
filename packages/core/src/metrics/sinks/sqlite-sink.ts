@@ -14,6 +14,7 @@ export class SQLiteMetricsSink implements MetricsSink {
   private insertGitOpStmt!: Database.Statement;
   private insertTestResultStmt!: Database.Statement;
   private insertFileEditStmt!: Database.Statement;
+  private insertUserMessageStmt!: Database.Statement;
   private updateIterationStmt!: Database.Statement;
 
   constructor(dbPath: string, logger: Logger) {
@@ -122,6 +123,15 @@ export class SQLiteMetricsSink implements MetricsSink {
         FOREIGN KEY (iteration_id) REFERENCES metric_iterations(id)
       );
 
+      CREATE TABLE IF NOT EXISTS metric_user_messages (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        iteration_id TEXT NOT NULL,
+        message TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (iteration_id) REFERENCES metric_iterations(id)
+      );
+
       -- Create indexes for performance
       CREATE INDEX IF NOT EXISTS idx_metric_iterations_session_id ON metric_iterations(session_id);
       CREATE INDEX IF NOT EXISTS idx_metric_tool_calls_iteration_id ON metric_tool_calls(iteration_id);
@@ -129,6 +139,7 @@ export class SQLiteMetricsSink implements MetricsSink {
       CREATE INDEX IF NOT EXISTS idx_metric_git_operations_iteration_id ON metric_git_operations(iteration_id);
       CREATE INDEX IF NOT EXISTS idx_metric_test_results_iteration_id ON metric_test_results(iteration_id);
       CREATE INDEX IF NOT EXISTS idx_metric_file_edits_iteration_id ON metric_file_edits(iteration_id);
+      CREATE INDEX IF NOT EXISTS idx_metric_user_messages_iteration_id ON metric_user_messages(iteration_id);
       CREATE INDEX IF NOT EXISTS idx_metric_iterations_started_at ON metric_iterations(started_at);
     `);
 
@@ -190,6 +201,12 @@ export class SQLiteMetricsSink implements MetricsSink {
         size_bytes, timestamp
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
+
+    this.insertUserMessageStmt = this.db.prepare(`
+      INSERT INTO metric_user_messages (
+        iteration_id, message, timestamp
+      ) VALUES (?, ?, ?)
+    `);
   }
 
   async handle(event: MetricEventTypes): Promise<void> {
@@ -215,6 +232,9 @@ export class SQLiteMetricsSink implements MetricsSink {
           break;
         case 'file_edit':
           this.handleFileEdit(event);
+          break;
+        case 'user_message':
+          this.handleUserMessage(event);
           break;
         case 'streaming_tool_start':
           // Convert streaming tool start to regular tool_call format
@@ -359,6 +379,30 @@ export class SQLiteMetricsSink implements MetricsSink {
       0, // sizeBytes - not available in current event data
       event.timestamp
     );
+  }
+
+  private handleUserMessage(event: MetricEventTypes): void {
+    if (event.type !== 'user_message') return;
+    
+    this.insertUserMessageStmt.run(
+      event.iterationId,
+      event.data.message,
+      event.timestamp
+    );
+    
+    this.logger.debug(`User message recorded: ${event.data.message?.slice(0, 100)}...`);
+  }
+
+  getUserMessages(sessionId: string): Array<{ iterationId: string; message: string; timestamp: string }> {
+    const stmt = this.db.prepare(`
+      SELECT um.iteration_id, um.message, um.timestamp
+      FROM metric_user_messages um
+      JOIN metric_iterations iter ON um.iteration_id = iter.id
+      WHERE iter.session_id = ?
+      ORDER BY um.timestamp ASC
+    `);
+    
+    return stmt.all(sessionId) as Array<{ iterationId: string; message: string; timestamp: string }>;
   }
 
   private calculateIterationCost(iterationId: string): number {

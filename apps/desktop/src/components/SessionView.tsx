@@ -531,7 +531,7 @@ export function SessionView({
 
       {activeTab === "json-metrics" && (
         <div className="bg-white rounded-lg border">
-          <JSONMetrics sessionId={session.id} className="p-6" />
+          <JSONMetrics sessionId={session.id} session={session} className="p-6" />
         </div>
       )}
 

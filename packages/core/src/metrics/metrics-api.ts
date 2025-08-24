@@ -47,6 +47,14 @@ export interface SessionMetricsSummary {
     passRate: number;
     avgTestDuration: number;
   };
+  userMessages: {
+    totalMessages: number;
+    messages: Array<{
+      iterationId: string;
+      message: string;
+      timestamp: string;
+    }>;
+  };
 }
 
 export interface IterationMetrics {
@@ -139,6 +147,7 @@ export class MetricsAPI {
       const tokenUsage = this.calculateTokenUsageSummary(sessionId);
       const gitStats = this.calculateGitStats(sessionId);
       const testResults = this.calculateTestResults(sessionId);
+      const userMessages = this.sqliteSink.getUserMessages(sessionId);
 
       const summary: SessionMetricsSummary = {
         sessionId,
@@ -159,7 +168,11 @@ export class MetricsAPI {
         toolUsage: toolUsage.map(this.transformToolUsageStats),
         fileEdits: fileEdits.map(this.transformFileEditStats),
         gitStats,
-        testResults
+        testResults,
+        userMessages: {
+          totalMessages: userMessages.length,
+          messages: userMessages
+        }
       };
 
       return summary;

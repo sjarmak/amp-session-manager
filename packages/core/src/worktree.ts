@@ -230,6 +230,22 @@ export class WorktreeManager {
         this.generateSessionContext(session)
       );
 
+      // Track user message if provided
+      if (notes) {
+        await this.metricsEventBus.publishUserMessage(
+          sessionId,
+          iterationId,
+          notes
+        );
+      } else if (session.ampPrompt && await this.getIterationNumber(sessionId) === 1) {
+        // Track initial prompt for first iteration
+        await this.metricsEventBus.publishUserMessage(
+          sessionId,
+          iterationId,
+          session.ampPrompt
+        );
+      }
+
       // Run Amp iteration with streaming metrics
       console.log('Running Amp iteration...');
       const iterationPrompt = notes || session.ampPrompt;
@@ -272,9 +288,6 @@ export class WorktreeManager {
         await writeFile(iterationLogPath, existingLog + oracleEntry);
       }
 
-      // Track file changes immediately after Amp execution
-      await this.trackFileChangesAfterAmp(sessionId, iterationId, session.worktreePath);
-
       // Update status based on Amp result
       let finalStatus: Session['status'];
       if (result.awaitingInput) {
@@ -291,6 +304,8 @@ export class WorktreeManager {
       let changedFiles = 0;
 
       if (hasChanges) {
+        // Track file changes BEFORE committing them
+        await this.trackFileChangesAfterAmp(sessionId, iterationId, session.worktreePath);
         const changedFilesList = await git.getChangedFiles(session.worktreePath);
         changedFiles = changedFilesList.length;
         

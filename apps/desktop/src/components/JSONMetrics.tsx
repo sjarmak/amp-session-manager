@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 interface JSONMetricsProps {
   sessionId: string;
   className?: string;
+  session?: any; // Session object with ampPrompt and followUpPrompts
 }
 
 interface ParsedStreamMetrics {
@@ -39,9 +40,18 @@ interface ParsedStreamMetrics {
   models: string[];
   filesCreated: string[];
   filesModified: string[];
+  userMessages: Array<{
+    timestamp: string;
+    message: string;
+  }>;
+  linesChanged: {
+    added: number;
+    deleted: number;
+    total: number;
+  };
 }
 
-export function JSONMetrics({ sessionId, className = '' }: JSONMetricsProps) {
+export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsProps) {
   const [metrics, setMetrics] = useState<ParsedStreamMetrics | null>(null);
   const [rawStreamData, setRawStreamData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,11 +75,35 @@ export function JSONMetrics({ sessionId, className = '' }: JSONMetricsProps) {
             timestamp: event.timestamp,
             ...event.data
           }));
+          
+          // Add user messages from session object to stream events
+          if (session?.ampPrompt) {
+            jsonEvents.unshift({
+              type: 'user_message',
+              timestamp: session.createdAt || new Date().toISOString(),
+              message: session.ampPrompt
+            });
+          }
+          
+          // Add followup prompts if available
+          if (session?.followUpPrompts && Array.isArray(session.followUpPrompts)) {
+            session.followUpPrompts.forEach((prompt: string, index: number) => {
+              const baseTime = new Date(session.createdAt || new Date()).getTime();
+              const estimatedTimestamp = new Date(baseTime + (index + 1) * 60000).toISOString();
+              
+              jsonEvents.push({
+                type: 'user_message',
+                timestamp: estimatedTimestamp,
+                message: prompt
+              });
+            });
+          }
         } else {
-          // Fallback to synthetic events from iterations and tool calls
-          const [iterationsResult, toolCallsResult] = await Promise.all([
+          // Fallback to synthetic events from iterations, tool calls, and user messages
+          const [iterationsResult, toolCallsResult, sessionSummaryResult] = await Promise.all([
             window.electronAPI.sessions.getIterations(sessionId),
-            window.electronAPI.sessions.getToolCalls(sessionId)
+            window.electronAPI.sessions.getToolCalls(sessionId),
+            window.electronAPI.metrics.getSessionSummary(sessionId)
           ]);
           
           if (!iterationsResult.success || !toolCallsResult.success) {
@@ -78,6 +112,31 @@ export function JSONMetrics({ sessionId, className = '' }: JSONMetricsProps) {
           
           const iterations = iterationsResult.iterations || [];
           const toolCalls = toolCallsResult.toolCalls || [];
+          
+          // Add user messages from session object (same as Overview tab)
+          if (session?.ampPrompt) {
+            // Add initial prompt as first user message
+            jsonEvents.push({
+              type: 'user_message',
+              timestamp: session.createdAt || new Date().toISOString(),
+              message: session.ampPrompt
+            });
+          }
+          
+          // Add followup prompts if available
+          if (session?.followUpPrompts && Array.isArray(session.followUpPrompts)) {
+            session.followUpPrompts.forEach((prompt: string, index: number) => {
+              // Estimate timestamp for followup prompts (they don't have explicit timestamps)
+              const baseTime = new Date(session.createdAt || new Date()).getTime();
+              const estimatedTimestamp = new Date(baseTime + (index + 1) * 60000).toISOString(); // Add 1 minute per followup
+              
+              jsonEvents.push({
+                type: 'user_message',
+                timestamp: estimatedTimestamp,
+                message: prompt
+              });
+            });
+          }
         
         // Add iteration events
         for (const iteration of iterations) {
@@ -133,7 +192,9 @@ export function JSONMetrics({ sessionId, className = '' }: JSONMetricsProps) {
           totalTokens: { input: 0, output: 0, cacheCreation: 0, cacheRead: 0, total: 0 },
           models: [],
           filesCreated: [],
-          filesModified: []
+          filesModified: [],
+          userMessages: [],
+          linesChanged: { added: 0, deleted: 0, total: 0 }
         };
         
         for (const event of jsonEvents) {
@@ -264,6 +325,38 @@ export function JSONMetrics({ sessionId, className = '' }: JSONMetricsProps) {
                 num_turns: event.num_turns || 0,
                 is_error: event.is_error || false
               });
+              break;
+              
+            case 'user_message':
+              // Handle user message events
+              parsedMetrics.userMessages.push({
+                timestamp: event.timestamp || new Date().toISOString(),
+                message: event.message || event.data?.message || ''
+              });
+              break;
+              
+            case 'file_edit':
+              // Handle file edit events and track lines changed
+              if (event.linesAdded !== undefined || event.data?.linesAdded !== undefined) {
+                const linesAdded = event.linesAdded || event.data?.linesAdded || 0;
+                const linesDeleted = event.linesDeleted || event.data?.linesDeleted || 0;
+                
+                parsedMetrics.linesChanged.added += linesAdded;
+                parsedMetrics.linesChanged.deleted += linesDeleted;
+                parsedMetrics.linesChanged.total += linesAdded + linesDeleted;
+                
+                // Track files created/modified
+                const filePath = event.path || event.data?.path;
+                const operation = event.operation || event.data?.operation;
+                
+                if (filePath) {
+                  if (operation === 'create' && !parsedMetrics.filesCreated.includes(filePath)) {
+                    parsedMetrics.filesCreated.push(filePath);
+                  } else if (operation === 'modify' && !parsedMetrics.filesModified.includes(filePath)) {
+                    parsedMetrics.filesModified.push(filePath);
+                  }
+                }
+              }
               break;
           }
         }
@@ -437,6 +530,18 @@ export function JSONMetrics({ sessionId, className = '' }: JSONMetricsProps) {
               <span>Models Used:</span>
               <span className="font-mono">{metrics.models.length}</span>
             </div>
+            <div className="flex justify-between">
+              <span>User Messages:</span>
+              <span className="font-mono">{metrics.userMessages.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Lines Added:</span>
+              <span className="font-mono text-green-600">+{metrics.linesChanged.added}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Lines Deleted:</span>
+              <span className="font-mono text-red-600">-{metrics.linesChanged.deleted}</span>
+            </div>
             {metrics.sessionResults.length > 0 && (
               <div className="flex justify-between">
                 <span>Duration:</span>
@@ -449,27 +554,56 @@ export function JSONMetrics({ sessionId, className = '' }: JSONMetricsProps) {
         </div>
       </div>
 
-      {/* Assistant Messages */}
-      {metrics.assistantMessages.length > 0 && (
+      {/* Conversation Flow */}
+      {(metrics.assistantMessages.length > 0 || metrics.userMessages.length > 0) && (
         <div className="bg-white border rounded-lg p-4">
-          <h4 className="font-semibold mb-3">Assistant Messages</h4>
-          <div className="space-y-3 max-h-64 overflow-y-auto">
-            {metrics.assistantMessages.map((msg, index) => (
-              <div key={index} className="border-l-4 border-blue-200 pl-4 py-2 bg-gray-50">
-                <div className="text-sm text-gray-600 mb-1">
-                  Model: {msg.model}
-                  {msg.usage && (
-                    <span className="ml-4">
-                      Tokens: {(msg.usage.input_tokens || 0) + (msg.usage.output_tokens || 0)}
+          <h4 className="font-semibold mb-3">Conversation Flow</h4>
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {(() => {
+              // Merge user messages and assistant messages in chronological order
+              const allMessages = [
+                ...metrics.userMessages.map(msg => ({
+                  type: 'user' as const,
+                  timestamp: msg.timestamp,
+                  content: msg.message,
+                  ...msg
+                })),
+                ...metrics.assistantMessages.map(msg => ({
+                  type: 'assistant' as const,
+                  timestamp: msg.timestamp,
+                  content: msg.content,
+                  ...msg
+                }))
+              ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+              return allMessages.map((msg, index) => (
+                <div key={index} className={`border-l-4 pl-4 py-2 ${
+                  msg.type === 'user' 
+                    ? 'border-purple-200 bg-purple-50' 
+                    : 'border-blue-200 bg-gray-50'
+                }`}>
+                  <div className="text-sm text-gray-600 mb-1 flex justify-between items-center">
+                    <span className={`font-semibold ${
+                      msg.type === 'user' ? 'text-purple-700' : 'text-blue-700'
+                    }`}>
+                      {msg.type === 'user' ? 'User' : `Assistant (${msg.model || 'unknown'})`}
                     </span>
-                  )}
+                    <div className="text-xs text-gray-500">
+                      {new Date(msg.timestamp).toLocaleString()}
+                      {msg.type === 'assistant' && msg.usage && (
+                        <span className="ml-2">
+                          Tokens: {(msg.usage.input_tokens || 0) + (msg.usage.output_tokens || 0)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-sm font-mono whitespace-pre-wrap">
+                    {msg.content.slice(0, msg.type === 'user' ? 300 : 200)}
+                    {msg.content.length > (msg.type === 'user' ? 300 : 200) && '...'}
+                  </div>
                 </div>
-                <div className="text-sm font-mono whitespace-pre-wrap">
-                  {msg.content.slice(0, 200)}
-                  {msg.content.length > 200 && '...'}
-                </div>
-              </div>
-            ))}
+              ));
+            })()}
           </div>
         </div>
       )}

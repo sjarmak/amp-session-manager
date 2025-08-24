@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { getSessionManager } from '../utils/session-manager';
+import { getSessionManager } from '../utils/session-manager.js';
 import chalk from 'chalk';
 
 interface MetricsOptions {
