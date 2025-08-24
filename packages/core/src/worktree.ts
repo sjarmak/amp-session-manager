@@ -298,14 +298,21 @@ export class WorktreeManager {
         finalStatus = 'idle';
       }
 
+      console.log(`[DEBUG] Reached commit section for session ${sessionId}`);
       // Check for changes and commit if necessary
       const hasChanges = await git.hasChanges(session.worktreePath);
+      console.log(`[MAIN] hasChanges = ${hasChanges} for ${session.worktreePath}`);
+      this.logger.debug(`[MAIN] hasChanges = ${hasChanges} for ${session.worktreePath}`);
       let commitSha: string | undefined;
       let changedFiles = 0;
 
       if (hasChanges) {
         // Track file changes BEFORE committing them
+        console.log(`[MAIN] About to track file changes for ${session.worktreePath}`);
+        this.logger.debug(`[MAIN] About to track file changes for ${session.worktreePath}`);
         await this.trackFileChangesAfterAmp(sessionId, iterationId, session.worktreePath);
+        console.log(`[MAIN] Finished tracking file changes`);
+        this.logger.debug(`[MAIN] Finished tracking file changes`);
         const changedFilesList = await git.getChangedFiles(session.worktreePath);
         changedFiles = changedFilesList.length;
         
@@ -986,11 +993,17 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
     worktreePath: string
   ): Promise<void> {
     try {
+      console.log(`[TRACK] Starting file change tracking for ${worktreePath}`);
+      this.logger.debug(`[TRACK] Starting file change tracking for ${worktreePath}`);
       const fileDiffTracker = new FileDiffTracker(this.logger);
       const fileChanges = await fileDiffTracker.getFileChanges(worktreePath);
       
+      console.log(`[TRACK] Found ${fileChanges.length} file changes:`, fileChanges.map(c => `${c.path}: +${c.linesAdded}/-${c.linesDeleted}`));
+      this.logger.debug(`[TRACK] Found ${fileChanges.length} file changes:`, fileChanges.map(c => `${c.path}: +${c.linesAdded}/-${c.linesDeleted}`));
+      
       // Publish file edit events
       for (const change of fileChanges) {
+        this.logger.debug(`[TRACK] Publishing file_edit event for ${change.path}: +${change.linesAdded}/-${change.linesDeleted}`);
         await this.metricsEventBus.publishFileEdit(
           sessionId,
           iterationId,
@@ -1004,7 +1017,7 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
         );
       }
       
-      this.logger.debug(`Tracked ${fileChanges.length} file changes after Amp execution`);
+      this.logger.debug(`[TRACK] Tracked ${fileChanges.length} file changes after Amp execution`);
     } catch (error) {
       this.logger.error('Failed to track file changes after Amp execution:', error);
     }

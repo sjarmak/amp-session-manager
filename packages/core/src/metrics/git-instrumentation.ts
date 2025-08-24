@@ -59,6 +59,8 @@ export class GitInstrumentation {
       this.execGit(['commit', '-m', message]);
       
       const shaAfter = this.getCurrentSha();
+      this.logger.debug(`Commit completed: ${shaBefore} -> ${shaAfter}`);
+      
       const stats = this.getDiffStats(shaBefore, shaAfter);
       const durationMs = Date.now() - startTime;
 
@@ -432,8 +434,12 @@ export class GitInstrumentation {
         args.push(from);
       }
 
+      this.logger.debug(`Running git command: git ${args.join(' ')}`);
       const output = this.execGit(args).toString();
+      this.logger.debug(`Git numstat output: ${JSON.stringify(output)}`);
+      
       const lines = output.trim().split('\n').filter(line => line.length > 0);
+      this.logger.debug(`Parsed ${lines.length} lines from numstat output`);
       
       let filesChanged = 0;
       let insertions = 0;
@@ -442,8 +448,14 @@ export class GitInstrumentation {
       for (const line of lines) {
         const parts = line.split('\t');
         if (parts.length >= 2) {
-          const added = parseInt(parts[0], 10) || 0;
-          const deleted = parseInt(parts[1], 10) || 0;
+          // Handle cases where git shows '-' for binary files or special cases
+          const addedStr = parts[0].trim();
+          const deletedStr = parts[1].trim();
+          
+          const added = (addedStr === '-') ? 0 : parseInt(addedStr, 10) || 0;
+          const deleted = (deletedStr === '-') ? 0 : parseInt(deletedStr, 10) || 0;
+          
+          this.logger.debug(`Git diff stats for ${parts[2] || 'file'}: +${added}/-${deleted} (raw: ${addedStr}/${deletedStr})`);
           
           filesChanged++;
           insertions += added;
@@ -451,6 +463,7 @@ export class GitInstrumentation {
         }
       }
 
+      this.logger.debug(`Final diff stats: files=${filesChanged}, +${insertions}/-${deletions}`);
       return { filesChanged, insertions, deletions };
 
     } catch (error) {

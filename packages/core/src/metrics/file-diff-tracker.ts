@@ -25,15 +25,39 @@ export class FileDiffTracker {
     try {
       // Get git status to see what files have changed
       const statusOutput = this.executeGitCommand('git status --porcelain', workingDir);
+      this.logger.debug(`[DIFF] Git status output: "${statusOutput}"`);
       if (!statusOutput.trim()) {
+        this.logger.debug(`[DIFF] No changes detected in status output`);
         return []; // No changes
       }
 
-      // Get detailed diff with stats
+      // Get detailed diff with stats - check both staged and unstaged
       const diffOutput = this.executeGitCommand('git diff --unified=0 --no-color', workingDir);
       const diffStatOutput = this.executeGitCommand('git diff --numstat', workingDir);
+      this.logger.debug(`[DIFF] Unstaged diff stat output: "${diffStatOutput}"`);
+      
+      const stagedDiffOutput = this.executeGitCommand('git diff --cached --unified=0 --no-color', workingDir);
+      const stagedDiffStatOutput = this.executeGitCommand('git diff --cached --numstat', workingDir);
+      this.logger.debug(`[DIFF] Staged diff stat output: "${stagedDiffStatOutput}"`);
 
-      return this.parseDiffOutput(diffOutput, diffStatOutput, statusOutput);
+      // Parse both unstaged and staged changes
+      const unstagedChanges = this.parseDiffOutput(diffOutput, diffStatOutput, statusOutput);
+      const stagedChanges = this.parseDiffOutput(stagedDiffOutput, stagedDiffStatOutput, '');
+      
+      // Combine and deduplicate by path
+      const allChanges = [...unstagedChanges];
+      for (const stagedChange of stagedChanges) {
+        const existingIndex = allChanges.findIndex(change => change.path === stagedChange.path);
+        if (existingIndex >= 0) {
+          // Merge the line counts for the same file
+          allChanges[existingIndex].linesAdded += stagedChange.linesAdded;
+          allChanges[existingIndex].linesDeleted += stagedChange.linesDeleted;
+        } else {
+          allChanges.push(stagedChange);
+        }
+      }
+      
+      return allChanges;
     } catch (error) {
       this.logger.error('Failed to get file changes:', error);
       return [];

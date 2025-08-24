@@ -56,12 +56,17 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
   const [rawStreamData, setRawStreamData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [apiSummary, setApiSummary] = useState<any>(null);
 
   useEffect(() => {
     const fetchStreamMetrics = async () => {
       try {
         setLoading(true);
         setError(null);
+        
+        // Get API summary for reliable line change data
+        const summaryResult = await window.electronAPI.metrics.getSessionSummary(sessionId);
+        setApiSummary(summaryResult);
         
         // Try to get real stream events first
         const streamEventsResult = await window.electronAPI.sessions.getStreamEvents(sessionId);
@@ -278,15 +283,20 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
             case 'assistant':
               // Handle fallback synthetic events
               if (event.message) {
-                parsedMetrics.assistantMessages.push({
-                  timestamp: event.timestamp || new Date().toISOString(),
-                  content: event.message.content
-                    ?.filter((item: any) => item.type === 'text')
-                    ?.map((item: any) => item.text)
-                    ?.join('') || '',
-                  model: event.message.model || 'unknown',
-                  usage: event.message.usage
-                });
+                const textContent = event.message.content
+                  ?.filter((item: any) => item.type === 'text')
+                  ?.map((item: any) => item.text)
+                  ?.join('') || '';
+                
+                // Only add messages that have actual text content (ignore tool-only messages)
+                if (textContent.trim()) {
+                  parsedMetrics.assistantMessages.push({
+                    timestamp: event.timestamp || new Date().toISOString(),
+                    content: textContent,
+                    model: event.message.model || 'unknown',
+                    usage: event.message.usage
+                  });
+                }
                 
                 // Extract token usage
                 if (event.message.usage) {
@@ -337,17 +347,17 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               
             case 'file_edit':
               // Handle file edit events and track lines changed
-              if (event.linesAdded !== undefined || event.data?.linesAdded !== undefined) {
-                const linesAdded = event.linesAdded || event.data?.linesAdded || 0;
-                const linesDeleted = event.linesDeleted || event.data?.linesDeleted || 0;
+              if (event.data?.linesAdded !== undefined) {
+                const linesAdded = event.data.linesAdded || 0;
+                const linesDeleted = event.data.linesDeleted || 0;
                 
                 parsedMetrics.linesChanged.added += linesAdded;
                 parsedMetrics.linesChanged.deleted += linesDeleted;
                 parsedMetrics.linesChanged.total += linesAdded + linesDeleted;
                 
                 // Track files created/modified
-                const filePath = event.path || event.data?.path;
-                const operation = event.operation || event.data?.operation;
+                const filePath = event.data.path;
+                const operation = event.data.operation;
                 
                 if (filePath) {
                   if (operation === 'create' && !parsedMetrics.filesCreated.includes(filePath)) {
@@ -536,11 +546,11 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
             </div>
             <div className="flex justify-between">
               <span>Lines Added:</span>
-              <span className="font-mono text-green-600">+{metrics.linesChanged.added}</span>
+              <span className="font-mono text-green-600">+{apiSummary?.totalLocAdded || 0}</span>
             </div>
             <div className="flex justify-between">
               <span>Lines Deleted:</span>
-              <span className="font-mono text-red-600">-{metrics.linesChanged.deleted}</span>
+              <span className="font-mono text-red-600">-{apiSummary?.totalLocDeleted || 0}</span>
             </div>
             {metrics.sessionResults.length > 0 && (
               <div className="flex justify-between">

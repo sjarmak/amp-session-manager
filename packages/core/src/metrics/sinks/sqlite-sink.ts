@@ -284,6 +284,8 @@ export class SQLiteMetricsSink implements MetricsSink {
     
     // Get git diff stats
     const gitStats = await this.getGitStats(event.iterationId!);
+    
+    this.logger.debug(`Updating iteration ${event.iterationId} with stats: files=${gitStats.filesChanged}, +${gitStats.insertions}/-${gitStats.deletions}`);
 
     this.updateIterationStmt.run(
       event.timestamp,
@@ -433,6 +435,8 @@ export class SQLiteMetricsSink implements MetricsSink {
       WHERE iteration_id = ?
       GROUP BY iteration_id
     `).get(iterationId) as any;
+
+    this.logger.debug(`Git stats for iteration ${iterationId}:`, result);
 
     return {
       shaAfter: result?.sha_after || null,
