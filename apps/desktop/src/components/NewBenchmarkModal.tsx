@@ -64,18 +64,18 @@ export function NewBenchmarkModal({ isOpen, onClose, onBenchmarkCreated }: NewBe
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-        <h3 className="text-lg font-semibold mb-4">New Benchmark Run</h3>
+      <div className="bg-gruvbox-bg0 rounded-lg p-6 w-full max-w-md mx-4 border border-gruvbox-bg3">
+        <h3 className="text-lg font-semibold mb-4 text-gruvbox-fg0">New Benchmark Run</h3>
         
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gruvbox-fg1 mb-2">
               Benchmark Type
             </label>
             <select
               value={benchmarkType}
               onChange={(e) => setBenchmarkType(e.target.value as 'swebench' | 'custom')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full px-3 py-2 bg-gruvbox-bg1 border border-gruvbox-bg3 text-gruvbox-fg0 rounded-md focus:outline-none focus:ring-2 focus:ring-gruvbox-blue"
               disabled={loading}
             >
               <option value="swebench">SWE-bench</option>
@@ -84,7 +84,7 @@ export function NewBenchmarkModal({ isOpen, onClose, onBenchmarkCreated }: NewBe
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gruvbox-fg1 mb-2">
               Cases Directory
             </label>
             <div className="flex gap-2">
@@ -93,14 +93,14 @@ export function NewBenchmarkModal({ isOpen, onClose, onBenchmarkCreated }: NewBe
                 value={casesDir}
                 onChange={(e) => setCasesDir(e.target.value)}
                 placeholder="Select directory containing benchmark cases"
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="flex-1 px-3 py-2 bg-gruvbox-bg1 border border-gruvbox-bg3 text-gruvbox-fg0 rounded-md focus:outline-none focus:ring-2 focus:ring-gruvbox-blue placeholder-gruvbox-fg2"
                 disabled={loading}
               />
               <button
                 type="button"
                 onClick={handleSelectDirectory}
                 disabled={loading}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50"
+                className="px-4 py-2 bg-gruvbox-bg2 text-gruvbox-fg1 rounded-md hover:bg-gruvbox-bg3 transition-colors disabled:opacity-50"
               >
                 Browse
               </button>
@@ -112,14 +112,14 @@ export function NewBenchmarkModal({ isOpen, onClose, onBenchmarkCreated }: NewBe
               type="button"
               onClick={handleClose}
               disabled={loading}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-gruvbox-fg2 hover:text-gruvbox-fg0 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || !casesDir.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-gruvbox-blue text-gruvbox-bg0 rounded-lg hover:bg-gruvbox-bright-blue transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Starting...' : 'Start Benchmark'}
             </button>

@@ -132,27 +132,27 @@ function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gruvbox-dark0">
       <div className="container mx-auto py-8 px-4 max-w-6xl">
         <header className="text-center mb-8 relative app-header">
           <div className="flex items-center justify-center gap-2 mb-4">
             <img 
-              src="/images/Amp_Style_Light.png" 
+              src="/images/AmpRedSymbol.png" 
               alt="Amp Logo" 
               className="h-12 w-auto"
             />
-            <h1 className="text-5xl font-bold text-black">
-              Session Manager
+            <h1 className="text-5xl font-bold text-gruvbox-light0">
+              Amp Session Manager
             </h1>
           </div>
-          <p className="text-gray-600 font-header italic font-thin">
+          <p className="text-gruvbox-light3 font-header italic font-thin">
             Orchestrate parallel Amp sessions and batch experiments in isolated worktrees
           </p>
           
           {/* Settings Button */}
           <button
             onClick={() => setShowNotificationSettings(true)}
-            className="absolute top-0 right-0 p-2 text-gray-500 hover:text-gray-700 transition-colors"
+            className="absolute top-0 right-0 p-2 text-gruvbox-light3 hover:text-gruvbox-light1 transition-colors"
             title="Notification Settings"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -169,13 +169,13 @@ function App() {
 
         {/* Navigation tabs */}
         <div className="mb-6">
-          <nav className="flex space-x-1 bg-gray-200 p-1 rounded-lg">
+          <nav className="flex space-x-1 bg-gruvbox-dark1 p-1 rounded-lg border border-gruvbox-dark3">
             <button
               onClick={() => setCurrentView('sessions')}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 currentView === 'sessions' 
-                  ? 'bg-orange-500 text-white shadow-sm' 
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-orange-100'
+                  ? 'bg-gruvbox-aqua text-gruvbox-dark0 shadow-lg shadow-gruvbox-aqua/25' 
+                  : 'text-gruvbox-light3 hover:text-gruvbox-light1 hover:bg-gruvbox-aqua-dim/20'
               }`}
             >
               Sessions
@@ -184,8 +184,8 @@ function App() {
               onClick={() => setCurrentView('batches')}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 currentView === 'batches' 
-                  ? 'bg-orange-500 text-white shadow-sm' 
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-orange-100'
+                  ? 'bg-gruvbox-aqua text-gruvbox-dark0 shadow-lg shadow-gruvbox-aqua/25' 
+                  : 'text-gruvbox-light3 hover:text-gruvbox-light1 hover:bg-gruvbox-aqua-dim/20'
               }`}
             >
               Batches
@@ -194,8 +194,8 @@ function App() {
               onClick={() => setCurrentView('benchmarks')}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 currentView === 'benchmarks' 
-                  ? 'bg-orange-500 text-white shadow-sm' 
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-orange-100'
+                  ? 'bg-gruvbox-aqua text-gruvbox-dark0 shadow-lg shadow-gruvbox-aqua/25' 
+                  : 'text-gruvbox-light3 hover:text-gruvbox-light1 hover:bg-gruvbox-aqua-dim/20'
               }`}
             >
               Benchmarks
@@ -204,8 +204,8 @@ function App() {
               onClick={() => setCurrentView('threads')}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 currentView === 'threads' 
-                  ? 'bg-orange-500 text-white shadow-sm' 
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-orange-100'
+                  ? 'bg-gruvbox-aqua text-gruvbox-dark0 shadow-lg shadow-gruvbox-aqua/25' 
+                  : 'text-gruvbox-light3 hover:text-gruvbox-light1 hover:bg-gruvbox-aqua-dim/20'
               }`}
             >
               Threads
@@ -213,7 +213,7 @@ function App() {
           </nav>
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="bg-gruvbox-dark1 rounded-lg shadow-xl shadow-gruvbox-dark0/50 border border-gruvbox-dark3/50 p-6">
           {currentView === 'sessions' ? (
             <div key={refreshKey}>
               <SessionList 

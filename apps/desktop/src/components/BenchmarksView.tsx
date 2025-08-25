@@ -57,10 +57,10 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'running': return 'text-blue-600 bg-blue-100';
-      case 'completed': return 'text-green-600 bg-green-100';
-      case 'failed': return 'text-red-600 bg-red-100';
-      default: return 'text-gray-600 bg-gray-100';
+      case 'running': return 'text-gruvbox-bright-blue bg-gruvbox-blue/20';
+      case 'completed': return 'text-gruvbox-bright-green bg-gruvbox-green/20';
+      case 'failed': return 'text-gruvbox-bright-red bg-gruvbox-red/20';
+      default: return 'text-gruvbox-fg2 bg-gruvbox-bg3';
     }
   };
 
@@ -101,7 +101,7 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="text-gray-500">Loading benchmark runs...</div>
+        <div className="text-gruvbox-fg2">Loading benchmark runs...</div>
       </div>
     );
   }
@@ -109,10 +109,10 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
   if (error) {
     return (
       <div className="text-center py-12">
-        <div className="text-red-500 mb-4">Error: {error}</div>
+        <div className="text-gruvbox-bright-red mb-4">Error: {error}</div>
         <button
           onClick={loadRuns}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          className="bg-gruvbox-bright-blue text-gruvbox-bg0 px-4 py-2 rounded-lg hover:bg-gruvbox-blue transition-colors"
         >
           Retry
         </button>
@@ -123,10 +123,10 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Benchmark Evaluations</h2>
+        <h2 className="text-2xl font-bold text-gruvbox-fg0">Benchmark Evaluations</h2>
         <button
           onClick={onNewRun}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          className="bg-gruvbox-bright-blue text-gruvbox-bg0 px-4 py-2 rounded-lg hover:bg-gruvbox-blue transition-colors"
         >
           New Benchmark Run
         </button>
@@ -134,10 +134,10 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
 
       {runs.length === 0 ? (
         <div className="text-center py-12">
-          <div className="text-gray-500 mb-4">No benchmark runs found</div>
+          <div className="text-gruvbox-fg2 mb-4">No benchmark runs found</div>
           <button
             onClick={onNewRun}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+            className="bg-gruvbox-bright-blue text-gruvbox-bg0 px-6 py-3 rounded-lg hover:bg-gruvbox-blue transition-colors"
           >
             Create Your First Benchmark Run
           </button>
@@ -145,65 +145,65 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
       ) : (
         <div className="space-y-4">
           <div className="overflow-x-auto">
-            <table className="min-w-full bg-white border border-gray-200 rounded-lg">
-              <thead className="bg-gray-50">
+            <table className="min-w-full bg-gruvbox-bg1 border border-gruvbox-bg3 rounded-lg">
+              <thead className="bg-gruvbox-bg2">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Run ID
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Created
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Type
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Source
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Total Cases
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Progress
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-gruvbox-bg1 divide-y divide-gruvbox-bg3">
                 {runs.map((run) => (
-                  <tr key={run.runId} className="hover:bg-gray-50">
+                  <tr key={run.runId} className="hover:bg-gruvbox-bg2">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
                         onClick={() => onRunSelect(run.runId, run.type)}
-                        className="text-purple-600 hover:text-purple-800 font-mono text-sm"
+                        className="text-gruvbox-bright-purple hover:text-gruvbox-purple font-mono text-sm"
                       >
                         {run.runId.slice(0, 8)}
                       </button>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
                       {formatDate(run.createdAt)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        run.type === 'swebench' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                        run.type === 'swebench' ? 'bg-gruvbox-purple/20 text-gruvbox-bright-purple' : 'bg-gruvbox-blue/20 text-gruvbox-bright-blue'
                       }`}>
                         {run.type === 'swebench' ? 'SWE-bench' : 'Custom'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-w-xs truncate">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg2 max-w-xs truncate">
                       {run.casesDir || 'N/A'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
                       {run.totalCases}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div className="text-gray-900">{run.completedCases}/{run.totalCases}</div>
-                      <div className="text-xs text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
+                      <div className="text-gruvbox-fg1">{run.completedCases}/{run.totalCases}</div>
+                      <div className="text-xs text-gruvbox-fg2">
                         {run.passedCases}✓ {run.failedCases}✗
                       </div>
                     </td>
@@ -212,10 +212,10 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
                         {run.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg2">
                       <button
                         onClick={() => onRunSelect(run.runId, run.type)}
-                        className="text-indigo-600 hover:text-indigo-900 mr-3"
+                        className="text-gruvbox-bright-purple hover:text-gruvbox-purple mr-3"
                       >
                         View
                       </button>
@@ -223,7 +223,7 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
                         <button
                           onClick={() => handleAbort(run.runId)}
                           disabled={aborting === run.runId}
-                          className="text-orange-600 hover:text-orange-900 disabled:opacity-50"
+                          className="text-gruvbox-bright-orange hover:text-gruvbox-orange disabled:opacity-50"
                         >
                           {aborting === run.runId ? 'Aborting...' : 'Abort'}
                         </button>
@@ -231,7 +231,7 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
                         <button
                           onClick={() => handleDelete(run.runId)}
                           disabled={deleting === run.runId}
-                          className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                          className="text-gruvbox-bright-red hover:text-gruvbox-red disabled:opacity-50"
                         >
                           {deleting === run.runId ? 'Deleting...' : 'Delete'}
                         </button>

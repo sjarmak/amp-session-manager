@@ -112,7 +112,7 @@ export function ConversationFlow({ session }: ConversationFlowProps) {
     };
 
     fetchConversationData();
-  }, [session.id, session.ampPrompt, session.followUpPrompts, session.createdAt]);
+  }, [session.id, session.ampPrompt, session.followUpPrompts, session.createdAt, JSON.stringify(session.followUpPrompts)]);
 
   if (loading) {
     return (

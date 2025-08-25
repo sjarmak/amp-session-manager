@@ -7,12 +7,12 @@ export interface NewBatchModalProps {
   onBatchCreated: () => void;
 }
 
-const DEFAULT_PLAN = `runId: # Optional, will be auto-generated if not provided
+const DEFAULT_PLAN = `# runId: # Optional, will be auto-generated if not provided
 concurrency: 3
 defaults:
   baseBranch: main
-  scriptCommand: # Optional test command, e.g., "pnpm test"
-  model: # Optional default model
+  # scriptCommand: # Optional test command, e.g., "pnpm test"
+  # model: # Optional default model
   jsonLogs: false
   timeoutSec: 900
   mergeOnPass: false
@@ -134,12 +134,12 @@ export function NewBatchModal({ isOpen, onClose, onBatchCreated }: NewBatchModal
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col">
-        <div className="flex justify-between items-center p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">New Batch Run</h2>
+      <div className="bg-gruvbox-bg0 rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col border border-gruvbox-bg3">
+        <div className="flex justify-between items-center p-6 border-b border-gruvbox-bg3">
+          <h2 className="text-xl font-semibold text-gruvbox-fg0">New Batch Run</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gruvbox-fg2 hover:text-gruvbox-fg0"
           >
             ✕
           </button>
@@ -149,12 +149,12 @@ export function NewBatchModal({ isOpen, onClose, onBatchCreated }: NewBatchModal
           {/* Plan Editor */}
           <div>
               <div className="flex justify-between items-center mb-4">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gruvbox-fg1">
                   Batch Plan (YAML)
                 </label>
                 <button
                   onClick={loadPlanFile}
-                  className="text-sm text-blue-600 hover:text-blue-800"
+                  className="text-sm text-gruvbox-bright-blue hover:text-gruvbox-blue"
                 >
                   Load from file
                 </button>
@@ -166,14 +166,14 @@ export function NewBatchModal({ isOpen, onClose, onBatchCreated }: NewBatchModal
                   setPlanYaml(e.target.value);
                   setValidationErrors([]);
                 }}
-                className="w-full h-80 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full h-80 px-3 py-2 bg-gruvbox-bg1 border border-gruvbox-bg3 text-gruvbox-fg0 rounded-lg font-mono text-sm focus:ring-2 focus:ring-gruvbox-blue focus:border-gruvbox-blue placeholder-gruvbox-fg2"
                 placeholder="Enter your batch plan in YAML format..."
               />
               
               {validationErrors.length > 0 && (
-                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <h4 className="text-sm font-medium text-red-800 mb-2">Validation Errors:</h4>
-                  <ul className="list-disc list-inside text-sm text-red-700 space-y-1">
+                <div className="mt-4 p-4 bg-gruvbox-red/20 border border-gruvbox-red rounded-lg">
+                  <h4 className="text-sm font-medium text-gruvbox-bright-red mb-2">Validation Errors:</h4>
+                  <ul className="list-disc list-inside text-sm text-gruvbox-red space-y-1">
                     {validationErrors.map((error, index) => (
                       <li key={index}>{error}</li>
                     ))}
@@ -183,10 +183,10 @@ export function NewBatchModal({ isOpen, onClose, onBatchCreated }: NewBatchModal
           </div>
         </div>
 
-        <div className="flex justify-between items-center p-6 border-t border-gray-200">
+        <div className="flex justify-between items-center p-6 border-t border-gruvbox-bg3">
           <button
             onClick={handleDryRun}
-            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            className="px-4 py-2 text-gruvbox-fg1 bg-gruvbox-bg2 rounded-lg hover:bg-gruvbox-bg3 transition-colors"
           >
             Validate Plan
           </button>
@@ -194,14 +194,14 @@ export function NewBatchModal({ isOpen, onClose, onBatchCreated }: NewBatchModal
           <div className="flex space-x-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="px-4 py-2 text-gruvbox-fg2 hover:text-gruvbox-fg0 transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleStart}
               disabled={loading || validationErrors.length > 0}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-6 py-2 bg-gruvbox-blue text-gruvbox-bg0 rounded-lg hover:bg-gruvbox-bright-blue disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? 'Starting...' : 'Start Batch'}
             </button>

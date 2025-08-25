@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import type { SessionCreateOptions } from '@ampsm/types';
+import React, { useState } from "react";
+import type { SessionCreateOptions } from "@ampsm/types";
 
 interface NewSessionModalProps {
   isOpen: boolean;
@@ -7,15 +7,19 @@ interface NewSessionModalProps {
   onSessionCreated: () => void;
 }
 
-export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessionModalProps) {
+export function NewSessionModal({
+  isOpen,
+  onClose,
+  onSessionCreated,
+}: NewSessionModalProps) {
   const [formData, setFormData] = useState({
-    name: '',
-    ampPrompt: '',
-    repoRoot: '',
-    baseBranch: 'main',
-    scriptCommand: '',
-    modelOverride: '',
-    includeContext: false
+    name: "",
+    ampPrompt: "",
+    repoRoot: "",
+    baseBranch: "main",
+    scriptCommand: "",
+    modelOverride: "",
+    includeContext: false,
   });
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,18 +28,22 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
     try {
       const result = await window.electronAPI.dialog.selectDirectory();
       if (!result.canceled && result.filePaths.length > 0) {
-        setFormData(prev => ({ ...prev, repoRoot: result.filePaths[0] }));
+        setFormData((prev) => ({ ...prev, repoRoot: result.filePaths[0] }));
       }
     } catch (err) {
-      console.error('Failed to select directory:', err);
+      console.error("Failed to select directory:", err);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.name.trim() || !formData.ampPrompt.trim() || !formData.repoRoot.trim()) {
-      setError('Please fill in all required fields');
+
+    if (
+      !formData.name.trim() ||
+      !formData.ampPrompt.trim() ||
+      !formData.repoRoot.trim()
+    ) {
+      setError("Please fill in all required fields");
       return;
     }
 
@@ -46,37 +54,37 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
       name: formData.name.trim(),
       ampPrompt: formData.ampPrompt.trim(),
       repoRoot: formData.repoRoot.trim(),
-      baseBranch: formData.baseBranch.trim() || 'main',
+      baseBranch: formData.baseBranch.trim() || "main",
       scriptCommand: formData.scriptCommand.trim() || undefined,
       modelOverride: formData.modelOverride.trim() || undefined,
-      includeContext: formData.includeContext
+      includeContext: formData.includeContext,
     };
 
     try {
       const result = await window.electronAPI.sessions.create(options);
-      
+
       if (result.success) {
         // Close modal and reset form only after successful creation
         onClose();
         setFormData({
-          name: '',
-          ampPrompt: '',
-          repoRoot: '',
-          baseBranch: 'main',
-          scriptCommand: '',
-          modelOverride: '',
-          includeContext: false
+          name: "",
+          ampPrompt: "",
+          repoRoot: "",
+          baseBranch: "main",
+          scriptCommand: "",
+          modelOverride: "",
+          includeContext: false,
         });
         setCreating(false);
-        
+
         // Refresh the session list
         onSessionCreated();
       } else {
-        setError(result.error || 'Failed to create session');
+        setError(result.error || "Failed to create session");
         setCreating(false);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create session');
+      setError(err instanceof Error ? err.message : "Failed to create session");
       setCreating(false);
     }
   };
@@ -84,30 +92,32 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
   if (!isOpen) return null;
 
   return (
-    <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    <div
+      className="fixed inset-0 bg-gruvbox-dark0/80 backdrop-blur-sm flex items-center justify-center z-50"
       onClick={(e) => {
         if (e.target === e.currentTarget && !creating) {
-          console.log('Backdrop clicked');
+          console.log("Backdrop clicked");
           onClose();
         }
       }}
     >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-semibold text-gray-900">New Session</h2>
+      <div className="bg-gruvbox-dark1 rounded-lg shadow-2xl shadow-gruvbox-dark0/50 border border-gruvbox-light2/20 w-full max-w-md mx-4">
+      <div className="flex items-center justify-between p-6 border-b border-gruvbox-light2/20">
+      <h2 className="text-xl font-semibold text-gruvbox-light1">
+            New Session
+          </h2>
           <button
             type="button"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               if (!creating) {
-                console.log('Close button clicked');
+                console.log("Close button clicked");
                 onClose();
               }
             }}
             disabled={creating}
-            className="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded transition-colors text-xl font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="text-gruvbox-light4 hover:text-gruvbox-light2 w-8 h-8 flex items-center justify-center hover:bg-gruvbox-light2/10 rounded transition-colors text-xl font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ zIndex: 9999 }}
           >
             ×
@@ -116,40 +126,44 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-800 text-sm">
+            <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-md text-orange-200 text-sm">
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gruvbox-light2 mb-1">
               Session Name *
             </label>
             <input
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, name: e.target.value }))
+              }
+              className="w-full px-3 py-2 bg-gruvbox-dark0 border border-gruvbox-light2/30 rounded-md text-gruvbox-light1 placeholder-gruvbox-light4 focus:outline-none focus:ring-2 focus:ring-gruvbox-aqua focus:border-gruvbox-aqua"
               placeholder="e.g., Add user authentication"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gruvbox-light2 mb-1">
               Repository Directory *
             </label>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={formData.repoRoot}
-                onChange={(e) => setFormData(prev => ({ ...prev, repoRoot: e.target.value }))}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, repoRoot: e.target.value }))
+                }
+                className="flex-1 px-3 py-2 bg-gruvbox-dark0 border border-gruvbox-light2/30 rounded-md text-gruvbox-light1 placeholder-gruvbox-light4 focus:outline-none focus:ring-2 focus:ring-gruvbox-aqua focus:border-gruvbox-aqua"
                 placeholder="Path to git repository"
               />
               <button
                 type="button"
                 onClick={handleSelectDirectory}
-                className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                className="px-3 py-2 bg-gruvbox-light2/10 border border-gruvbox-light2/30 rounded-md text-gruvbox-light2 hover:bg-gruvbox-light2/20 hover:border-gruvbox-light3/40 transition-colors"
               >
                 Browse
               </button>
@@ -157,56 +171,82 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gruvbox-light2 mb-1">
               Amp Prompt *
             </label>
             <textarea
               value={formData.ampPrompt}
-              onChange={(e) => setFormData(prev => ({ ...prev, ampPrompt: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, ampPrompt: e.target.value }))
+              }
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 bg-gruvbox-dark0 border border-gruvbox-light2/30 rounded-md text-gruvbox-light1 placeholder-gruvbox-light4 focus:outline-none focus:ring-2 focus:ring-gruvbox-aqua focus:border-gruvbox-aqua resize-none"
               placeholder="Describe what you want Amp to implement..."
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gruvbox-light2 mb-1">
               Base Branch
             </label>
             <input
               type="text"
               value={formData.baseBranch}
-              onChange={(e) => setFormData(prev => ({ ...prev, baseBranch: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, baseBranch: e.target.value }))
+              }
+              className="w-full px-3 py-2 bg-gruvbox-dark0 border border-gruvbox-light2/30 rounded-md text-gruvbox-light1 placeholder-gruvbox-light4 focus:outline-none focus:ring-2 focus:ring-gruvbox-aqua focus:border-gruvbox-aqua"
               placeholder="main"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gruvbox-light2 mb-1">
               Test Script (optional)
             </label>
             <input
               type="text"
               value={formData.scriptCommand}
-              onChange={(e) => setFormData(prev => ({ ...prev, scriptCommand: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  scriptCommand: e.target.value,
+                }))
+              }
+              className="w-full px-3 py-2 bg-gruvbox-dark0 border border-gruvbox-light2/30 rounded-md text-gruvbox-light1 placeholder-gruvbox-light4 focus:outline-none focus:ring-2 focus:ring-gruvbox-aqua focus:border-gruvbox-aqua"
               placeholder="e.g., pnpm test"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gruvbox-light2 mb-1">
               Model Override (optional)
             </label>
             <select
               value={formData.modelOverride}
-              onChange={(e) => setFormData(prev => ({ ...prev, modelOverride: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  modelOverride: e.target.value,
+                }))
+              }
+              className="w-full px-3 py-2 bg-gruvbox-dark0 border border-gruvbox-dark3/50 rounded-md text-gruvbox-light1 focus:outline-none focus:ring-2 focus:ring-gruvbox-aqua focus:border-gruvbox-aqua"
             >
-              <option value="">Default model</option>
-              <option value="gpt-5">GPT-5</option>
-              <option value="alloy">Alloy (GPT-5 + Sonnet 4)</option>
+              <option value="" className="bg-gruvbox-dark0 text-gruvbox-light1">
+                Default model
+              </option>
+              <option
+                value="gpt-5"
+                className="bg-gruvbox-dark0 text-gruvbox-light1"
+              >
+                GPT-5
+              </option>
+              <option
+                value="alloy"
+                className="bg-gruvbox-dark0 text-gruvbox-light1"
+              >
+                Alloy (GPT-5 + Sonnet 4)
+              </option>
             </select>
           </div>
 
@@ -215,10 +255,18 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
               type="checkbox"
               id="includeContext"
               checked={formData.includeContext}
-              onChange={(e) => setFormData(prev => ({ ...prev, includeContext: e.target.checked }))}
-              className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  includeContext: e.target.checked,
+                }))
+              }
+              className="mr-2 rounded border-gruvbox-dark3/50 bg-gruvbox-dark0 text-gruvbox-aqua focus:ring-gruvbox-aqua/20"
             />
-            <label htmlFor="includeContext" className="text-sm text-gray-700">
+            <label
+              htmlFor="includeContext"
+              className="text-sm text-gruvbox-light3"
+            >
               Include CONTEXT.md file content if it exists
             </label>
           </div>
@@ -228,16 +276,16 @@ export function NewSessionModal({ isOpen, onClose, onSessionCreated }: NewSessio
               type="button"
               onClick={onClose}
               disabled={creating}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2 border border-gruvbox-dark3/50 text-gruvbox-light2 rounded-md hover:bg-gruvbox-dark2/20 hover:border-gruvbox-dark3/60 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={creating}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2 bg-gruvbox-aqua text-gruvbox-dark0 rounded-md hover:bg-gruvbox-aqua disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
             >
-              {creating ? 'Creating...' : 'Create Session'}
+              {creating ? "Creating..." : "Create Session"}
             </button>
           </div>
         </form>

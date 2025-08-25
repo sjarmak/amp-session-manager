@@ -142,7 +142,7 @@ const exportMenuRef = useRef<HTMLDivElement>(null);
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="text-gray-500">Loading batch run details...</div>
+        <div className="text-gruvbox-fg2">Loading batch run details...</div>
       </div>
     );
   }
@@ -150,10 +150,10 @@ const exportMenuRef = useRef<HTMLDivElement>(null);
   if (!run) {
     return (
       <div className="text-center py-12">
-        <div className="text-gray-500 mb-4">Batch run not found</div>
+        <div className="text-gruvbox-fg2 mb-4">Batch run not found</div>
         <button
           onClick={onBack}
-          className="text-blue-600 hover:text-blue-800"
+          className="text-gruvbox-bright-blue hover:text-gruvbox-blue"
         >
           ← Back to Batches
         </button>
@@ -171,11 +171,11 @@ const exportMenuRef = useRef<HTMLDivElement>(null);
         <div className="flex items-center space-x-4">
           <button
             onClick={onBack}
-            className="text-blue-600 hover:text-blue-800 font-medium"
+            className="text-gruvbox-bright-blue hover:text-gruvbox-blue font-medium"
           >
             ← Back to Batches
           </button>
-          <h2 className="text-2xl font-bold text-gray-800">
+          <h2 className="text-2xl font-bold text-gruvbox-fg0">
             Run {run.runId.slice(0, 8)}
           </h2>
           <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(run.status)}`}>
@@ -186,20 +186,20 @@ const exportMenuRef = useRef<HTMLDivElement>(null);
         <div className="flex space-x-2">
           <div className="relative" ref={exportMenuRef}>
             <button
-              className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
+              className="bg-gruvbox-bg2 text-gruvbox-fg1 px-4 py-2 rounded-lg hover:bg-gruvbox-bg3 transition-colors"
               onClick={() => setExportMenuOpen(!exportMenuOpen)}
             >
               Export ▼
             </button>
             {exportMenuOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
+              <div className="absolute right-0 mt-2 w-48 bg-gruvbox-bg1 border border-gruvbox-bg3 rounded-md shadow-lg z-10">
                 <div className="py-1">
                   <button
                     onClick={() => {
                       handleExport('json');
                       setExportMenuOpen(false);
                     }}
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                    className="block px-4 py-2 text-sm text-gruvbox-fg1 hover:bg-gruvbox-bg2 w-full text-left"
                   >
                     Export as JSON
                   </button>
@@ -208,17 +208,17 @@ const exportMenuRef = useRef<HTMLDivElement>(null);
                       handleExport('csv');
                       setExportMenuOpen(false);
                     }}
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                    className="block px-4 py-2 text-sm text-gruvbox-fg1 hover:bg-gruvbox-bg2 w-full text-left"
                   >
                     Export as CSV
                   </button>
-                  <hr className="my-1" />
+                  <hr className="my-1 border-gruvbox-bg3" />
                   <button
                     onClick={() => {
                       handleReport('md');
                       setExportMenuOpen(false);
                     }}
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                    className="block px-4 py-2 text-sm text-gruvbox-fg1 hover:bg-gruvbox-bg2 w-full text-left"
                   >
                     Generate Markdown Report
                   </button>
@@ -227,7 +227,7 @@ const exportMenuRef = useRef<HTMLDivElement>(null);
                       handleReport('html');
                       setExportMenuOpen(false);
                     }}
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                    className="block px-4 py-2 text-sm text-gruvbox-fg1 hover:bg-gruvbox-bg2 w-full text-left"
                   >
                     Generate HTML Report
                   </button>
@@ -239,7 +239,7 @@ const exportMenuRef = useRef<HTMLDivElement>(null);
           {run.status === 'running' && (
             <button
               onClick={() => handleAbort()}
-              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+              className="bg-gruvbox-red text-gruvbox-bg0 px-4 py-2 rounded-lg hover:bg-gruvbox-bright-red transition-colors"
             >
               Abort
             </button>
@@ -249,33 +249,33 @@ const exportMenuRef = useRef<HTMLDivElement>(null);
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-blue-50 p-4 rounded-lg">
-          <div className="text-blue-600 text-sm font-medium">Total Items</div>
-          <div className="text-2xl font-bold text-blue-900">{run.totalItems}</div>
+        <div className="bg-gruvbox-bg2 border border-gruvbox-bg4 p-4 rounded-lg">
+          <div className="text-gruvbox-blue text-sm font-medium">Total Items</div>
+          <div className="text-2xl font-bold text-gruvbox-fg0">{run.totalItems}</div>
         </div>
-        <div className="bg-green-50 p-4 rounded-lg">
-          <div className="text-green-600 text-sm font-medium">Success</div>
-          <div className="text-2xl font-bold text-green-900">{run.successCount}</div>
+        <div className="bg-gruvbox-bg2 border border-gruvbox-bg4 p-4 rounded-lg">
+          <div className="text-gruvbox-green text-sm font-medium">Success</div>
+          <div className="text-2xl font-bold text-gruvbox-fg0">{run.successCount}</div>
         </div>
-        <div className="bg-yellow-50 p-4 rounded-lg">
-          <div className="text-yellow-600 text-sm font-medium">Failed</div>
-          <div className="text-2xl font-bold text-yellow-900">{run.failCount + run.errorCount + run.timeoutCount}</div>
+        <div className="bg-gruvbox-bg2 border border-gruvbox-bg4 p-4 rounded-lg">
+          <div className="text-gruvbox-yellow text-sm font-medium">Failed</div>
+          <div className="text-2xl font-bold text-gruvbox-fg0">{run.failCount + run.errorCount + run.timeoutCount}</div>
         </div>
-        <div className="bg-purple-50 p-4 rounded-lg">
-          <div className="text-purple-600 text-sm font-medium">Total Tokens</div>
-          <div className="text-2xl font-bold text-purple-900">{run.totalTokens.toLocaleString()}</div>
+        <div className="bg-gruvbox-bg2 border border-gruvbox-bg4 p-4 rounded-lg">
+          <div className="text-gruvbox-purple text-sm font-medium">Total Tokens</div>
+          <div className="text-2xl font-bold text-gruvbox-fg0">{run.totalTokens.toLocaleString()}</div>
         </div>
       </div>
 
       {/* Progress bar */}
       <div className="mb-6">
-        <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
+        <div className="flex justify-between text-sm font-medium text-gruvbox-fg1 mb-2">
           <span>Progress</span>
           <span>{progressPercent}%</span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="w-full bg-gruvbox-bg3 rounded-full h-2">
           <div
-            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+            className="bg-gruvbox-blue h-2 rounded-full transition-all duration-300"
             style={{ width: `${progressPercent}%` }}
           ></div>
         </div>
@@ -289,13 +289,13 @@ const exportMenuRef = useRef<HTMLDivElement>(null);
             placeholder="Search by repo or prompt..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-4 py-2 bg-gruvbox-bg1 border border-gruvbox-bg3 text-gruvbox-fg0 rounded-lg focus:ring-2 focus:ring-gruvbox-blue focus:border-gruvbox-blue placeholder-gruvbox-fg2"
           />
         </div>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="px-4 py-2 bg-gruvbox-bg1 border border-gruvbox-bg3 text-gruvbox-fg0 rounded-lg focus:ring-2 focus:ring-gruvbox-blue focus:border-gruvbox-blue"
         >
           <option value="all">All Status</option>
           <option value="queued">Queued</option>
@@ -309,38 +309,38 @@ const exportMenuRef = useRef<HTMLDivElement>(null);
 
       {/* Items table */}
       <div className="overflow-x-auto">
-        <table className="min-w-full bg-white border border-gray-200 rounded-lg">
-          <thead className="bg-gray-50">
+        <table className="min-w-full bg-gruvbox-bg1 border border-gruvbox-bg3 rounded-lg">
+          <thead className="bg-gruvbox-bg2">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                 Repository
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                 Prompt
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                 Status
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                 Duration
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                 Tokens
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-gruvbox-bg1 divide-y divide-gruvbox-bg3">
             {filteredItems.map((item) => (
-              <tr key={item.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              <tr key={item.id} className="hover:bg-gruvbox-bg2">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
                   <div className="max-w-xs truncate" title={item.repo}>
                     {item.repo.split('/').pop() || item.repo}
                   </div>
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-900">
+                <td className="px-6 py-4 text-sm text-gruvbox-fg1">
                   <div className="max-w-md truncate" title={item.prompt}>
                     {item.prompt}
                   </div>
@@ -350,22 +350,22 @@ const exportMenuRef = useRef<HTMLDivElement>(null);
                     {item.status}
                   </span>
                   {item.error && (
-                    <div className="text-xs text-red-600 mt-1 max-w-xs truncate" title={item.error}>
+                    <div className="text-xs text-gruvbox-red mt-1 max-w-xs truncate" title={item.error}>
                       {item.error}
                     </div>
                   )}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
                   {formatDuration(item.duration)}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
                   {item.tokensTotal?.toLocaleString() || 'N/A'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg2">
                   {item.sessionId && (
                     <button
                       onClick={() => openSession(item.sessionId!)}
-                      className="text-indigo-600 hover:text-indigo-900 mr-3"
+                      className="text-gruvbox-bright-blue hover:text-gruvbox-blue mr-3"
                     >
                       View Session
                     </button>
@@ -373,7 +373,7 @@ const exportMenuRef = useRef<HTMLDivElement>(null);
                   {item.status === 'success' && item.iterSha && (
                     <button
                       onClick={() => openWorktree(item.sessionId!)}
-                      className="text-green-600 hover:text-green-900"
+                      className="text-gruvbox-bright-green hover:text-gruvbox-green"
                     >
                       Open Code
                     </button>
@@ -386,7 +386,7 @@ const exportMenuRef = useRef<HTMLDivElement>(null);
       </div>
 
       {filteredItems.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-gruvbox-fg2">
           No items match the current filters
         </div>
       )}
@@ -405,13 +405,13 @@ const exportMenuRef = useRef<HTMLDivElement>(null);
 
   function getStatusColor(status: string) {
     switch (status) {
-      case 'running': return 'text-blue-600 bg-blue-100';
-      case 'success': return 'text-green-600 bg-green-100';
-      case 'fail': return 'text-yellow-600 bg-yellow-100';
-      case 'error': return 'text-red-600 bg-red-100';
-      case 'timeout': return 'text-orange-600 bg-orange-100';
-      case 'queued': return 'text-gray-600 bg-gray-100';
-      default: return 'text-gray-600 bg-gray-100';
+      case 'running': return 'text-gruvbox-bright-blue bg-gruvbox-blue/20';
+      case 'success': return 'text-gruvbox-bright-green bg-gruvbox-green/20';
+      case 'fail': return 'text-gruvbox-bright-yellow bg-gruvbox-yellow/20';
+      case 'error': return 'text-gruvbox-bright-red bg-gruvbox-red/20';
+      case 'timeout': return 'text-gruvbox-bright-orange bg-gruvbox-orange/20';
+      case 'queued': return 'text-gruvbox-fg2 bg-gruvbox-bg3';
+      default: return 'text-gruvbox-fg2 bg-gruvbox-bg3';
     }
   }
 

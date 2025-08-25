@@ -189,15 +189,15 @@ export function SessionView({
   const getStatusColor = (status: Session["status"]) => {
     switch (status) {
       case "idle":
-        return "text-green-600 bg-green-50 border-green-200";
+        return "text-gruvbox-bright-green bg-gruvbox-green/20 border-gruvbox-green";
       case "running":
-        return "text-blue-600 bg-blue-50 border-blue-200";
+        return "text-gruvbox-bright-blue bg-gruvbox-blue/20 border-gruvbox-blue";
       case "awaiting-input":
-        return "text-yellow-600 bg-yellow-50 border-yellow-200";
+        return "text-gruvbox-bright-yellow bg-gruvbox-yellow/20 border-gruvbox-yellow";
       case "error":
-        return "text-red-600 bg-red-50 border-red-200";
+        return "text-gruvbox-bright-red bg-gruvbox-red/20 border-gruvbox-red";
       case "done":
-        return "text-gray-600 bg-gray-50 border-gray-200";
+        return "text-gruvbox-fg2 bg-gruvbox-bg3 border-gruvbox-bg4";
     }
   };
 
@@ -207,11 +207,11 @@ export function SessionView({
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gruvbox-fg2 hover:text-gruvbox-fg1"
           >
             ← Back
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">{session.name}</h1>
+          <h1 className="text-2xl font-bold text-gruvbox-fg0">{session.name}</h1>
           <span
             className={`px-3 py-1 text-sm rounded-full border ${getStatusColor(
               session.status
@@ -223,27 +223,27 @@ export function SessionView({
       </div>
 
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-md">
-          <div className="text-red-800 font-medium">Error</div>
-          <div className="text-red-600 text-sm mt-1">{error}</div>
+        <div className="p-4 bg-gruvbox-red/20 border border-gruvbox-red rounded-md">
+          <div className="text-gruvbox-bright-red font-medium">Error</div>
+          <div className="text-gruvbox-red text-sm mt-1">{error}</div>
           <button
             onClick={() => setError(null)}
-            className="mt-2 text-sm text-red-600 underline"
+            className="mt-2 text-sm text-gruvbox-bright-red underline"
           >
             Dismiss
           </button>
         </div>
       )}
 
-      <div className="flex space-x-1 border-b border-gray-200">
+      <div className="flex space-x-1 border-b border-gruvbox-bg4">
         {["overview", "actions"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as any)}
             className={`px-4 py-2 text-sm font-medium capitalize ${
               activeTab === tab
-                ? "text-blue-600 border-b-2 border-blue-600"
-                : "text-gray-500 hover:text-gray-700"
+                ? "text-gruvbox-bright-blue border-b-2 border-gruvbox-bright-blue"
+                : "text-gruvbox-fg2 hover:text-gruvbox-fg1"
             }`}
           >
             {tab}
@@ -253,86 +253,86 @@ export function SessionView({
 
       {activeTab === "overview" && (
         <div className="space-y-4">
-          <div className="bg-white p-6 rounded-lg border">
-            <h3 className="text-lg font-semibold mb-4">Session Details</h3>
+          <div className="bg-gruvbox-bg1 p-6 rounded-lg border border-gruvbox-bg3">
+            <h3 className="text-lg font-semibold mb-4 text-gruvbox-fg0">Session Details</h3>
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <dt className="text-sm font-medium text-gray-500">ID</dt>
-                <dd className="mt-1 text-sm text-gray-900 font-mono">
+                <dt className="text-sm font-medium text-gruvbox-fg2">ID</dt>
+                <dd className="mt-1 text-sm text-gruvbox-fg1 font-mono">
                   {session.id}
                 </dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-gray-500">Status</dt>
-                <dd className="mt-1 text-sm text-gray-900">{session.status}</dd>
+                <dt className="text-sm font-medium text-gruvbox-fg2">Status</dt>
+                <dd className="mt-1 text-sm text-gruvbox-fg1">{session.status}</dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-gray-500">
+                <dt className="text-sm font-medium text-gruvbox-fg2">
                   Repository
                 </dt>
-                <dd className="mt-1 text-sm text-gray-900">
+                <dd className="mt-1 text-sm text-gruvbox-fg1">
                   {session.repoRoot}
                 </dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-gray-500">
+                <dt className="text-sm font-medium text-gruvbox-fg2">
                   Base Branch
                 </dt>
-                <dd className="mt-1 text-sm text-gray-900">
+                <dd className="mt-1 text-sm text-gruvbox-fg1">
                   {session.baseBranch}
                 </dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-gray-500">
+                <dt className="text-sm font-medium text-gruvbox-fg2">
                   Session Branch
                 </dt>
-                <dd className="mt-1 text-sm text-gray-900 font-mono">
+                <dd className="mt-1 text-sm text-gruvbox-fg1 font-mono">
                   {session.branchName}
                 </dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-gray-500">
+                <dt className="text-sm font-medium text-gruvbox-fg2">
                   Worktree Path
                 </dt>
-                <dd className="mt-1 text-sm text-gray-900 font-mono">
+                <dd className="mt-1 text-sm text-gruvbox-fg1 font-mono">
                   {session.worktreePath}
                 </dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-gray-500">Created</dt>
-                <dd className="mt-1 text-sm text-gray-900">
+                <dt className="text-sm font-medium text-gruvbox-fg2">Created</dt>
+                <dd className="mt-1 text-sm text-gruvbox-fg1">
                   {new Date(session.createdAt).toLocaleString()}
                 </dd>
               </div>
               {session.lastRun && (
                 <div>
-                  <dt className="text-sm font-medium text-gray-500">
+                  <dt className="text-sm font-medium text-gruvbox-fg2">
                     Last Run
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900">
+                  <dd className="mt-1 text-sm text-gruvbox-fg1">
                     {new Date(session.lastRun).toLocaleString()}
                   </dd>
                 </div>
               )}
               {session.scriptCommand && (
                 <div className="sm:col-span-2">
-                  <dt className="text-sm font-medium text-gray-500">
+                  <dt className="text-sm font-medium text-gruvbox-fg2">
                     Test Command
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900 font-mono bg-gray-50 p-2 rounded">
+                  <dd className="mt-1 text-sm text-gruvbox-fg1 font-mono bg-gruvbox-bg2 p-2 rounded">
                     {session.scriptCommand}
                   </dd>
                 </div>
               )}
               {session.modelOverride && (
                 <div>
-                  <dt className="text-sm font-medium text-gray-500">
+                  <dt className="text-sm font-medium text-gruvbox-fg2">
                     Model Override
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900">
+                  <dd className="mt-1 text-sm text-gruvbox-fg1">
                     {session.modelOverride}
                     {session.modelOverride === "gpt-5" && (
-                      <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                      <span className="ml-2 text-xs text-gruvbox-bright-blue bg-gruvbox-blue/30 px-2 py-1 rounded">
                         uses --try-gpt5 flag
                       </span>
                     )}
@@ -345,24 +345,24 @@ export function SessionView({
 
 
           {/* Session Summary with Complete Metrics */}
-          <div className="bg-white p-6 rounded-lg border">
-            <h3 className="text-lg font-semibold mb-4">Session Summary</h3>
+          <div className="bg-gruvbox-bg1 p-6 rounded-lg border border-gruvbox-bg3">
+            <h3 className="text-lg font-semibold mb-4 text-gruvbox-fg0">Session Summary</h3>
             <JSONMetrics sessionId={session.id} session={session} />
           </div>
 
           {/* Delete Session Button */}
-          <div className="bg-white p-6 rounded-lg border border-red-200">
-            <h3 className="text-lg font-semibold mb-4 text-red-800">
+          <div className="bg-gruvbox-bg1 p-6 rounded-lg border border-gruvbox-bright-red">
+            <h3 className="text-lg font-semibold mb-4 text-gruvbox-bright-red">
               Delete Session
             </h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-gruvbox-fg2 mb-4">
               Permanently remove this session, including its worktree and
               branch. This cannot be undone.
             </p>
             <button
               onClick={handleDelete}
               disabled={loading}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-gruvbox-bright-red text-gruvbox-bg0 rounded-md hover:bg-gruvbox-red disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Delete Session
             </button>
@@ -372,18 +372,18 @@ export function SessionView({
 
       {activeTab === "actions" && (
         <div className="space-y-6">
-          <div className="bg-white p-6 rounded-lg border">
-            <h3 className="text-lg font-semibold mb-4">Continue Thread</h3>
+          <div className="bg-gruvbox-bg1 p-6 rounded-lg border border-gruvbox-bg3">
+            <h3 className="text-lg font-semibold mb-4 text-gruvbox-fg0">Continue Thread</h3>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gruvbox-fg2 mb-1">
                   Send followup message
                 </label>
                 <textarea
                   value={iterationNotes}
                   onChange={(e) => setIterationNotes(e.target.value)}
                   rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-gruvbox-bg2 border border-gruvbox-bg3 text-gruvbox-fg1 rounded-md focus:outline-none focus:ring-2 focus:ring-gruvbox-bright-blue"
                   placeholder="Message to continue the thread..."
                 />
               </div>
@@ -393,85 +393,84 @@ export function SessionView({
                   id="includeContextFollow"
                   checked={includeContext}
                   onChange={(e) => setIncludeContext(e.target.checked)}
-                  className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="mr-2 rounded border-gruvbox-bg3 text-gruvbox-bright-blue focus:ring-gruvbox-bright-blue"
                 />
-                <label htmlFor="includeContextFollow" className="text-sm text-gray-700">
+                <label htmlFor="includeContextFollow" className="text-sm text-gruvbox-fg2">
                   Include CONTEXT.md file content if it exists
                 </label>
               </div>
               <button
                 onClick={handleIterate}
                 disabled={loading || session.status === "running"}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-gruvbox-bright-blue text-gruvbox-bg0 rounded-md hover:bg-gruvbox-blue disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? "Running..." : "Continue Thread"}
               </button>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg border">
-            <h3 className="text-lg font-semibold mb-4">Squash Commits</h3>
+          <div className="bg-gruvbox-bg1 p-6 rounded-lg border border-gruvbox-bg3">
+            <h3 className="text-lg font-semibold mb-4 text-gruvbox-fg0">Squash Commits</h3>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gruvbox-fg2 mb-1">
                   Commit Message
                 </label>
                 <input
                   type="text"
                   value={squashMessage}
                   onChange={(e) => setSquashMessage(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-gruvbox-bg2 border border-gruvbox-bg3 text-gruvbox-fg1 rounded-md focus:outline-none focus:ring-2 focus:ring-gruvbox-bright-blue"
                   placeholder={`feat: ${session.name}`}
                 />
               </div>
               <button
                 onClick={handleSquash}
                 disabled={loading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-gruvbox-bright-blue text-gruvbox-bg0 rounded-md hover:bg-gruvbox-blue disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? "Squashing..." : "Squash Commits"}
               </button>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg border">
-            <h3 className="text-lg font-semibold mb-4">Rebase Session</h3>
+          <div className="bg-gruvbox-bg1 p-6 rounded-lg border border-gruvbox-bg3">
+            <h3 className="text-lg font-semibold mb-4 text-gruvbox-fg0">Rebase Session</h3>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gruvbox-fg2 mb-1">
                   Target Branch
                 </label>
                 <input
                   type="text"
                   value={rebaseTarget}
                   onChange={(e) => setRebaseTarget(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-gruvbox-bg2 border border-gruvbox-bg3 text-gruvbox-fg1 rounded-md focus:outline-none focus:ring-2 focus:ring-gruvbox-bright-blue"
                   placeholder={session.baseBranch}
                 />
               </div>
               <button
                 onClick={handleRebase}
                 disabled={loading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-gruvbox-bright-blue text-gruvbox-bg0 rounded-md hover:bg-gruvbox-blue disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? "Rebasing..." : "Rebase onto Target"}
               </button>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg border border-green-200">
-            <h3 className="text-lg font-semibold mb-4 text-black">
+          <div className="bg-gruvbox-bg1 p-6 rounded-lg border border-gruvbox-bright-green">
+            <h3 className="text-lg font-semibold mb-4 text-gruvbox-fg0">
               Merge to Main
             </h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-gruvbox-fg2 mb-4">
               Use the merge wizard to squash commits, rebase, and merge to the
               base branch in one guided flow.
             </p>
             <button
               onClick={() => setShowMergeWizard(true)}
               disabled={loading}
-              className="px-6 py-3 text-white rounded-md hover:bg-opacity-80 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
-              style={{ backgroundColor: "#291242" }}
+              className="px-6 py-3 bg-gruvbox-bright-green text-gruvbox-bg0 rounded-md hover:bg-gruvbox-green disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
             >
               Start Merge Wizard
             </button>

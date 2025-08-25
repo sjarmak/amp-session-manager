@@ -57,24 +57,24 @@ export function AuthStatus({ onAuthRequired }: AuthStatusProps) {
 
   if (authInfo.loading) {
     return (
-      <div className="flex items-center space-x-2 px-3 py-2 bg-gray-50 rounded-lg">
-        <div className="animate-spin h-4 w-4 border-2 border-gray-300 border-t-gray-600 rounded-full"></div>
-        <span className="text-sm text-gray-600">Checking authentication...</span>
+      <div className="flex items-center space-x-2 px-3 py-2 bg-gruvbox-dark1 border border-gruvbox-dark3/50 rounded-lg">
+        <div className="animate-spin h-4 w-4 border-2 border-gruvbox-light4 border-t-gruvbox-aqua rounded-full"></div>
+        <span className="text-sm text-gruvbox-light3">Checking authentication...</span>
       </div>
     );
   }
 
   if (authInfo.isAuthenticated && authInfo.hasCredits) {
     return (
-      <div className="flex items-center justify-between px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+      <div className="flex items-center justify-between px-3 py-2 bg-gruvbox-dark1 border border-gruvbox-aqua-dim/50 rounded-lg">
         <div className="flex items-center space-x-2">
-          <CheckCircleIcon className="h-5 w-5 text-green-500" />
-          <span className="text-sm font-medium text-green-800">Amp CLI Ready</span>
+          <CheckCircleIcon className="h-5 w-5 text-gruvbox-aqua" />
+          <span className="text-sm font-medium text-gruvbox-aqua">Amp CLI Ready</span>
         </div>
         <button
           onClick={checkAuth}
           disabled={isRefreshing}
-          className="text-xs text-green-600 hover:text-green-800 disabled:opacity-50"
+          className="text-xs text-gruvbox-aqua hover:text-gruvbox-light2 disabled:opacity-50"
         >
           {isRefreshing ? 'Refreshing...' : 'Refresh'}
         </button>
@@ -84,25 +84,25 @@ export function AuthStatus({ onAuthRequired }: AuthStatusProps) {
 
   if (authInfo.isAuthenticated && authInfo.hasCredits === false) {
     return (
-      <div className="flex items-center justify-between px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+      <div className="flex items-center justify-between px-3 py-2 bg-gruvbox-dark1 border border-gruvbox-red rounded-lg">
         <div className="flex items-center space-x-2">
-          <ExclamationTriangleIcon className="h-5 w-5 text-yellow-500" />
+          <ExclamationTriangleIcon className="h-5 w-5 text-gruvbox-red" />
           <div>
-            <div className="text-sm font-medium text-yellow-800">Insufficient Credits</div>
-            <div className="text-xs text-yellow-600">{authInfo.suggestion}</div>
+            <div className="text-sm font-medium text-gruvbox-light2">Insufficient Credits</div>
+            <div className="text-xs text-gruvbox-light3">{authInfo.suggestion}</div>
           </div>
         </div>
         <div className="flex space-x-2">
           <button
             onClick={handleCredits}
-            className="px-3 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700"
+            className="px-3 py-1 text-xs bg-gruvbox-red text-white rounded hover:bg-gruvbox-red-dim"
           >
             Add Credits
           </button>
           <button
             onClick={checkAuth}
             disabled={isRefreshing}
-            className="text-xs text-yellow-600 hover:text-yellow-800 disabled:opacity-50"
+            className="text-xs text-gruvbox-light3 hover:text-gruvbox-light2 disabled:opacity-50"
           >
             {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </button>
@@ -112,25 +112,25 @@ export function AuthStatus({ onAuthRequired }: AuthStatusProps) {
   }
 
   return (
-    <div className="flex items-center justify-between px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
+    <div className="flex items-center justify-between px-3 py-2 bg-gruvbox-dark1 border border-gruvbox-red rounded-lg">
       <div className="flex items-center space-x-2">
-        <XCircleIcon className="h-5 w-5 text-red-500" />
+        <XCircleIcon className="h-5 w-5 text-gruvbox-red" />
         <div>
-          <div className="text-sm font-medium text-red-800">Authentication Required</div>
-          <div className="text-xs text-red-600">{authInfo.error || 'Not logged in'}</div>
+          <div className="text-sm font-medium text-gruvbox-light2">Authentication Required</div>
+          <div className="text-xs text-gruvbox-light3">{authInfo.error || 'Not logged in'}</div>
         </div>
       </div>
       <div className="flex space-x-2">
         <button
           onClick={handleLogin}
-          className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+          className="px-3 py-1 text-xs bg-gruvbox-red text-white rounded hover:bg-gruvbox-red-dim"
         >
           Login
         </button>
         <button
           onClick={checkAuth}
           disabled={isRefreshing}
-          className="text-xs text-red-600 hover:text-red-800 disabled:opacity-50"
+          className="text-xs text-gruvbox-light3 hover:text-gruvbox-light2 disabled:opacity-50"
         >
           {isRefreshing ? 'Refreshing...' : 'Refresh'}
         </button>

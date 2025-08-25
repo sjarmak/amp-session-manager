@@ -80,12 +80,12 @@ export default function NotificationSettingsModal({ isOpen, onClose }: Notificat
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+      <div className="bg-gruvbox-bg0 rounded-lg shadow-xl p-6 w-full max-w-md border border-gruvbox-bg3">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">Notification Settings</h2>
+          <h2 className="text-lg font-semibold text-gruvbox-fg0">Notification Settings</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gruvbox-fg2 hover:text-gruvbox-fg1"
           >
             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -97,8 +97,8 @@ export default function NotificationSettingsModal({ isOpen, onClose }: Notificat
           {/* Master Enable/Disable */}
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-medium text-gray-900">Enable Notifications</h3>
-              <p className="text-sm text-gray-500">Turn all desktop notifications on or off</p>
+              <h3 className="text-sm font-medium text-gruvbox-fg1">Enable Notifications</h3>
+              <p className="text-sm text-gruvbox-fg2">Turn all desktop notifications on or off</p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
@@ -107,29 +107,29 @@ export default function NotificationSettingsModal({ isOpen, onClose }: Notificat
                 checked={settings.enabled}
                 onChange={(e) => setSettings({ ...settings, enabled: e.target.checked })}
               />
-              <div className={`w-11 h-6 rounded-full ${settings.enabled ? 'bg-blue-600' : 'bg-gray-200'} relative transition-colors`}>
-                <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform ${settings.enabled ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
+              <div className={`w-11 h-6 rounded-full ${settings.enabled ? 'bg-gruvbox-bright-blue' : 'bg-gruvbox-bg3'} relative transition-colors`}>
+                <div className={`w-5 h-5 bg-gruvbox-fg0 rounded-full absolute top-0.5 transition-transform ${settings.enabled ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
               </div>
             </label>
           </div>
 
           {/* Notification Types */}
           <div className="space-y-4">
-            <h3 className="text-sm font-medium text-gray-900">Notification Types</h3>
+            <h3 className="text-sm font-medium text-gruvbox-fg1">Notification Types</h3>
             {notificationTypes.map(({ key, label, description }) => (
               <div key={key} className="flex items-center justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-3">
                     <label className="flex-1">
-                      <div className="text-sm font-medium text-gray-900">{label}</div>
-                      <div className="text-sm text-gray-500">{description}</div>
+                      <div className="text-sm font-medium text-gruvbox-fg1">{label}</div>
+                      <div className="text-sm text-gruvbox-fg2">{description}</div>
                     </label>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => handleTestNotification(key)}
-                    className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 border border-blue-200 rounded"
+                    className="text-xs text-gruvbox-bright-blue hover:text-gruvbox-blue px-2 py-1 border border-gruvbox-bg3 rounded"
                   >
                     Test
                   </button>
@@ -147,8 +147,8 @@ export default function NotificationSettingsModal({ isOpen, onClose }: Notificat
                       })}
                       disabled={!settings.enabled}
                     />
-                    <div className={`w-11 h-6 rounded-full ${settings.enabled && settings.types[key as keyof typeof settings.types] ? 'bg-blue-600' : 'bg-gray-200'} relative transition-colors`}>
-                      <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform ${settings.enabled && settings.types[key as keyof typeof settings.types] ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
+                    <div className={`w-11 h-6 rounded-full ${settings.enabled && settings.types[key as keyof typeof settings.types] ? 'bg-gruvbox-bright-blue' : 'bg-gruvbox-bg3'} relative transition-colors`}>
+                      <div className={`w-5 h-5 bg-gruvbox-fg0 rounded-full absolute top-0.5 transition-transform ${settings.enabled && settings.types[key as keyof typeof settings.types] ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
                     </div>
                   </label>
                 </div>
@@ -159,8 +159,8 @@ export default function NotificationSettingsModal({ isOpen, onClose }: Notificat
           {/* Sound Settings */}
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-medium text-gray-900">Sound</h3>
-              <p className="text-sm text-gray-500">Play sound with notifications</p>
+              <h3 className="text-sm font-medium text-gruvbox-fg1">Sound</h3>
+              <p className="text-sm text-gruvbox-fg2">Play sound with notifications</p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
@@ -170,15 +170,15 @@ export default function NotificationSettingsModal({ isOpen, onClose }: Notificat
                 onChange={(e) => setSettings({ ...settings, sound: e.target.checked })}
                 disabled={!settings.enabled}
               />
-              <div className={`w-11 h-6 rounded-full ${settings.enabled && settings.sound ? 'bg-blue-600' : 'bg-gray-200'} relative transition-colors`}>
-                <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform ${settings.enabled && settings.sound ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
+              <div className={`w-11 h-6 rounded-full ${settings.enabled && settings.sound ? 'bg-gruvbox-bright-blue' : 'bg-gruvbox-bg3'} relative transition-colors`}>
+                <div className={`w-5 h-5 bg-gruvbox-fg0 rounded-full absolute top-0.5 transition-transform ${settings.enabled && settings.sound ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
               </div>
             </label>
           </div>
 
           {/* Duration Settings */}
           <div>
-            <h3 className="text-sm font-medium text-gray-900 mb-2">Auto-hide Duration</h3>
+            <h3 className="text-sm font-medium text-gruvbox-fg1 mb-2">Auto-hide Duration</h3>
             <div className="space-y-2">
               {[
                 { value: 3000, label: '3 seconds' },
@@ -194,9 +194,9 @@ export default function NotificationSettingsModal({ isOpen, onClose }: Notificat
                     checked={settings.duration === value}
                     onChange={(e) => setSettings({ ...settings, duration: parseInt(e.target.value) })}
                     disabled={!settings.enabled}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    className="h-4 w-4 text-gruvbox-bright-blue focus:ring-gruvbox-bright-blue border-gruvbox-bg3"
                   />
-                  <span className="ml-2 text-sm text-gray-700">{label}</span>
+                  <span className="ml-2 text-sm text-gruvbox-fg1">{label}</span>
                 </label>
               ))}
             </div>
@@ -206,7 +206,7 @@ export default function NotificationSettingsModal({ isOpen, onClose }: Notificat
         <div className="flex justify-end space-x-3 mt-8">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+            className="px-4 py-2 text-sm font-medium text-gruvbox-fg2 hover:text-gruvbox-fg0 transition-colors"
             disabled={isSaving}
           >
             Cancel
@@ -214,7 +214,7 @@ export default function NotificationSettingsModal({ isOpen, onClose }: Notificat
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 text-sm font-medium text-gruvbox-bg0 bg-gruvbox-bright-blue rounded-md hover:bg-gruvbox-blue disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSaving ? 'Saving...' : 'Save Settings'}
           </button>

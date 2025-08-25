@@ -492,7 +492,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
   if (loading) {
     return (
       <div className={`flex items-center justify-center py-8 ${className}`}>
-        <div className="text-gray-500">Loading JSON metrics...</div>
+        <div className="text-gruvbox-fg2">Loading JSON metrics...</div>
       </div>
     );
   }
@@ -500,7 +500,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
   if (error) {
     return (
       <div className={`py-8 ${className}`}>
-        <div className="text-red-600 bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="text-gruvbox-red bg-gruvbox-bg2 border border-gruvbox-red/30 rounded-lg p-4">
           <h3 className="font-semibold">Error Loading Metrics</h3>
           <p className="text-sm mt-1">{error}</p>
         </div>
@@ -511,7 +511,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
   if (!metrics) {
     return (
       <div className={`py-8 ${className}`}>
-        <div className="text-gray-500 text-center">No metrics data available</div>
+        <div className="text-gruvbox-fg2 text-center">No metrics data available</div>
       </div>
     );
   }
@@ -520,9 +520,9 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
     <div className={`space-y-6 ${className}`}>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Token Usage Summary */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="font-semibold text-blue-900 mb-2">Token Usage</h4>
-          <div className="space-y-1 text-sm">
+        <div className="bg-gruvbox-bg2 border border-gruvbox-bg4 rounded-lg p-4">
+          <h4 className="font-semibold text-gruvbox-blue mb-2">Token Usage</h4>
+          <div className="space-y-1 text-sm text-gruvbox-fg1">
             <div className="flex justify-between">
               <span>Input:</span>
               <span className="font-mono">{metrics.totalTokens.input.toLocaleString()}</span>
@@ -539,7 +539,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               <span>Cache Read:</span>
               <span className="font-mono">{metrics.totalTokens.cacheRead.toLocaleString()}</span>
             </div>
-            <hr className="border-blue-200" />
+            <hr className="border-gruvbox-bg4" />
             <div className="flex justify-between font-semibold">
               <span>Total:</span>
               <span className="font-mono">{metrics.totalTokens.total.toLocaleString()}</span>
@@ -548,9 +548,9 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
         </div>
 
         {/* Tool Usage Summary */}
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <h4 className="font-semibold text-green-900 mb-2">Tool Usage</h4>
-          <div className="space-y-1 text-sm">
+        <div className="bg-gruvbox-bg2 border border-gruvbox-bg4 rounded-lg p-4">
+          <h4 className="font-semibold text-gruvbox-green mb-2">Tool Usage</h4>
+          <div className="space-y-1 text-sm text-gruvbox-fg1">
             {/* Use API summary data if available, fallback to stream data */}
             {(() => {
               // Try API summary first (reliable for completed sessions)
@@ -578,15 +578,15 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                 ));
               }
               
-              return <div className="text-gray-500">No tools used</div>;
+              return <div className="text-gruvbox-fg2">No tools used</div>;
             })()}
           </div>
         </div>
 
         {/* Session Summary */}
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <h4 className="font-semibold text-gray-900 mb-2">Session Summary</h4>
-          <div className="space-y-1 text-sm">
+        <div className="bg-gruvbox-bg2 border border-gruvbox-bg4 rounded-lg p-4">
+          <h4 className="font-semibold text-gruvbox-purple mb-2">Session Summary</h4>
+          <div className="space-y-1 text-sm text-gruvbox-fg1">
             <div className="flex justify-between">
               <span>Messages:</span>
               <span className="font-mono">{metrics.assistantMessages.length}</span>
@@ -609,11 +609,11 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
             </div>
             <div className="flex justify-between">
               <span>Lines Added:</span>
-              <span className="font-mono text-green-600">+{apiSummary?.summary?.totalLocAdded || 0}</span>
+              <span className="font-mono text-gruvbox-green">+{apiSummary?.summary?.totalLocAdded || 0}</span>
             </div>
             <div className="flex justify-between">
               <span>Lines Deleted:</span>
-              <span className="font-mono text-red-600">-{apiSummary?.summary?.totalLocDeleted || 0}</span>
+              <span className="font-mono text-gruvbox-red">-{apiSummary?.summary?.totalLocDeleted || 0}</span>
             </div>
             {metrics.sessionResults.length > 0 && (
               <div className="flex justify-between">
@@ -629,8 +629,8 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
 
       {/* Conversation Flow */}
       {(metrics.assistantMessages.length > 0 || metrics.userMessages.length > 0) && (
-        <div className="bg-white border rounded-lg p-4">
-          <h4 className="font-semibold mb-3">Conversation Flow</h4>
+        <div className="bg-gruvbox-bg1 border border-gruvbox-bg3 rounded-lg p-4">
+          <h4 className="font-semibold mb-3 text-gruvbox-fg0">Conversation Flow</h4>
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {(() => {
               // Merge user messages and assistant messages in chronological order
@@ -652,23 +652,23 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               return allMessages.map((msg, index) => (
                 <div key={index} className={`border-l-4 pl-4 pr-4 py-3 rounded-r-lg ${
                   msg.type === 'user' 
-                    ? 'border-purple-400 bg-purple-50' 
-                    : 'border-blue-400 bg-blue-50'
+                    ? 'border-gruvbox-purple bg-gruvbox-bg2' 
+                    : 'border-gruvbox-blue bg-gruvbox-bg2'
                 }`}>
                   <div className="flex justify-between items-start mb-2 gap-4">
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className={`text-sm font-semibold ${
-                        msg.type === 'user' ? 'text-purple-700' : 'text-blue-700'
+                        msg.type === 'user' ? 'text-gruvbox-purple' : 'text-gruvbox-blue'
                       }`}>
                         {msg.type === 'user' ? 'User' : 'Amp'}
                       </span>
                       {msg.type === 'assistant' && msg.model && (
-                        <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">
+                        <span className="text-xs bg-gruvbox-bg3 text-gruvbox-fg2 px-2 py-1 rounded">
                           {msg.model}
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-gray-500 text-right flex-shrink-0">
+                    <div className="text-xs text-gruvbox-fg2 text-right flex-shrink-0">
                       <div>{new Date(msg.timestamp).toLocaleString()}</div>
                       {msg.type === 'assistant' && msg.usage && (
                         <div className="mt-1">
@@ -677,7 +677,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                       )}
                     </div>
                   </div>
-                  <div className="text-sm text-gray-800 min-w-0">
+                  <div className="text-sm text-gruvbox-fg1 min-w-0">
                     <div className="whitespace-pre-wrap break-words">
                       {msg.content.length > 500 
                         ? `${msg.content.slice(0, 500)}...` 
@@ -694,8 +694,8 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
 
       {/* Files Created */}
       {metrics.filesCreated.length > 0 && (
-        <div className="bg-white border rounded-lg p-4">
-          <h4 className="font-semibold mb-3 text-green-700">Files Created ({metrics.filesCreated.length})</h4>
+        <div className="bg-gruvbox-bg1 border border-gruvbox-bg3 rounded-lg p-4">
+          <h4 className="font-semibold mb-3 text-gruvbox-green">Files Created ({metrics.filesCreated.length})</h4>
           <div className="space-y-1">
             {metrics.filesCreated.map((file, index) => {
               const isFullPath = file.includes('/');
@@ -703,12 +703,12 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               const fileUrl = isFullPath ? `file:///${file}` : null;
               
               return (
-                <div key={index} className="text-sm font-mono text-gray-700 bg-green-50 border-l-2 border-green-300 px-2 py-1 rounded flex justify-between items-center">
+                <div key={index} className="text-sm font-mono text-gruvbox-fg1 bg-gruvbox-bg2 border-l-2 border-gruvbox-green px-2 py-1 rounded flex justify-between items-center">
                   <span>{filename}</span>
                   {fileUrl && (
                     <a 
                       href={fileUrl} 
-                      className="text-blue-600 hover:text-blue-800 text-xs"
+                      className="text-gruvbox-blue hover:text-gruvbox-bright-blue text-xs"
                       title="Open file"
                     >
                     Open
@@ -723,8 +723,8 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
 
       {/* Files Modified */}
       {metrics.filesModified.length > 0 && (
-        <div className="bg-white border rounded-lg p-4">
-          <h4 className="font-semibold mb-3 text-blue-700">Files Modified ({metrics.filesModified.length})</h4>
+        <div className="bg-gruvbox-bg1 border border-gruvbox-bg3 rounded-lg p-4">
+          <h4 className="font-semibold mb-3 text-gruvbox-blue">Files Modified ({metrics.filesModified.length})</h4>
           <div className="space-y-1">
             {metrics.filesModified.map((file, index) => {
               const isFullPath = file.includes('/');
@@ -732,12 +732,12 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               const fileUrl = isFullPath ? `file:///${file}` : null;
               
               return (
-                <div key={index} className="text-sm font-mono text-gray-700 bg-blue-50 border-l-2 border-blue-300 px-2 py-1 rounded flex justify-between items-center">
+                <div key={index} className="text-sm font-mono text-gruvbox-fg1 bg-gruvbox-bg2 border-l-2 border-gruvbox-blue px-2 py-1 rounded flex justify-between items-center">
                   <span>{filename}</span>
                   {fileUrl && (
                     <a 
                       href={fileUrl} 
-                      className="text-blue-600 hover:text-blue-800 text-xs"
+                      className="text-gruvbox-blue hover:text-gruvbox-bright-blue text-xs"
                       title="Open file"
                     >
                     Open
@@ -751,11 +751,11 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
       )}
 
       {/* Raw Data (collapsible) */}
-      <details className="bg-white border rounded-lg p-4">
-        <summary className="font-semibold cursor-pointer mb-3">
+      <details className="bg-gruvbox-bg1 border border-gruvbox-bg3 rounded-lg p-4">
+        <summary className="font-semibold cursor-pointer mb-3 text-gruvbox-fg0">
           Raw Stream Data ({rawStreamData.length} events)
         </summary>
-        <pre className="text-xs bg-gray-100 p-3 rounded overflow-auto max-h-96">
+        <pre className="text-xs bg-gruvbox-bg2 text-gruvbox-fg1 p-3 rounded overflow-auto max-h-96">
           {JSON.stringify(rawStreamData, null, 2)}
         </pre>
       </details>
