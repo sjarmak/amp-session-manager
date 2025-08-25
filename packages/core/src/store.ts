@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto';
 import { getDbPath } from './config.js';
 
 export class SessionStore {
-  private db: Database.Database;
+  public readonly db: Database.Database;
   public readonly dbPath: string;
 
   constructor(dbPath?: string) {
@@ -31,7 +31,7 @@ export class SessionStore {
       CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        ampPrompt TEXT NOT NULL,
+        ampPrompt TEXT,
         followUpPrompts TEXT,
         repoRoot TEXT NOT NULL,
         baseBranch TEXT NOT NULL,
@@ -43,7 +43,9 @@ export class SessionStore {
         threadId TEXT,
         createdAt TEXT NOT NULL,
         lastRun TEXT,
-        notes TEXT
+        notes TEXT,
+        contextIncluded BOOLEAN,
+        mode TEXT DEFAULT 'async'
       );
 
       CREATE TABLE IF NOT EXISTS iterations (
@@ -153,6 +155,28 @@ export class SessionStore {
         data TEXT NOT NULL,
         FOREIGN KEY(sessionId) REFERENCES sessions(id)
       );
+
+      -- New session-thread relationship tables
+      CREATE TABLE IF NOT EXISTS threads (
+        id TEXT PRIMARY KEY,
+        sessionId TEXT NOT NULL,
+        name TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        FOREIGN KEY(sessionId) REFERENCES sessions(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS thread_messages (
+        id TEXT PRIMARY KEY,
+        threadId TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system')),
+        content TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        idx INTEGER NOT NULL,
+        FOREIGN KEY(threadId) REFERENCES threads(id) ON DELETE CASCADE,
+        UNIQUE(threadId, idx)
+      );
     `);
     
     // Migration: Add threadId column if it doesn't exist
@@ -206,6 +230,78 @@ export class SessionStore {
     } catch (error) {
       // Column already exists, ignore error
     }
+    
+    // Migration: Add mode column if it doesn't exist
+    try {
+      this.db.exec(`ALTER TABLE sessions ADD COLUMN mode TEXT DEFAULT 'async';`);
+    } catch (error) {
+      // Column already exists, ignore error
+    }
+    
+    // Migration: Make ampPrompt nullable for interactive sessions
+    try {
+      // SQLite doesn't support modifying column constraints directly
+      // We need to recreate the table with the new schema
+      this.db.exec(`
+        BEGIN TRANSACTION;
+        
+        -- Create new table with nullable ampPrompt
+        CREATE TABLE sessions_new (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          ampPrompt TEXT,
+          followUpPrompts TEXT,
+          repoRoot TEXT NOT NULL,
+          baseBranch TEXT NOT NULL,
+          branchName TEXT NOT NULL,
+          worktreePath TEXT NOT NULL,
+          status TEXT NOT NULL,
+          scriptCommand TEXT,
+          modelOverride TEXT,
+          threadId TEXT,
+          createdAt TEXT NOT NULL,
+          lastRun TEXT,
+          notes TEXT,
+          contextIncluded BOOLEAN,
+          mode TEXT DEFAULT 'async'
+        );
+        
+        -- Copy existing data
+        INSERT INTO sessions_new SELECT 
+          id, name, ampPrompt, followUpPrompts, repoRoot, baseBranch, branchName, 
+          worktreePath, status, scriptCommand, modelOverride, threadId, createdAt, 
+          lastRun, notes, contextIncluded, mode 
+        FROM sessions;
+        
+        -- Drop old table and rename new one
+        DROP TABLE sessions;
+        ALTER TABLE sessions_new RENAME TO sessions;
+        
+        COMMIT;
+      `);
+    } catch (error) {
+      // Migration already applied or failed, rollback and ignore
+      try {
+        this.db.exec('ROLLBACK;');
+      } catch (rollbackError) {
+        // Ignore rollback error
+      }
+    }
+    
+    // Add indexes for thread relationship tables
+    this.db.exec(`
+      -- Indexes for threads table
+      CREATE INDEX IF NOT EXISTS idx_threads_session_id ON threads(sessionId);
+      CREATE INDEX IF NOT EXISTS idx_threads_status ON threads(status);
+      CREATE INDEX IF NOT EXISTS idx_threads_created_at ON threads(createdAt);
+      CREATE INDEX IF NOT EXISTS idx_threads_updated_at ON threads(updatedAt);
+
+      -- Indexes for thread_messages table
+      CREATE INDEX IF NOT EXISTS idx_thread_messages_thread_id ON thread_messages(threadId);
+      CREATE INDEX IF NOT EXISTS idx_thread_messages_created_at ON thread_messages(createdAt);
+      CREATE INDEX IF NOT EXISTS idx_thread_messages_role ON thread_messages(role);
+      CREATE INDEX IF NOT EXISTS idx_thread_messages_idx ON thread_messages(idx);
+    `);
   }
 
   createSession(options: SessionCreateOptions): Session {
@@ -226,20 +322,21 @@ export class SessionStore {
       scriptCommand: options.scriptCommand,
       modelOverride: options.modelOverride,
       threadId: options.threadId,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      mode: options.mode || 'async'
     };
 
     const stmt = this.db.prepare(`
       INSERT INTO sessions (id, name, ampPrompt, followUpPrompts, contextIncluded, repoRoot, baseBranch, branchName, 
-        worktreePath, status, scriptCommand, modelOverride, threadId, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        worktreePath, status, scriptCommand, modelOverride, threadId, createdAt, mode)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
-      session.id, session.name, session.ampPrompt, null, session.contextIncluded ? 1 : 0,
+      session.id, session.name, session.ampPrompt ?? null, null, session.contextIncluded ? 1 : 0,
       session.repoRoot, session.baseBranch, session.branchName, session.worktreePath,
       session.status, session.scriptCommand ?? null, session.modelOverride ?? null,
-      session.threadId ?? null, session.createdAt
+      session.threadId ?? null, session.createdAt, session.mode ?? 'async'
     );
 
     return session;
@@ -822,6 +919,176 @@ export class SessionStore {
   deleteStreamEvents(sessionId: string): void {
     const stmt = this.db.prepare('DELETE FROM stream_events WHERE sessionId = ?');
     stmt.run(sessionId);
+  }
+
+  // Thread relationship methods
+  createThread(sessionId: string, name: string): string {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    
+    const stmt = this.db.prepare(`
+      INSERT INTO threads (id, sessionId, name, createdAt, updatedAt, status)
+      VALUES (?, ?, ?, ?, ?, 'active')
+    `);
+    
+    stmt.run(id, sessionId, name, now, now);
+    return id;
+  }
+
+  getSessionThreads(sessionId: string): Array<{
+    id: string;
+    sessionId: string;
+    name: string;
+    createdAt: string;
+    updatedAt: string;
+    status: string;
+    messageCount: number;
+  }> {
+    const stmt = this.db.prepare(`
+      SELECT 
+        t.id, t.sessionId, t.name, t.createdAt, t.updatedAt, t.status,
+        COUNT(tm.id) as messageCount
+      FROM threads t
+      LEFT JOIN thread_messages tm ON t.id = tm.threadId
+      WHERE t.sessionId = ?
+      GROUP BY t.id, t.sessionId, t.name, t.createdAt, t.updatedAt, t.status
+      ORDER BY t.updatedAt DESC
+    `);
+    
+    return stmt.all(sessionId) as Array<{
+      id: string;
+      sessionId: string;
+      name: string;
+      createdAt: string;
+      updatedAt: string;
+      status: string;
+      messageCount: number;
+    }>;
+  }
+
+  addThreadMessage(threadId: string, role: 'user' | 'assistant' | 'system', content: string): string {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    
+    // Get next index for this thread
+    const idxStmt = this.db.prepare('SELECT COALESCE(MAX(idx), -1) + 1 as nextIdx FROM thread_messages WHERE threadId = ?');
+    const { nextIdx } = idxStmt.get(threadId) as { nextIdx: number };
+    
+    const stmt = this.db.prepare(`
+      INSERT INTO thread_messages (id, threadId, role, content, createdAt, idx)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    
+    stmt.run(id, threadId, role, content, now, nextIdx);
+    
+    // Update thread updated timestamp
+    this.updateThreadTimestamp(threadId);
+    
+    return id;
+  }
+
+  getThreadMessages(threadId: string): Array<{
+    id: string;
+    threadId: string;
+    role: string;
+    content: string;
+    createdAt: string;
+    idx: number;
+  }> {
+    const stmt = this.db.prepare(`
+      SELECT id, threadId, role, content, createdAt, idx
+      FROM thread_messages
+      WHERE threadId = ?
+      ORDER BY idx ASC
+    `);
+    
+    return stmt.all(threadId) as Array<{
+      id: string;
+      threadId: string;
+      role: string;
+      content: string;
+      createdAt: string;
+      idx: number;
+    }>;
+  }
+
+  updateThreadTimestamp(threadId: string): void {
+    const stmt = this.db.prepare('UPDATE threads SET updatedAt = ? WHERE id = ?');
+    stmt.run(new Date().toISOString(), threadId);
+  }
+
+  deleteThread(threadId: string): void {
+    // Messages will be cascade deleted due to foreign key constraint
+    const stmt = this.db.prepare('DELETE FROM threads WHERE id = ?');
+    stmt.run(threadId);
+  }
+
+  /**
+   * Migrate existing session threadId values to new threads table
+   * This should only be called once during migration
+   */
+  migrateSessionThreadIds(): { migrated: number; skipped: number } {
+    // Find sessions with threadId values that haven't been migrated yet
+    const sessionsStmt = this.db.prepare(`
+      SELECT s.id, s.name, s.threadId, s.createdAt 
+      FROM sessions s
+      LEFT JOIN threads t ON s.id = t.sessionId
+      WHERE s.threadId IS NOT NULL 
+        AND s.threadId != ''
+        AND t.sessionId IS NULL
+    `);
+    
+    const sessions = sessionsStmt.all() as Array<{
+      id: string;
+      name: string;
+      threadId: string;
+      createdAt: string;
+    }>;
+
+    if (sessions.length === 0) {
+      return { migrated: 0, skipped: 0 };
+    }
+
+    let migrated = 0;
+    const insertThreadStmt = this.db.prepare(`
+      INSERT INTO threads (id, sessionId, name, createdAt, updatedAt, status)
+      VALUES (?, ?, ?, ?, ?, 'active')
+    `);
+
+    const insertMessageStmt = this.db.prepare(`
+      INSERT INTO thread_messages (id, threadId, role, content, createdAt, idx)
+      VALUES (?, ?, 'system', ?, ?, 0)
+    `);
+
+    for (const session of sessions) {
+      const threadId = randomUUID();
+      const now = new Date().toISOString();
+      
+      try {
+        // Create thread record
+        insertThreadStmt.run(
+          threadId,
+          session.id,
+          `Thread for ${session.name}`,
+          session.createdAt,
+          now
+        );
+
+        // Create initial system message
+        insertMessageStmt.run(
+          randomUUID(),
+          threadId,
+          `Thread migrated from legacy threadId: ${session.threadId}`,
+          session.createdAt
+        );
+
+        migrated++;
+      } catch (error) {
+        console.warn(`Failed to migrate thread for session ${session.id}:`, error);
+      }
+    }
+
+    return { migrated, skipped: sessions.length - migrated };
   }
 
   close() {

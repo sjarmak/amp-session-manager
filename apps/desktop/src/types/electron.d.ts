@@ -24,9 +24,20 @@ declare global {
         cleanup: (sessionId: string, force?: boolean) => Promise<{ success: boolean; error?: string }>;
         diff: (sessionId: string) => Promise<{ success: boolean; diff?: string; error?: string }>;
         thread: (sessionId: string) => Promise<{ success: boolean; threadConversation?: string; error?: string }>;
+        getThreads: (sessionId: string) => Promise<{ success: boolean; threads?: any[]; error?: string }>;
+        getThreadMessages: (threadId: string) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
         getIterations: (sessionId: string) => Promise<{ success: boolean; iterations?: any[]; error?: string }>;
         getToolCalls: (sessionId: string) => Promise<{ success: boolean; toolCalls?: any[]; error?: string }>;
         getStreamEvents: (sessionId: string) => Promise<{ success: boolean; streamEvents?: any[]; error?: string }>;
+      };
+      interactive: {
+        start: (sessionId: string, threadId?: string) => Promise<{ success: boolean; error?: string }>;
+        send: (sessionId: string, message: string) => Promise<{ success: boolean; error?: string }>;
+        stop: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+        getHistory: (sessionId: string) => Promise<{ success: boolean; events?: any[]; error?: string }>;
+        onEvent: (callback: (sessionId: string, event: any) => void) => () => void;
+        onState: (callback: (sessionId: string, state: string) => void) => () => void;
+        onError: (callback: (sessionId: string, error: string) => void) => () => void;
       };
       dialog: {
         selectDirectory: () => Promise<Electron.OpenDialogReturnValue>;

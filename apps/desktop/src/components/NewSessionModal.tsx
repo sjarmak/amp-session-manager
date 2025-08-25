@@ -4,13 +4,15 @@ import type { SessionCreateOptions } from "@ampsm/types";
 interface NewSessionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSessionCreated: () => void;
+  onSessionCreated: (session?: any) => void;
+  mode: 'async' | 'interactive';
 }
 
 export function NewSessionModal({
   isOpen,
   onClose,
   onSessionCreated,
+  mode,
 }: NewSessionModalProps) {
   const [formData, setFormData] = useState({
     name: "",
@@ -38,11 +40,18 @@ export function NewSessionModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (
-      !formData.name.trim() ||
-      !formData.ampPrompt.trim() ||
-      !formData.repoRoot.trim()
-    ) {
+    // For interactive sessions, prompt is not required
+    const requiredFields = [
+      formData.name.trim(),
+      formData.repoRoot.trim()
+    ];
+    
+    // Only require prompt for async sessions
+    if (mode === 'async') {
+      requiredFields.push(formData.ampPrompt.trim());
+    }
+
+    if (requiredFields.some(field => !field)) {
       setError("Please fill in all required fields");
       return;
     }
@@ -52,12 +61,13 @@ export function NewSessionModal({
 
     const options: SessionCreateOptions = {
       name: formData.name.trim(),
-      ampPrompt: formData.ampPrompt.trim(),
+      ampPrompt: mode === 'async' ? formData.ampPrompt.trim() : undefined,
       repoRoot: formData.repoRoot.trim(),
       baseBranch: formData.baseBranch.trim() || "main",
       scriptCommand: formData.scriptCommand.trim() || undefined,
       modelOverride: formData.modelOverride.trim() || undefined,
       includeContext: formData.includeContext,
+      mode: mode,
     };
 
     try {
@@ -77,8 +87,8 @@ export function NewSessionModal({
         });
         setCreating(false);
 
-        // Refresh the session list
-        onSessionCreated();
+        // Refresh the session list and pass the created session
+        onSessionCreated(result.session);
       } else {
         setError(result.error || "Failed to create session");
         setCreating(false);
@@ -104,8 +114,8 @@ export function NewSessionModal({
       <div className="bg-gruvbox-dark1 rounded-lg shadow-2xl shadow-gruvbox-dark0/50 border border-gruvbox-light2/20 w-full max-w-md mx-4">
       <div className="flex items-center justify-between p-6 border-b border-gruvbox-light2/20">
       <h2 className="text-xl font-semibold text-gruvbox-light1">
-            New Session
-          </h2>
+      New {mode === 'interactive' ? 'Interactive' : 'Async'} Session
+      </h2>
           <button
             type="button"
             onClick={(e) => {
@@ -118,7 +128,7 @@ export function NewSessionModal({
             }}
             disabled={creating}
             className="text-gruvbox-light4 hover:text-gruvbox-light2 w-8 h-8 flex items-center justify-center hover:bg-gruvbox-light2/10 rounded transition-colors text-xl font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ zIndex: 9999 }}
+            style={{ zIndex: 9999, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           >
             ×
           </button>
@@ -130,6 +140,18 @@ export function NewSessionModal({
               {error}
             </div>
           )}
+
+          <div className={`p-3 rounded-md border ${mode === 'interactive' ? 'bg-gruvbox-aqua/10 border-gruvbox-aqua/30' : 'bg-gruvbox-blue/10 border-gruvbox-blue/30'}`}>
+            <div className="text-sm text-gruvbox-light2">
+              <strong>{mode === 'interactive' ? 'Interactive Mode' : 'Async Mode'}</strong>
+              <p className="text-xs text-gruvbox-light4 mt-1">
+                {mode === 'interactive' 
+                  ? "Create a session that starts with an interactive chat immediately"
+                  : "Create a session that processes the prompt once and generates results"
+                }
+              </p>
+            </div>
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-gruvbox-light2 mb-1">
@@ -170,20 +192,22 @@ export function NewSessionModal({
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gruvbox-light2 mb-1">
-              Amp Prompt *
-            </label>
-            <textarea
-              value={formData.ampPrompt}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, ampPrompt: e.target.value }))
-              }
-              rows={3}
-              className="w-full px-3 py-2 bg-gruvbox-dark0 border border-gruvbox-light2/30 rounded-md text-gruvbox-light1 placeholder-gruvbox-light4 focus:outline-none focus:ring-2 focus:ring-gruvbox-aqua focus:border-gruvbox-aqua resize-none"
-              placeholder="Describe what you want Amp to implement..."
-            />
-          </div>
+          {mode === 'async' && (
+            <div>
+              <label className="block text-sm font-medium text-gruvbox-light2 mb-1">
+                Amp Prompt *
+              </label>
+              <textarea
+                value={formData.ampPrompt}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, ampPrompt: e.target.value }))
+                }
+                rows={3}
+                className="w-full px-3 py-2 bg-gruvbox-dark0 border border-gruvbox-light2/30 rounded-md text-gruvbox-light1 placeholder-gruvbox-light4 focus:outline-none focus:ring-2 focus:ring-gruvbox-aqua focus:border-gruvbox-aqua resize-none"
+                placeholder="Describe what you want Amp to implement..."
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gruvbox-light2 mb-1">

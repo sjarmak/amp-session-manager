@@ -3,6 +3,7 @@ import type { Session } from "@ampsm/types";
 import { MergeWizard } from "./MergeWizard";
 import { SessionMetrics } from "./SessionMetrics";
 import { JSONMetrics } from "./JSONMetrics";
+import { InteractiveTab } from "./InteractiveTab";
 
 
 
@@ -11,16 +12,18 @@ interface SessionViewProps {
   session: Session;
   onBack: () => void;
   onSessionUpdated: () => void;
+  initialTab?: "overview" | "actions" | "interactive";
 }
 
 export function SessionView({
   session,
   onBack,
   onSessionUpdated,
+  initialTab,
 }: SessionViewProps) {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "actions"
-  >("overview");
+    "overview" | "actions" | "interactive"
+  >(initialTab || "overview");
   
   // Temporarily disabled localStorage tab restoration for debugging
   // React.useEffect(() => {
@@ -236,7 +239,7 @@ export function SessionView({
       )}
 
       <div className="flex space-x-1 border-b border-gruvbox-bg4">
-        {["overview", "actions"].map((tab) => (
+        {["overview", "actions", "interactive"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as any)}
@@ -481,6 +484,12 @@ export function SessionView({
 
 
 
+
+      {activeTab === "interactive" && (
+        <div className="bg-gruvbox-bg1 rounded-lg border border-gruvbox-bg3">
+          <InteractiveTab session={session} />
+        </div>
+      )}
 
       {showMergeWizard && (
         <MergeWizard

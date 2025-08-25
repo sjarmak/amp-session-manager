@@ -9,7 +9,10 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "test:e2e-amp": "pnpm --filter @ampsm/core test:e2e-amp",
-    "lint": "pnpm -r lint"
+    "lint": "pnpm -r lint",
+    "migrate": "node scripts/run-migration.js",
+    "migrate:test": "node scripts/run-migration.js --test",
+    "migrate:dry-run": "node scripts/run-migration.js --dry-run"
   },
   "dependencies": {
     "yaml": "2.8.1",

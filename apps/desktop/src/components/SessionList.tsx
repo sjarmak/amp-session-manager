@@ -3,10 +3,11 @@ import type { Session } from '@ampsm/types';
 
 interface SessionListProps {
   onSessionSelect: (session: Session) => void;
-  onNewSession: () => void;
+  onNewAsyncSession: () => void;
+  onNewInteractiveSession: () => void;
 }
 
-export function SessionList({ onSessionSelect, onNewSession }: SessionListProps) {
+export function SessionList({ onSessionSelect, onNewAsyncSession, onNewInteractiveSession }: SessionListProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,23 +66,39 @@ export function SessionList({ onSessionSelect, onNewSession }: SessionListProps)
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-gruvbox-light1">Sessions</h2>
-        <button
-          onClick={onNewSession}
-          className="px-4 py-2 bg-gruvbox-aqua text-gruvbox-dark0 rounded-md hover:bg-gruvbox-aqua-dim focus:outline-none focus:ring-2 focus:ring-gruvbox-aqua/50 shadow-lg shadow-gruvbox-aqua/25 transition-all"
-        >
-          New Session
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={onNewAsyncSession}
+            className="px-4 py-2 bg-gruvbox-blue text-gruvbox-dark0 rounded-md hover:bg-gruvbox-blue-dim focus:outline-none focus:ring-2 focus:ring-gruvbox-blue/50 shadow-lg shadow-gruvbox-blue/25 transition-all"
+          >
+            New Async Session
+          </button>
+          <button
+            onClick={onNewInteractiveSession}
+            className="px-4 py-2 bg-gruvbox-aqua text-gruvbox-dark0 rounded-md hover:bg-gruvbox-aqua-dim focus:outline-none focus:ring-2 focus:ring-gruvbox-aqua/50 shadow-lg shadow-gruvbox-aqua/25 transition-all"
+          >
+            New Interactive Session
+          </button>
+        </div>
       </div>
 
       {sessions.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-gruvbox-light3 mb-4">No sessions found</div>
-          <button
-            onClick={onNewSession}
-            className="px-4 py-2 bg-gruvbox-aqua text-gruvbox-dark0 rounded-md hover:bg-gruvbox-aqua-dim shadow-lg shadow-gruvbox-aqua/25 transition-all"
-          >
-            Create your first session
-          </button>
+          <div className="flex gap-2 justify-center">
+            <button
+              onClick={onNewAsyncSession}
+              className="px-4 py-2 bg-gruvbox-blue text-gruvbox-dark0 rounded-md hover:bg-gruvbox-blue-dim shadow-lg shadow-gruvbox-blue/25 transition-all"
+            >
+              Create Async Session
+            </button>
+            <button
+              onClick={onNewInteractiveSession}
+              className="px-4 py-2 bg-gruvbox-aqua text-gruvbox-dark0 rounded-md hover:bg-gruvbox-aqua-dim shadow-lg shadow-gruvbox-aqua/25 transition-all"
+            >
+              Create Interactive Session
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-3">

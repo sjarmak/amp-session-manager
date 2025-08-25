@@ -44,6 +44,15 @@ export interface StreamingEvent {
   data: any;
 }
 
+export interface InteractiveHandle {
+  send(message: string): void;
+  stop(): Promise<void>;
+  on(event: 'streaming-event' | 'state' | 'error', listener: (...args: any[]) => void): this;
+  off(event: string, listener: (...args: any[]) => void): this;
+}
+
+export type InteractiveState = 'connecting' | 'ready' | 'closed' | 'error';
+
 export class AmpAdapter extends EventEmitter {
   private config: AmpAdapterConfig;
   private telemetryParser = new TelemetryParser();
@@ -66,12 +75,28 @@ export class AmpAdapter extends EventEmitter {
   private async hasExistingThread(sessionId: string): Promise<boolean> {
     if (!this.store) return false;
     try {
-      const session = this.store.getSession(sessionId);
-      // Check if session has threadId AND it's been run before (has lastRun)
-      return !!(session?.threadId && session?.lastRun);
+      const threads = this.store.getSessionThreads(sessionId);
+      return threads.length > 0 && threads[0].messageCount > 0;
     } catch {
       return false;
     }
+  }
+
+  private async getOrCreateThread(sessionId: string, prompt?: string): Promise<string> {
+    if (!this.store) throw new Error('Store not available');
+    
+    const threads = this.store.getSessionThreads(sessionId);
+    
+    if (threads.length > 0) {
+      // Use the most recent active thread
+      const activeThread = threads.find((t: any) => t.status === 'active') || threads[0];
+      return activeThread.id;
+    }
+    
+    // Create new thread
+    const session = this.store.getSession(sessionId);
+    const threadName = prompt ? `${prompt.slice(0, 50)}...` : 'Interactive Session';
+    return this.store.createThread(sessionId, threadName);
   }
 
   private async getIterationCount(sessionId: string): Promise<number> {
@@ -92,30 +117,40 @@ export class AmpAdapter extends EventEmitter {
     sessionId?: string,
     includeContext?: boolean
   ): Promise<AmpIterationResult> {
-    // For first run, use full prompt with default model. For follow-ups, alternate between default and gpt-5
-    const isFirstRun = !sessionId || !(await this.hasExistingThread(sessionId));
+    // If no sessionId provided, fallback to legacy behavior (direct amp command)
+    if (!sessionId) {
+      console.warn('No sessionId provided - using legacy mode without thread management');
+      const finalPrompt = await this.buildIterationPrompt(prompt, workingDir, sessionId, includeContext);
+      return this.runAmpCommandWithArgs(['-x'], finalPrompt, workingDir, modelOverride, sessionId);
+    }
+
+    const isFirstRun = !(await this.hasExistingThread(sessionId));
     
     if (isFirstRun) {
+      // Create new thread and store user message
+      const threadId = await this.getOrCreateThread(sessionId, prompt);
+      if (this.store) {
+        this.store.addThreadMessage(threadId, 'user', prompt);
+      }
+      
       const finalPrompt = await this.buildIterationPrompt(prompt, workingDir, sessionId, includeContext);
-      return this.runAmpCommand(finalPrompt, workingDir, modelOverride, sessionId);
+      return this.runAmpCommand(finalPrompt, workingDir, modelOverride, sessionId, threadId);
     } else {
-      // For thread continuation, get the thread ID and use proper CLI command
-      const session = this.store?.getSession(sessionId);
-      if (!session?.threadId) {
-        console.warn('Session has no threadId, falling back to new thread');
-        const finalPrompt = await this.buildIterationPrompt(prompt, workingDir, sessionId, includeContext);
-        return this.runAmpCommand(finalPrompt, workingDir, modelOverride, sessionId);
+      // Get existing thread and continue it
+      const threadId = await this.getOrCreateThread(sessionId);
+      if (this.store) {
+        this.store.addThreadMessage(threadId, 'user', prompt);
       }
       
       // Get existing iterations to determine which model to use (alternate)
       const existingIterations = await this.getIterationCount(sessionId);
       const useGpt5 = existingIterations % 2 === 1; // Odd iterations (2nd, 4th, etc.) use GPT-5
       
-      console.log(`🔄 Continuing thread ${session.threadId}: existingIterations=${existingIterations}, useGpt5=${useGpt5}, model=${useGpt5 ? 'gpt-5' : 'default'}`);
+      console.log(`🔄 Continuing thread ${threadId}: existingIterations=${existingIterations}, useGpt5=${useGpt5}, model=${useGpt5 ? 'gpt-5' : 'default'}`);
       
-      // Use proper thread continuation command instead of /continue text
+      // Use proper thread continuation command
       const alternatingModel = useGpt5 ? 'gpt-5' : undefined; // undefined = default model
-      return this.runThreadContinue(session.threadId, prompt, workingDir, alternatingModel, sessionId, includeContext);
+      return this.runThreadContinue(threadId, prompt, workingDir, alternatingModel, sessionId, includeContext);
     }
   }
 
@@ -187,18 +222,19 @@ export class AmpAdapter extends EventEmitter {
       console.warn('Debug logging unavailable for thread continuation:', (debugSetupError as Error).message);
     }
 
-    return this.executeAmpCommandNoStdin(args, workingDir, sessionId);
+    return this.executeAmpCommandNoStdin(args, workingDir, sessionId, threadId);
   }
 
   private async runAmpCommand(
     finalPrompt: string,
     workingDir: string,
     modelOverride?: string,
-    sessionId?: string
+    sessionId?: string,
+    threadId?: string
   ): Promise<AmpIterationResult> {
     // Use -x for interactive mode for new threads
     const args = ['-x', ...(this.config.ampArgs || []), ...(this.config.extraArgs || [])];
-    return this.runAmpCommandWithArgs(args, finalPrompt, workingDir, modelOverride, sessionId);
+    return this.runAmpCommandWithArgs(args, finalPrompt, workingDir, modelOverride, sessionId, threadId);
   }
 
   private async runAmpCommandWithArgs(
@@ -206,7 +242,8 @@ export class AmpAdapter extends EventEmitter {
     finalPrompt: string,
     workingDir: string,
     modelOverride?: string,
-    sessionId?: string
+    sessionId?: string,
+    threadId?: string
   ): Promise<AmpIterationResult> {
     const args = [...baseArgs];
     
@@ -220,16 +257,17 @@ export class AmpAdapter extends EventEmitter {
       args.push('--model', modelOverride);
     }
 
-    return this.executeAmpCommand(args, finalPrompt, workingDir, sessionId);
+    return this.executeAmpCommand(args, finalPrompt, workingDir, sessionId, true, threadId);
   }
 
   private async executeAmpCommandNoStdin(
     args: string[],
     workingDir: string,
-    sessionId?: string
+    sessionId?: string,
+    threadId?: string
   ): Promise<AmpIterationResult> {
     // For commands that don't need stdin (like --execute commands)
-    return this.executeAmpCommand(args, '', workingDir, sessionId, false);
+    return this.executeAmpCommand(args, '', workingDir, sessionId, false, threadId);
   }
 
   private async executeAmpCommand(
@@ -237,7 +275,8 @@ export class AmpAdapter extends EventEmitter {
     finalPrompt: string,
     workingDir: string,
     sessionId?: string,
-    useStdin: boolean = true
+    useStdin: boolean = true,
+    threadId?: string
   ): Promise<AmpIterationResult> {
     
     return new Promise(async (resolve) => {
@@ -344,7 +383,7 @@ export class AmpAdapter extends EventEmitter {
         
         // Process streaming JSON if enabled
         if (this.config.enableJSONLogs) {
-          this.processStreamingJSON(chunk, realtimeTelemetry, sessionId);
+          this.processStreamingJSON(chunk, realtimeTelemetry, sessionId, threadId);
         }
       });
       
@@ -361,7 +400,7 @@ export class AmpAdapter extends EventEmitter {
         
         // Also process stderr for JSON logs (some tools log to stderr)
         if (this.config.enableJSONLogs) {
-          this.processStreamingJSON(chunk, realtimeTelemetry, sessionId);
+          this.processStreamingJSON(chunk, realtimeTelemetry, sessionId, threadId);
         }
       });
       
@@ -543,7 +582,7 @@ export class AmpAdapter extends EventEmitter {
         
         // Process streaming JSON if enabled
         if (this.config.enableJSONLogs) {
-          this.processStreamingJSON(chunk, realtimeTelemetry);
+          this.processStreamingJSON(chunk, realtimeTelemetry, undefined, undefined);
         }
       });
       
@@ -560,7 +599,7 @@ export class AmpAdapter extends EventEmitter {
         
         // Also process stderr for JSON logs (some tools log to stderr)
         if (this.config.enableJSONLogs) {
-          this.processStreamingJSON(chunk, realtimeTelemetry);
+          this.processStreamingJSON(chunk, realtimeTelemetry, undefined, undefined);
         }
       });
       
@@ -778,7 +817,7 @@ Please provide a thorough analysis and actionable recommendations.`;
    * Process streaming JSON chunks and emit real-time telemetry events
    * Handles multi-line JSON objects and partial chunks across data reads
    */
-  private processStreamingJSON(chunk: string, realtimeTelemetry: AmpTelemetry, sessionId?: string) {
+  private processStreamingJSON(chunk: string, realtimeTelemetry: AmpTelemetry, sessionId?: string, threadId?: string) {
     // Add chunk to buffer
     this.jsonBuffer += chunk;
     
@@ -810,6 +849,12 @@ Please provide a thorough analysis and actionable recommendations.`;
             try {
               console.log(`[DEBUG] Persisting stream event to store:`, { sessionId, type: streamEvent.type });
               this.store.addStreamEvent(sessionId, streamEvent.type, streamEvent.timestamp, streamEvent);
+              
+              // Store assistant messages in thread_messages table
+              if (streamEvent.type === 'assistant_message' && threadId && streamEvent.content) {
+                console.log(`[DEBUG] Storing assistant message in thread ${threadId}`);
+                this.store.addThreadMessage(threadId, 'assistant', streamEvent.content);
+              }
             } catch (error) {
               console.warn('Failed to persist stream event:', error);
             }
@@ -1233,5 +1278,453 @@ Please provide a thorough analysis and actionable recommendations.`;
         toolCall.durationMs = event.duration;
       }
     }
+  }
+
+  /**
+   * Check if amp CLI is authenticated
+   */
+  async checkAuthentication(): Promise<boolean> {
+    return new Promise((resolve) => {
+      const child = spawn(this.config.ampPath!, ['threads', 'list'], {
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      
+      let stderr = '';
+      child.stderr?.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+      
+      child.on('close', (exitCode: number) => {
+        resolve(exitCode === 0 && !stderr.includes('Not logged in'));
+      });
+      
+      child.on('error', () => {
+        resolve(false);
+      });
+    });
+  }
+
+  /**
+   * Start an interactive streaming session with Amp CLI
+   */
+  startInteractive(
+    sessionId: string,
+    workingDir: string,
+    modelOverride?: string,
+    threadId?: string
+  ): InteractiveHandle {
+    const interactiveHandle = new InteractiveHandleImpl(
+      sessionId,
+      workingDir,
+      modelOverride,
+      threadId,
+      this.config,
+      this.store,
+      this.telemetryParser
+    );
+
+    return interactiveHandle;
+  }
+
+  /**
+   * Create a new thread within an existing session
+   */
+  async createNewThread(sessionId: string, name?: string): Promise<string> {
+    if (!this.store) {
+      throw new Error('Store not available');
+    }
+    
+    const session = this.store.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+    
+    const threadName = name || `Thread ${new Date().toISOString().slice(0, 16)}`;
+    return this.store.createThread(sessionId, threadName);
+  }
+}
+
+class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
+  private child: any = null;
+  private state: InteractiveState = 'connecting';
+  private sessionId: string;
+  private threadId?: string;
+  private store?: any;
+  private jsonBuffer: string = '';
+  private realtimeTelemetry: AmpTelemetry = { exitCode: 0, toolCalls: [] };
+
+  constructor(
+    sessionId: string,
+    workingDir: string,
+    modelOverride: string | undefined,
+    threadId: string | undefined,
+    config: AmpAdapterConfig,
+    store: any,
+    telemetryParser: any
+  ) {
+    super();
+    this.sessionId = sessionId;
+    this.threadId = threadId;
+    this.store = store;
+    this.initializeConnection(workingDir, modelOverride, threadId, config, store, telemetryParser);
+  }
+
+  private async initializeConnection(
+    workingDir: string,
+    modelOverride: string | undefined,
+    threadId: string | undefined,
+    config: AmpAdapterConfig,
+    store: any,
+    telemetryParser: any
+  ) {
+    try {
+      // Build args for streaming interactive mode - use the same as Go implementation
+      const args = [
+        '--execute',
+        '--stream-json',
+        '--stream-json-input'
+      ];
+
+      // Add thread continuation if threadId provided or session has existing threads
+      if (threadId) {
+        args.unshift('threads', 'continue', threadId);
+      } else if (store) {
+        try {
+          // Check for existing threads using new thread model
+          const threads = store.getSessionThreads(this.sessionId);
+          if (threads.length > 0 && threads[0].messageCount > 0) {
+            const activeThread = threads.find((t: any) => t.status === 'active') || threads[0];
+            this.threadId = activeThread.id;
+            args.unshift('threads', 'continue', activeThread.id);
+          } else {
+            // Create new thread for interactive session
+            this.threadId = store.createThread(this.sessionId, 'Interactive Session');
+            console.log(`Created new thread ${this.threadId} for interactive session`);
+          }
+        } catch (error) {
+          console.warn('Could not check for existing threads:', error);
+        }
+      }
+
+      // Add model override if specified
+      if (modelOverride === 'gpt-5') {
+        args.push('--try-gpt5');
+      } else if (modelOverride && modelOverride !== 'default') {
+        args.push('--model', modelOverride);
+      }
+
+      // Add extra args
+      if (config.extraArgs?.length) {
+        args.push(...config.extraArgs);
+      }
+
+      console.log('Starting interactive amp process:', config.ampPath, args);
+
+      // Set up environment
+      const env = { ...process.env, ...config.env };
+      if (config.enableJSONLogs) {
+        env['amp.internal.alloy.enable'] = 'true';
+      }
+
+      // Spawn the amp process
+      this.child = spawn(config.ampPath!, args, {
+        cwd: workingDir,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env
+      });
+
+      // Set up event handlers
+      this.setupEventHandlers(store, telemetryParser);
+
+      // For streaming mode with --stream-json-input, the process will send 
+      // a system init message when ready. We wait for that instead of using a timeout.
+
+    } catch (error) {
+      this.state = 'error';
+      this.emit('error', error);
+    }
+  }
+
+  private setupEventHandlers(store: any, telemetryParser: any) {
+    if (!this.child) return;
+
+    let stderrBuffer = '';
+
+    this.child.stdout?.on('data', (data: Buffer) => {
+      const chunk = data.toString();
+      
+      // Emit raw output event
+      this.emit('streaming-event', {
+        type: 'output',
+        timestamp: new Date().toISOString(),
+        data: { chunk }
+      });
+
+      // Process streaming JSON
+      this.processStreamingJSON(chunk, store, telemetryParser);
+    });
+
+    this.child.stderr?.on('data', (data: Buffer) => {
+      const chunk = data.toString();
+      stderrBuffer += chunk;
+      
+      // Emit error event (stderr is plain text, not JSON)
+      this.emit('streaming-event', {
+        type: 'error',
+        timestamp: new Date().toISOString(),
+        data: { chunk }
+      });
+
+      // Don't process stderr as JSON - it's plain text debug output
+    });
+
+    this.child.on('close', (exitCode: number) => {
+      console.log('Interactive amp process closed with code:', exitCode);
+      
+      // Check for authentication errors
+      if (exitCode === 1 && stderrBuffer.includes('Not logged in')) {
+        this.state = 'error';
+        this.emit('error', new Error('Amp CLI authentication required. Please run "amp login" to authenticate.'));
+      } else {
+        this.state = exitCode === 0 ? 'closed' : 'error';
+        if (exitCode !== 0 && stderrBuffer.trim()) {
+          this.emit('error', new Error(`Amp process failed: ${stderrBuffer.trim()}`));
+        }
+      }
+      
+      this.emit('state', this.state);
+      
+      // Clean up JSON buffer
+      this.jsonBuffer = '';
+    });
+
+    this.child.on('error', (error: Error) => {
+      console.error('Interactive amp process error:', error);
+      this.state = 'error';
+      this.emit('error', error);
+    });
+  }
+
+  private processStreamingJSON(chunk: string, store: any, telemetryParser: any) {
+    this.jsonBuffer += chunk;
+
+    // Extract complete JSON objects
+    const completeObjects = this.extractCompleteJSONObjects();
+    
+    for (const jsonString of completeObjects) {
+      try {
+        const parsedObject = JSON.parse(jsonString);
+        
+        // Signal ready when we get the first system init message (like Go implementation)
+        if (this.state === 'connecting' && parsedObject.type === 'system' && parsedObject.subtype === 'init') {
+          this.state = 'ready';
+          this.emit('state', this.state);
+          console.log('Interactive session ready with tools:', parsedObject.tools);
+        }
+        
+        // Store raw stream event
+        if (store) {
+          const type = parsedObject.type || 'unknown';
+          const timestamp = new Date().toISOString();
+          store.addStreamEvent(this.sessionId, type, timestamp, parsedObject);
+          
+          // Store assistant messages in thread_messages table
+          if (parsedObject.type === 'assistant' && this.threadId && parsedObject.message?.content) {
+            console.log(`[DEBUG] Storing interactive assistant message in thread ${this.threadId}`);
+            const content = typeof parsedObject.message.content === 'string' 
+              ? parsedObject.message.content 
+              : JSON.stringify(parsedObject.message.content);
+            store.addThreadMessage(this.threadId, 'assistant', content);
+          }
+        }
+
+        // Convert to structured event and emit
+        const streamingEvent = this.convertToStreamingEvent(parsedObject);
+        if (streamingEvent) {
+          this.emit('streaming-event', streamingEvent);
+        }
+
+      } catch (error) {
+        console.warn('JSON parse error in interactive streaming:', error instanceof Error ? error.message : String(error));
+      }
+    }
+  }
+
+  private convertToStreamingEvent(parsed: any): StreamingEvent | null {
+    const ts = new Date().toISOString();
+
+    switch (parsed.type) {
+      case 'assistant':
+        return {
+          type: 'assistant_message',
+          timestamp: ts,
+          data: {
+            content: parsed.message?.content,
+            usage: parsed.message?.usage,
+            sessionId: parsed.session_id
+          }
+        };
+
+      case 'user':
+        return {
+          type: 'output',
+          timestamp: ts,
+          data: {
+            content: parsed.message?.content,
+            sessionId: parsed.session_id
+          }
+        };
+
+      case 'result':
+        return {
+          type: 'session_result',
+          timestamp: ts,
+          data: {
+            success: !parsed.is_error,
+            result: parsed.result,
+            duration_ms: parsed.duration_ms,
+            usage: parsed.usage,
+            sessionId: parsed.session_id
+          }
+        };
+
+      default:
+        return null;
+    }
+  }
+
+  private extractCompleteJSONObjects(): string[] {
+    const completeObjects: string[] = [];
+    let position = 0;
+    
+    while (position < this.jsonBuffer.length) {
+      const jsonStart = this.findNextJSONStart(position);
+      if (jsonStart === -1) {
+        this.jsonBuffer = this.jsonBuffer.slice(position);
+        break;
+      }
+      
+      const jsonEnd = this.findJSONObjectEnd(jsonStart);
+      if (jsonEnd === -1) {
+        this.jsonBuffer = this.jsonBuffer.slice(jsonStart);
+        break;
+      }
+      
+      const jsonString = this.jsonBuffer.slice(jsonStart, jsonEnd + 1);
+      completeObjects.push(jsonString);
+      position = jsonEnd + 1;
+    }
+    
+    if (completeObjects.length > 0 && position >= this.jsonBuffer.length) {
+      this.jsonBuffer = '';
+    }
+    
+    return completeObjects;
+  }
+
+  private findNextJSONStart(fromPosition: number): number {
+    for (let i = fromPosition; i < this.jsonBuffer.length; i++) {
+      if (this.jsonBuffer[i] === '{') {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  private findJSONObjectEnd(startPosition: number): number {
+    let braceCount = 0;
+    let inString = false;
+    let escapeNext = false;
+    
+    for (let i = startPosition; i < this.jsonBuffer.length; i++) {
+      const char = this.jsonBuffer[i];
+      
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+      
+      if (char === '\\') {
+        escapeNext = true;
+        continue;
+      }
+      
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+      
+      if (!inString) {
+        if (char === '{') {
+          braceCount++;
+        } else if (char === '}') {
+          braceCount--;
+          if (braceCount === 0) {
+            return i;
+          }
+        }
+      }
+    }
+    
+    return -1;
+  }
+
+  send(message: string): void {
+    if (!this.child || !this.child.stdin || this.state !== 'ready') {
+      console.warn('Cannot send message: connection not ready');
+      return;
+    }
+
+    // Store user message in thread if we have a thread ID and store
+    if (this.threadId && this.store) {
+      try {
+        console.log(`[DEBUG] Storing user message in thread ${this.threadId}`);
+        this.store.addThreadMessage(this.threadId, 'user', message);
+      } catch (error) {
+        console.warn('Failed to store user message:', error);
+      }
+    }
+
+    this.sendMessage(message);
+  }
+
+  private sendMessage(message: string): void {
+    if (!this.child?.stdin) return;
+
+    // Send JSON formatted message for --stream-json-input mode (like Go implementation)
+    const messageObj = {
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [{ type: 'text', text: message }]
+      }
+    };
+
+    const jsonLine = JSON.stringify(messageObj) + '\n';
+    this.child.stdin.write(jsonLine);
+  }
+
+  async stop(): Promise<void> {
+    if (!this.child) return;
+
+    return new Promise((resolve) => {
+      this.child.on('close', () => {
+        this.state = 'closed';
+        this.emit('state', this.state);
+        resolve();
+      });
+
+      if (this.child.stdin) {
+        this.child.stdin.end();
+      }
+      
+      // Force kill after 5 seconds if graceful shutdown fails
+      setTimeout(() => {
+        if (this.child && !this.child.killed) {
+          this.child.kill();
+          resolve();
+        }
+      }, 5000);
+    });
   }
 }

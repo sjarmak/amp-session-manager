@@ -140,28 +140,35 @@ export class WorktreeManager {
         console.log(`✓ Session created with initial commit: ${commitSha.slice(0, 8)}`);
       }
 
-      // Immediately run the initial iteration with the provided prompt
-      console.log('Running initial iteration with the provided prompt...');
-      console.log('Session details:', { id: session.id, prompt: session.ampPrompt });
-      
-      // Validate Amp authentication before attempting iteration
-      try {
-        console.log('Validating Amp authentication...');
-        const authStatus = await this.ampAdapter.validateAuth();
-        console.log('Amp auth status:', authStatus);
+      // Handle initial execution based on mode
+      if (options.mode === 'interactive') {
+        console.log('Interactive mode selected - session ready for interactive chat');
+        // For interactive mode, just set session to idle - user will start chat manually
+        this.store.updateSessionStatus(session.id, 'idle');
+      } else {
+        // Immediately run the initial iteration with the provided prompt (async mode)
+        console.log('Running initial iteration with the provided prompt...');
+        console.log('Session details:', { id: session.id, prompt: session.ampPrompt });
         
-        if (!authStatus.isAuthenticated) {
-          throw new Error(`Amp authentication failed: ${authStatus.error || 'Not authenticated'}. ${authStatus.suggestion || ''}`);
+        // Validate Amp authentication before attempting iteration
+        try {
+          console.log('Validating Amp authentication...');
+          const authStatus = await this.ampAdapter.validateAuth();
+          console.log('Amp auth status:', authStatus);
+          
+          if (!authStatus.isAuthenticated) {
+            throw new Error(`Amp authentication failed: ${authStatus.error || 'Not authenticated'}. ${authStatus.suggestion || ''}`);
+          }
+          
+          console.log('Authentication validated, running iteration...');
+          await this.iterate(session.id, undefined, options.includeContext);
+          console.log('✓ Initial iteration completed');
+        } catch (error) {
+          console.error('Initial iteration failed, but session was created successfully:', error);
+          // Update session status to indicate there was an issue
+          this.store.updateSessionStatus(session.id, 'error');
+          // Don't fail session creation if iteration fails - user can retry manually
         }
-        
-        console.log('Authentication validated, running iteration...');
-        await this.iterate(session.id, undefined, options.includeContext);
-        console.log('✓ Initial iteration completed');
-      } catch (error) {
-        console.error('Initial iteration failed, but session was created successfully:', error);
-        // Update session status to indicate there was an issue
-        this.store.updateSessionStatus(session.id, 'error');
-        // Don't fail session creation if iteration fails - user can retry manually
       }
 
       return session;
@@ -249,6 +256,12 @@ export class WorktreeManager {
       // Run Amp iteration with streaming metrics
       console.log('Running Amp iteration...');
       const iterationPrompt = notes || session.ampPrompt;
+      
+      // For interactive sessions without a prompt, we should not run a normal iteration
+      if (!iterationPrompt && session.mode === 'interactive') {
+        throw new Error('Interactive sessions should not run iterations without prompts. Use startInteractiveSession instead.');
+      }
+      
       console.log('Iteration prompt:', iterationPrompt?.slice(0, 100) + '...');
       
       // Connect streaming events from AmpAdapter to metrics
@@ -261,7 +274,7 @@ export class WorktreeManager {
       let result;
       try {
         result = await this.ampAdapter.runIteration(
-          iterationPrompt, 
+          iterationPrompt!, 
           session.worktreePath, 
           session.modelOverride,
           sessionId,

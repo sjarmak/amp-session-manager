@@ -21,12 +21,15 @@ function App() {
   const [selectedBatchRun, setSelectedBatchRun] = useState<string | null>(null);
   const [selectedBenchmarkRun, setSelectedBenchmarkRun] = useState<{ runId: string; type: string } | null>(null);
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
+  const [sessionModalMode, setSessionModalMode] = useState<'async' | 'interactive'>('async');
   const [showNewBatchModal, setShowNewBatchModal] = useState(false);
   const [showNewBenchmarkModal, setShowNewBenchmarkModal] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [newInteractiveSessionId, setNewInteractiveSessionId] = useState<string | null>(null);
 
   const handleSessionSelect = (session: Session) => {
+    setNewInteractiveSessionId(null); // Clear the flag when manually selecting
     setSelectedSession(session);
     setCurrentView('session');
   };
@@ -36,8 +39,24 @@ function App() {
     setCurrentView('sessions');
   };
 
-  const handleSessionCreated = () => {
+  const handleSessionCreated = (session?: Session) => {
     setRefreshKey(prev => prev + 1);
+    // If an interactive session was created, navigate to it immediately and show interactive tab
+    if (session?.mode === 'interactive') {
+      setNewInteractiveSessionId(session.id);
+      setSelectedSession(session);
+      setCurrentView('session');
+    }
+  };
+
+  const handleNewAsyncSession = () => {
+    setSessionModalMode('async');
+    setShowNewSessionModal(true);
+  };
+
+  const handleNewInteractiveSession = () => {
+    setSessionModalMode('interactive');
+    setShowNewSessionModal(true);
   };
 
   const handleSessionUpdated = () => {
@@ -218,7 +237,8 @@ function App() {
             <div key={refreshKey}>
               <SessionList 
                 onSessionSelect={handleSessionSelect}
-                onNewSession={() => setShowNewSessionModal(true)}
+                onNewAsyncSession={handleNewAsyncSession}
+                onNewInteractiveSession={handleNewInteractiveSession}
               />
             </div>
           ) : currentView === 'batches' ? (
@@ -257,6 +277,7 @@ function App() {
               session={selectedSession}
               onBack={handleBackToList}
               onSessionUpdated={handleSessionUpdated}
+              initialTab={newInteractiveSessionId === selectedSession.id ? "interactive" : undefined}
             />
           ) : null}
         </div>
@@ -268,6 +289,7 @@ function App() {
             setShowNewSessionModal(false);
           }}
           onSessionCreated={handleSessionCreated}
+          mode={sessionModalMode}
         />
 
         <NewBatchModal

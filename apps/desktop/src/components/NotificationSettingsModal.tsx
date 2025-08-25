@@ -79,13 +79,25 @@ export default function NotificationSettingsModal({ isOpen, onClose }: Notificat
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <div className="bg-gruvbox-bg0 rounded-lg shadow-xl p-6 w-full max-w-md border border-gruvbox-bg3">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-lg font-semibold text-gruvbox-fg0">Notification Settings</h2>
           <button
-            onClick={onClose}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
             className="text-gruvbox-fg2 hover:text-gruvbox-fg1"
+            style={{ zIndex: 9999, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           >
             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

@@ -156,6 +156,37 @@ ipcMain.handle('get-session', async (_, sessionId: string) => {
 ipcMain.handle('sessions:create', async (_, options: any) => {
   try {
     const session = await worktreeManager.createSession(options);
+    
+    // If interactive mode was selected, automatically start the interactive session
+    if (options.mode === 'interactive') {
+      console.log('Starting interactive session immediately after creation');
+      
+      const { AmpAdapter } = require('@ampsm/core');
+      const ampAdapter = new AmpAdapter({}, store);
+      
+      const handle = ampAdapter.startInteractive(
+        session.id,
+        session.worktreePath,
+        session.modelOverride
+      );
+
+      // Forward events to renderer
+      handle.on('streaming-event', (event) => {
+        mainWindow?.webContents.send('interactive:event', session.id, event);
+      });
+
+      handle.on('state', (state) => {
+        mainWindow?.webContents.send('interactive:state', session.id, state);
+      });
+
+      handle.on('error', (error) => {
+        mainWindow?.webContents.send('interactive:error', session.id, error.message || String(error));
+      });
+
+      interactiveHandles.set(session.id, handle);
+      console.log('Interactive session started for newly created session');
+    }
+    
     return { success: true, session };
   } catch (error) {
     console.error('Failed to create session:', error);
@@ -212,6 +243,26 @@ ipcMain.handle('sessions:thread', async (_, sessionId: string) => {
   } catch (error) {
     console.error('Failed to get thread conversation:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Failed to get thread conversation' };
+  }
+});
+
+ipcMain.handle('sessions:getThreads', async (_, sessionId: string) => {
+  try {
+    const threads = store.getSessionThreads(sessionId);
+    return { success: true, threads };
+  } catch (error) {
+    console.error('Failed to get session threads:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to get session threads' };
+  }
+});
+
+ipcMain.handle('sessions:getThreadMessages', async (_, threadId: string) => {
+  try {
+    const messages = store.getThreadMessages(threadId);
+    return { success: true, messages };
+  } catch (error) {
+    console.error('Failed to get thread messages:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to get thread messages' };
   }
 });
 
@@ -800,6 +851,119 @@ ipcMain.handle('benchmarks:delete', async (_, runId: string) => {
     console.error('Failed to delete benchmark run:', error);
     return { success: false, error: error.message };
   }
+});
+
+// Interactive streaming handlers
+const interactiveHandles = new Map(); // sessionId -> InteractiveHandle
+
+ipcMain.handle('interactive:start', async (_, sessionId: string, threadId?: string) => {
+  try {
+    const session = store.getSession(sessionId);
+    if (!session) {
+      return { success: false, error: 'Session not found' };
+    }
+
+    // Stop existing interactive session if any
+    if (interactiveHandles.has(sessionId)) {
+      await interactiveHandles.get(sessionId).stop();
+      interactiveHandles.delete(sessionId);
+    }
+
+    const { AmpAdapter } = require('@ampsm/core');
+    const ampAdapter = new AmpAdapter({}, store);
+    
+    // Check authentication first
+    const isAuthenticated = await ampAdapter.checkAuthentication();
+    if (!isAuthenticated) {
+      return { 
+        success: false, 
+        error: 'Amp CLI authentication required. Please run "amp login" in terminal to authenticate.' 
+      };
+    }
+    
+    const handle = ampAdapter.startInteractive(
+      sessionId,
+      session.worktreePath,
+      session.modelOverride,
+      threadId
+    );
+
+    // Forward events to renderer
+    handle.on('streaming-event', (event) => {
+      mainWindow?.webContents.send('interactive:event', sessionId, event);
+    });
+
+    handle.on('state', (state) => {
+      mainWindow?.webContents.send('interactive:state', sessionId, state);
+    });
+
+    handle.on('error', (error) => {
+      mainWindow?.webContents.send('interactive:error', sessionId, error.message || String(error));
+    });
+
+    interactiveHandles.set(sessionId, handle);
+    return { success: true };
+
+  } catch (error) {
+    console.error('Failed to start interactive session:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to start interactive session' };
+  }
+});
+
+ipcMain.handle('interactive:send', async (_, sessionId: string, message: string) => {
+  try {
+    const handle = interactiveHandles.get(sessionId);
+    if (!handle) {
+      return { success: false, error: 'Interactive session not found' };
+    }
+
+    handle.send(message);
+    return { success: true };
+
+  } catch (error) {
+    console.error('Failed to send interactive message:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to send message' };
+  }
+});
+
+ipcMain.handle('interactive:stop', async (_, sessionId: string) => {
+  try {
+    const handle = interactiveHandles.get(sessionId);
+    if (!handle) {
+      return { success: true }; // Already stopped
+    }
+
+    await handle.stop();
+    interactiveHandles.delete(sessionId);
+    return { success: true };
+
+  } catch (error) {
+    console.error('Failed to stop interactive session:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to stop session' };
+  }
+});
+
+ipcMain.handle('interactive:getHistory', async (_, sessionId: string) => {
+  try {
+    const events = store.getStreamEvents(sessionId);
+    return { success: true, events };
+  } catch (error) {
+    console.error('Failed to get interactive history:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to get history' };
+  }
+});
+
+// Clean up interactive handles when app is closing
+app.on('before-quit', async () => {
+  console.log('Cleaning up interactive sessions...');
+  for (const [sessionId, handle] of interactiveHandles) {
+    try {
+      await handle.stop();
+    } catch (error) {
+      console.error(`Failed to stop interactive session ${sessionId}:`, error);
+    }
+  }
+  interactiveHandles.clear();
 });
 
 process.on('uncaughtException', (error) => {

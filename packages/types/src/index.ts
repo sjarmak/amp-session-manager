@@ -1,7 +1,7 @@
 export interface Session {
   id: string;
   name: string;
-  ampPrompt: string;
+  ampPrompt?: string;
   followUpPrompts?: string[];
   contextIncluded?: boolean;
   repoRoot: string;
@@ -15,6 +15,7 @@ export interface Session {
   createdAt: string;
   lastRun?: string;
   notes?: string;
+  mode?: 'async' | 'interactive';
 }
 
 export interface IterationRecord {
@@ -70,13 +71,14 @@ export interface AmpTelemetry {
 
 export interface SessionCreateOptions {
   name: string;
-  ampPrompt: string;
+  ampPrompt?: string;
   repoRoot: string;
   baseBranch?: string;
   scriptCommand?: string;
   modelOverride?: string;
   threadId?: string;
   includeContext?: boolean;
+  mode?: "async" | "interactive";
 }
 
 export interface PreflightResult {
@@ -301,4 +303,24 @@ export interface ThreadStore {
   }>;
   getRecentThreads(hours?: number, limit?: number): NormalizedThread[];
   deleteThread(id: string): void;
+}
+
+// Session-Thread Relationship Types
+export interface SessionThread {
+  id: string;
+  sessionId: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  status: 'active' | 'archived' | 'completed';
+  messageCount?: number;
+}
+
+export interface SessionThreadMessage {
+  id: string;
+  threadId: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  createdAt: string;
+  idx: number;
 }

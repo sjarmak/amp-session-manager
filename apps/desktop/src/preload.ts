@@ -24,9 +24,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
     cleanup: (sessionId: string, force?: boolean) => ipcRenderer.invoke('sessions:cleanup', sessionId, force) as Promise<{ success: boolean; error?: string }>,
     diff: (sessionId: string) => ipcRenderer.invoke('sessions:diff', sessionId) as Promise<{ success: boolean; diff?: string; error?: string }>,
     thread: (sessionId: string) => ipcRenderer.invoke('sessions:thread', sessionId) as Promise<{ success: boolean; threadConversation?: string; error?: string }>,
+    getThreads: (sessionId: string) => ipcRenderer.invoke('sessions:getThreads', sessionId) as Promise<{ success: boolean; threads?: any[]; error?: string }>,
+    getThreadMessages: (threadId: string) => ipcRenderer.invoke('sessions:getThreadMessages', threadId) as Promise<{ success: boolean; messages?: any[]; error?: string }>,
     getIterations: (sessionId: string) => ipcRenderer.invoke('sessions:getIterations', sessionId) as Promise<{ success: boolean; iterations?: any[]; error?: string }>,
     getToolCalls: (sessionId: string) => ipcRenderer.invoke('sessions:getToolCalls', sessionId) as Promise<{ success: boolean; toolCalls?: any[]; error?: string }>,
     getStreamEvents: (sessionId: string) => ipcRenderer.invoke('sessions:getStreamEvents', sessionId) as Promise<{ success: boolean; streamEvents?: any[]; error?: string }>
+  },
+
+  interactive: {
+    start: (sessionId: string, threadId?: string) => ipcRenderer.invoke('interactive:start', sessionId, threadId) as Promise<{ success: boolean; error?: string }>,
+    send: (sessionId: string, message: string) => ipcRenderer.invoke('interactive:send', sessionId, message) as Promise<{ success: boolean; error?: string }>,
+    stop: (sessionId: string) => ipcRenderer.invoke('interactive:stop', sessionId) as Promise<{ success: boolean; error?: string }>,
+    getHistory: (sessionId: string) => ipcRenderer.invoke('interactive:getHistory', sessionId) as Promise<{ success: boolean; events?: any[]; error?: string }>,
+    
+    onEvent: (callback: (sessionId: string, event: any) => void) => {
+      const handler = (_: any, sessionId: string, event: any) => callback(sessionId, event);
+      ipcRenderer.on('interactive:event', handler);
+      return () => ipcRenderer.removeListener('interactive:event', handler);
+    },
+    
+    onState: (callback: (sessionId: string, state: string) => void) => {
+      const handler = (_: any, sessionId: string, state: string) => callback(sessionId, state);
+      ipcRenderer.on('interactive:state', handler);
+      return () => ipcRenderer.removeListener('interactive:state', handler);
+    },
+    
+    onError: (callback: (sessionId: string, error: string) => void) => {
+      const handler = (_: any, sessionId: string, error: string) => callback(sessionId, error);
+      ipcRenderer.on('interactive:error', handler);
+      return () => ipcRenderer.removeListener('interactive:error', handler);
+    }
   },
   
   dialog: {
