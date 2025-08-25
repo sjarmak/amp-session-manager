@@ -4,6 +4,7 @@ import { MergeWizard } from "./MergeWizard";
 import { SessionMetrics } from "./SessionMetrics";
 import { JSONMetrics } from "./JSONMetrics";
 import { InteractiveTab } from "./InteractiveTab";
+import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
 
 
@@ -42,9 +43,57 @@ export function SessionView({
   const [error, setError] = useState<string | null>(null);
   const [iterationNotes, setIterationNotes] = useState("");
   const [includeContext, setIncludeContext] = useState(false);
+  
+  const [threads, setThreads] = useState<Array<{
+    id: string;
+    sessionId: string;
+    name: string;
+    createdAt: string;
+    updatedAt: string;
+    status: string;
+    messageCount: number;
+  }>>([]);
+  
+  const [threadMessages, setThreadMessages] = useState<Record<string, Array<{
+    id: string;
+    threadId: string;
+    role: string;
+    content: string;
+    createdAt: string;
+    idx: number;
+  }>>>({});
   const [squashMessage, setSquashMessage] = useState("");
   const [rebaseTarget, setRebaseTarget] = useState(session.baseBranch);
   const [showMergeWizard, setShowMergeWizard] = useState(false);
+
+  // Load threads and their messages
+  useEffect(() => {
+    const loadThreads = async () => {
+      try {
+        const threadsResult = await window.electronAPI.sessions.getThreads(session.id);
+        if (threadsResult.success && threadsResult.threads) {
+          const sortedThreads = threadsResult.threads.sort((a, b) => 
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
+          setThreads(sortedThreads);
+          
+          // Load messages for each thread
+          const messagesMap: Record<string, any[]> = {};
+          for (const thread of sortedThreads) {
+            const messagesResult = await window.electronAPI.sessions.getThreadMessages(thread.id);
+            if (messagesResult.success && messagesResult.messages) {
+              messagesMap[thread.id] = messagesResult.messages;
+            }
+          }
+          setThreadMessages(messagesMap);
+        }
+      } catch (error) {
+        console.error('Failed to load threads:', error);
+      }
+    };
+
+    loadThreads();
+  }, [session.id]);
 
 
 
@@ -352,6 +401,99 @@ export function SessionView({
             <h3 className="text-lg font-semibold mb-4 text-gruvbox-fg0">Session Summary</h3>
             <JSONMetrics sessionId={session.id} session={session} />
           </div>
+
+          {/* Thread-Specific Sections */}
+          {threads.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-xl font-semibold text-gruvbox-fg0 border-b border-gruvbox-bg3 pb-2">
+                Threads ({threads.length})
+              </h3>
+              
+              {threads.map((thread, index) => (
+                <div key={thread.id} className="bg-gruvbox-bg1 p-6 rounded-lg border border-gruvbox-bg3">
+                  <div className="flex items-center mb-4">
+                    <ChatBubbleLeftRightIcon className="w-5 h-5 text-gruvbox-bright-blue mr-2" />
+                    <h4 className="text-lg font-semibold text-gruvbox-fg0">
+                      {thread.name}
+                    </h4>
+                    <span className="ml-2 text-xs text-gruvbox-fg2 bg-gruvbox-bg2 px-2 py-1 rounded">
+                      #{index + 1}
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-4">
+                    <div>
+                      <dt className="text-sm font-medium text-gruvbox-fg2">Created</dt>
+                      <dd className="mt-1 text-sm text-gruvbox-fg1">
+                        {new Date(thread.createdAt).toLocaleString()}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm font-medium text-gruvbox-fg2">Last Updated</dt>
+                      <dd className="mt-1 text-sm text-gruvbox-fg1">
+                        {new Date(thread.updatedAt).toLocaleString()}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm font-medium text-gruvbox-fg2">Messages</dt>
+                      <dd className="mt-1 text-sm text-gruvbox-fg1">
+                        {thread.messageCount} messages
+                      </dd>
+                    </div>
+                  </div>
+
+                  {/* Thread Conversation */}
+                  {threadMessages[thread.id] && threadMessages[thread.id].length > 0 && (
+                    <div className="mt-4">
+                      <h5 className="text-sm font-medium text-gruvbox-fg2 mb-2">Conversation</h5>
+                      <div className="bg-gruvbox-bg2 rounded-lg p-4 max-h-96 overflow-y-auto">
+                        {threadMessages[thread.id].map((message) => (
+                          <div key={message.id} className="mb-3 last:mb-0">
+                            <div className={`text-xs font-medium mb-1 ${
+                              message.role === 'user' 
+                                ? 'text-gruvbox-bright-green' 
+                                : message.role === 'assistant'
+                                ? 'text-gruvbox-bright-blue'
+                                : 'text-gruvbox-fg2'
+                            }`}>
+                              {message.role === 'user' ? '👤 User' : message.role === 'assistant' ? '🤖 Assistant' : '⚙️ System'}
+                              <span className="ml-2 text-gruvbox-fg2">
+                                {new Date(message.createdAt).toLocaleTimeString()}
+                              </span>
+                            </div>
+                            <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap bg-gruvbox-bg3/50 p-2 rounded">
+                              {(() => {
+                                try {
+                                  // Try to parse as JSON first (for assistant messages)
+                                  const parsed = JSON.parse(message.content);
+                                  if (parsed.text) {
+                                    return parsed.text;
+                                  } else if (parsed.content) {
+                                    return parsed.content;
+                                  }
+                                  return message.content;
+                                } catch {
+                                  // If not JSON, return content as-is
+                                  return message.content;
+                                }
+                              })()}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Thread-Specific Metrics Placeholder */}
+                  <div className="mt-4 p-3 bg-gruvbox-bg2/50 rounded border border-gruvbox-bg3">
+                    <p className="text-sm text-gruvbox-fg2 italic">
+                      Thread-specific metrics will be calculated based on conversation content and tool usage within this thread.
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Delete Session Button */}
           <div className="bg-gruvbox-bg1 p-6 rounded-lg border border-gruvbox-bright-red">

@@ -1386,23 +1386,41 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
       ];
 
       // Add thread continuation if threadId provided or session has existing threads
-      if (threadId) {
+      if (threadId && threadId !== 'new') {
+        // Continue specific existing thread
         args.unshift('threads', 'continue', threadId);
-      } else if (store) {
-        try {
-          // Check for existing threads using new thread model
-          const threads = store.getSessionThreads(this.sessionId);
-          if (threads.length > 0 && threads[0].messageCount > 0) {
-            const activeThread = threads.find((t: any) => t.status === 'active') || threads[0];
-            this.threadId = activeThread.id;
-            args.unshift('threads', 'continue', activeThread.id);
-          } else {
-            // Create new thread for interactive session
-            this.threadId = store.createThread(this.sessionId, 'Interactive Session');
-            console.log(`Created new thread ${this.threadId} for interactive session`);
+      } else if (threadId === 'new' || !threadId) {
+        // Force new thread creation or handle case with no threadId
+        if (threadId === 'new') {
+          // Explicitly requested new thread - always create one
+          const threadName = `Chat ${new Date().toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: false 
+          })}`;
+          this.threadId = store.createThread(this.sessionId, threadName);
+          console.log(`Force created new thread ${this.threadId} for interactive session`);
+        } else if (store) {
+          try {
+            // Check for existing threads using new thread model
+            const threads = store.getSessionThreads(this.sessionId);
+            if (threads.length > 0 && threads[0].messageCount > 0) {
+              const activeThread = threads.find((t: any) => t.status === 'active') || threads[0];
+              this.threadId = activeThread.id;
+              args.unshift('threads', 'continue', activeThread.id);
+            } else {
+              // Create new thread for interactive session
+              const threadName = `Chat ${new Date().toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: false 
+              })}`;
+              this.threadId = store.createThread(this.sessionId, threadName);
+              console.log(`Created new thread ${this.threadId} for interactive session`);
+            }
+          } catch (error) {
+            console.warn('Could not check for existing threads:', error);
           }
-        } catch (error) {
-          console.warn('Could not check for existing threads:', error);
         }
       }
 

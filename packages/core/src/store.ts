@@ -20,6 +20,7 @@ export class SessionStore {
       this.db.pragma('temp_store = memory');
       
       this.initTables();
+      this.migrateThreadIds();
     } catch (error) {
       console.error('Failed to initialize SQLite database:', error);
       throw new Error(`Database initialization failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -922,8 +923,42 @@ export class SessionStore {
   }
 
   // Thread relationship methods
+  
+  // Migrate existing thread IDs to use T- prefix format
+  migrateThreadIds(): void {
+    try {
+      // Check if migration is needed by looking for threads without T- prefix
+      const stmt = this.db.prepare("SELECT id FROM threads WHERE id NOT LIKE 'T-%'");
+      const threadsToMigrate = stmt.all() as { id: string }[];
+      
+      if (threadsToMigrate.length === 0) {
+        return; // No migration needed
+      }
+      
+      console.log(`Migrating ${threadsToMigrate.length} thread IDs to T- format...`);
+      
+      // Begin transaction
+      this.db.transaction(() => {
+        for (const thread of threadsToMigrate) {
+          const oldId = thread.id;
+          const newId = `T-${oldId}`;
+          
+          // Update threads table
+          this.db.prepare('UPDATE threads SET id = ? WHERE id = ?').run(newId, oldId);
+          
+          // Update thread_messages table
+          this.db.prepare('UPDATE thread_messages SET threadId = ? WHERE threadId = ?').run(newId, oldId);
+        }
+      })();
+      
+      console.log(`Successfully migrated ${threadsToMigrate.length} thread IDs`);
+    } catch (error) {
+      console.error('Failed to migrate thread IDs:', error);
+    }
+  }
+
   createThread(sessionId: string, name: string): string {
-    const id = randomUUID();
+    const id = `T-${randomUUID()}`;
     const now = new Date().toISOString();
     
     const stmt = this.db.prepare(`

@@ -121,14 +121,16 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
       if (result.success && result.threads) {
         console.log('Available threads for session:', session.id, result.threads);
         setAvailableThreads(result.threads);
-        // If there are threads and no current selection, select the most recent one
+        // If there are threads and no current selection, select the most recent one (unless we're starting a new thread)
         if (result.threads.length > 0 && !selectedThreadId && !session.threadId) {
           const mostRecentThread = result.threads[0]; // threads are sorted by updatedAt DESC
           console.log('Selecting most recent thread:', mostRecentThread);
           setSelectedThreadId(mostRecentThread.id);
           setThreadId(mostRecentThread.id);
-          // Load messages for this thread
-          loadThreadMessages(mostRecentThread.id);
+          // Load messages for this thread only if we're not in a fresh new thread state
+          if (selectedThreadId !== null) {
+            loadThreadMessages(mostRecentThread.id);
+          }
         } else if (session.threadId && !selectedThreadId) {
           // If session has a threadId, use it
           console.log('Using session threadId:', session.threadId);
@@ -253,6 +255,25 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
     setMessages(prev => [...prev, newMessage]);
   };
 
+  const startNewThread = async () => {
+    // Stop any existing session first
+    if (isStarted) {
+      await stopInteractiveSession();
+    }
+    
+    // Reset all state for a fresh start
+    setSelectedThreadId(null);
+    setThreadId('new'); // Special marker to force new thread creation
+    setMessages([]);
+    setError(null);
+    setConnectionState('closed');
+    setIsStarted(false);
+    setInput('');
+    
+    // Reload available threads to get updated list
+    await loadAvailableThreads();
+  };
+
   const startInteractiveSession = async () => {
     setError(null);
     setConnectionState('connecting');
@@ -331,14 +352,19 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
         </div>
         
         <div className="flex gap-2 items-center">
-          {!isStarted && availableThreads.length > 0 && (
+          {availableThreads.length > 0 && (
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setShowThreadDropdown(!showThreadDropdown)}
                 className="px-3 py-1 bg-gruvbox-bg3 text-gruvbox-fg1 rounded text-sm hover:bg-gruvbox-bg2 border border-gruvbox-bg4 flex items-center gap-2"
               >
                 {selectedThreadId 
-                  ? availableThreads.find(t => t.id === selectedThreadId)?.name || 'Thread'
+                  ? (() => {
+                      const thread = availableThreads.find(t => t.id === selectedThreadId);
+                      if (!thread) return 'Thread';
+                      // Show thread name with short ID for uniqueness
+                      return `${thread.name} (${thread.id.slice(0, 6)})`;
+                    })()
                   : 'Select Thread'
                 }
                 <span className="text-xs">▼</span>
@@ -348,9 +374,7 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
                   <div className="py-1">
                     <button
                       onClick={() => {
-                        setSelectedThreadId(null);
-                        setThreadId('');
-                        setMessages([]);
+                        startNewThread();
                         setShowThreadDropdown(false);
                       }}
                       className="w-full text-left px-3 py-2 text-sm text-gruvbox-fg2 hover:bg-gruvbox-bg2 border-b border-gruvbox-bg3"
@@ -372,7 +396,7 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
                       >
                         <div className="font-medium">{thread.name}</div>
                         <div className="text-xs text-gruvbox-fg2">
-                          {thread.messageCount} messages • {new Date(thread.updatedAt).toLocaleDateString()}
+                        ID: {thread.id.slice(0, 8)}... • {thread.messageCount} messages • {new Date(thread.updatedAt).toLocaleDateString()}
                         </div>
                       </button>
                     ))}
@@ -381,6 +405,17 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
               )}
             </div>
           )}
+          
+          {/* New Thread button when no threads exist or as a standalone option */}
+          {(availableThreads.length === 0 || isStarted) && (
+            <button
+              onClick={startNewThread}
+              className="px-3 py-1 bg-gruvbox-bg3 text-gruvbox-fg1 rounded text-sm hover:bg-gruvbox-bg2 border border-gruvbox-bg4"
+            >
+              New Thread
+            </button>
+          )}
+          
           {!isStarted ? (
             <button
               onClick={startInteractiveSession}
