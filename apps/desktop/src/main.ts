@@ -157,35 +157,8 @@ ipcMain.handle('sessions:create', async (_, options: any) => {
   try {
     const session = await worktreeManager.createSession(options);
     
-    // If interactive mode was selected, automatically start the interactive session
-    if (options.mode === 'interactive') {
-      console.log('Starting interactive session immediately after creation');
-      
-      const { AmpAdapter } = require('@ampsm/core');
-      const ampAdapter = new AmpAdapter({}, store);
-      
-      const handle = ampAdapter.startInteractive(
-        session.id,
-        session.worktreePath,
-        session.modelOverride
-      );
-
-      // Forward events to renderer
-      handle.on('streaming-event', (event) => {
-        mainWindow?.webContents.send('interactive:event', session.id, event);
-      });
-
-      handle.on('state', (state) => {
-        mainWindow?.webContents.send('interactive:state', session.id, state);
-      });
-
-      handle.on('error', (error) => {
-        mainWindow?.webContents.send('interactive:error', session.id, error.message || String(error));
-      });
-
-      interactiveHandles.set(session.id, handle);
-      console.log('Interactive session started for newly created session');
-    }
+    // Interactive sessions will be started manually when user clicks "start chat"
+    // Removed auto-start to prevent double session creation
     
     return { success: true, session };
   } catch (error) {

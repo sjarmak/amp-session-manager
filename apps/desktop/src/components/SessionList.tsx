@@ -11,6 +11,8 @@ export function SessionList({ onSessionSelect, onNewAsyncSession, onNewInteracti
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   const loadSessions = async () => {
     try {
@@ -18,10 +20,86 @@ export function SessionList({ onSessionSelect, onNewAsyncSession, onNewInteracti
       setError(null);
       const sessionList = await window.electronAPI.sessions.list();
       setSessions(sessionList);
+      // Clear selection when sessions are reloaded
+      setSelectedSessions(new Set());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load sessions');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSelectSession = (sessionId: string, checked: boolean) => {
+    setSelectedSessions(prev => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(sessionId);
+      } else {
+        newSet.delete(sessionId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedSessions(new Set(sessions.map(s => s.id)));
+    } else {
+      setSelectedSessions(new Set());
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedSessions.size === 0) return;
+
+    const sessionNames = sessions
+      .filter(s => selectedSessions.has(s.id))
+      .map(s => s.name)
+      .join(', ');
+
+    if (!window.confirm(
+      `Are you sure you want to delete ${selectedSessions.size} session(s): ${sessionNames}? This will remove the worktrees and branches. UNMERGED CHANGES WILL BE LOST.`
+    )) {
+      return;
+    }
+
+    setDeleting(true);
+    setError(null);
+
+    try {
+      const deletePromises = Array.from(selectedSessions).map(async (sessionId) => {
+        try {
+          const result = await window.electronAPI.sessions.cleanup(sessionId);
+          if (!result?.success) {
+            // Try force delete for sessions with unmerged commits
+            const forceResult = await window.electronAPI.sessions.cleanup(sessionId, true);
+            if (!forceResult?.success) {
+              throw new Error(`Failed to delete session: ${forceResult?.error || 'Unknown error'}`);
+            }
+          }
+          return { sessionId, success: true };
+        } catch (err) {
+          return { 
+            sessionId, 
+            success: false, 
+            error: err instanceof Error ? err.message : 'Unknown error' 
+          };
+        }
+      });
+
+      const results = await Promise.all(deletePromises);
+      const failures = results.filter(r => !r.success);
+      
+      if (failures.length > 0) {
+        setError(`Failed to delete ${failures.length} session(s): ${failures.map(f => f.error).join(', ')}`);
+      }
+
+      // Reload sessions regardless of failures
+      await loadSessions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete sessions');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -82,6 +160,34 @@ export function SessionList({ onSessionSelect, onNewAsyncSession, onNewInteracti
         </div>
       </div>
 
+      {sessions.length > 0 && (
+        <div className="flex items-center justify-between p-3 bg-gruvbox-dark1 border border-gruvbox-dark3/50 rounded-lg">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-gruvbox-light2">
+              <input
+                type="checkbox"
+                checked={selectedSessions.size === sessions.length && sessions.length > 0}
+                onChange={(e) => handleSelectAll(e.target.checked)}
+                className="rounded border-gruvbox-dark3 text-gruvbox-blue focus:ring-gruvbox-blue focus:ring-offset-gruvbox-dark0"
+              />
+              Select All
+            </label>
+            {selectedSessions.size > 0 && (
+              <span className="text-xs text-gruvbox-light3">
+                {selectedSessions.size} selected
+              </span>
+            )}
+          </div>
+          <button
+            onClick={handleBulkDelete}
+            disabled={selectedSessions.size === 0 || deleting}
+            className="px-4 py-2 bg-gruvbox-red text-gruvbox-light1 rounded-md hover:bg-gruvbox-red-dim disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-gruvbox-red/50 shadow-lg shadow-gruvbox-red/25 transition-all"
+          >
+            {deleting ? 'Deleting...' : 'Delete Selected'}
+          </button>
+        </div>
+      )}
+
       {sessions.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-gruvbox-light3 mb-4">No sessions found</div>
@@ -105,11 +211,24 @@ export function SessionList({ onSessionSelect, onNewAsyncSession, onNewInteracti
           {sessions.map((session) => (
             <div
               key={session.id}
-              className="p-4 bg-gruvbox-dark0 border border-gruvbox-dark3/50 rounded-lg hover:shadow-lg hover:shadow-gruvbox-aqua/10 cursor-pointer transition-all hover:border-gruvbox-aqua/30"
-              onClick={() => onSessionSelect(session)}
+              className="p-4 bg-gruvbox-dark0 border border-gruvbox-dark3/50 rounded-lg hover:shadow-lg hover:shadow-gruvbox-aqua/10 transition-all hover:border-gruvbox-aqua/30"
             >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
+              <div className="flex items-start gap-3">
+                <div className="flex items-center pt-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedSessions.has(session.id)}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      handleSelectSession(session.id, e.target.checked);
+                    }}
+                    className="rounded border-gruvbox-dark3 text-gruvbox-blue focus:ring-gruvbox-blue focus:ring-offset-gruvbox-dark0"
+                  />
+                </div>
+                <div 
+                  className="flex-1 cursor-pointer"
+                  onClick={() => onSessionSelect(session)}
+                >
                   <div className="flex items-center gap-2">
                     <h3 className="font-medium text-gruvbox-light1">{session.name}</h3>
                     <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(session.status)}`}>

@@ -1,11 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Session } from '@ampsm/types';
+import { StreamMessageDisplay } from './StreamMessageDisplay';
+import { ToolCallDisplay } from './ToolCallDisplay';
 
 interface ChatMessage {
   id: string;
-  sender: 'user' | 'assistant';
+  sender: 'user' | 'assistant' | 'tool';
   content: string;
   timestamp: string;
+  toolCall?: {
+    id: string;
+    name: string;
+    input: any;
+    result?: any;
+    status?: 'pending' | 'success' | 'error';
+  };
 }
 
 interface Thread {
@@ -74,12 +83,37 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
     const unsubEvent = window.electronAPI.interactive.onEvent((sessionId, event) => {
       if (sessionId !== session.id) return;
       
+      // Handle tool_use events with proper formatting
+      if (event.type === 'tool_use' || (event.data?.type === 'tool_use')) {
+        const toolData = event.data || event;
+        addToolMessage({
+          id: toolData.id || `tool_${Date.now()}`,
+          name: toolData.name || 'unknown_tool',
+          input: toolData.input || {},
+          status: 'success'
+        });
+        return;
+      }
+      
       if (event.type === 'assistant_message' && event.data?.content) {
+        // Check if this message contains tool calls
+        const toolCalls = event.data.content.filter((c: any) => c.type === 'tool_use');
         const textContent = event.data.content
           .filter((c: any) => c.type === 'text')
           .map((c: any) => c.text)
           .join(' ');
-          
+        
+        // Add tool calls first
+        for (const toolCall of toolCalls) {
+          addToolMessage({
+            id: toolCall.id || `tool_${Date.now()}`,
+            name: toolCall.name || 'unknown_tool',
+            input: toolCall.input || {},
+            status: 'success'
+          });
+        }
+        
+        // Then add text content if available
         if (textContent.trim()) {
           addMessage('assistant', textContent);
         }
@@ -93,6 +127,61 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
         if (textContent.trim()) {
           addMessage('user', textContent);
         }
+      } else if (typeof event === 'string' && event.includes('tool_use')) {
+        // Handle raw JSON strings that might contain tool_use
+        try {
+          const parsed = JSON.parse(event);
+          if (parsed.type === 'tool_use') {
+            addToolMessage({
+              id: parsed.id || `tool_${Date.now()}`,
+              name: parsed.name || 'unknown_tool',
+              input: parsed.input || {},
+              status: 'success'
+            });
+            return;
+          }
+        } catch (err) {
+          // If parsing fails, show the raw content but mention it's a tool interaction
+          addMessage('assistant', `Tool interaction: ${event}`);
+        }
+      } else {
+        // Fallback: try to parse any string event as JSON for tool_use only
+        if (typeof event === 'string') {
+          try {
+            const parsed = JSON.parse(event);
+            if (parsed.type === 'tool_use') {
+              addToolMessage({
+                id: parsed.id || `tool_${Date.now()}`,
+                name: parsed.name || 'unknown_tool',
+                input: parsed.input || {},
+                status: 'success'
+              });
+              return;
+            }
+            // Skip system messages (output, initialization, etc.)
+            if (parsed.type === 'output' || parsed.data?.chunk || parsed.data?.subtype) {
+              return;
+            }
+          } catch (err) {
+            // Not JSON, ignore silently unless it's clearly a user message
+          }
+        }
+        
+        // If we get here, it might be a message that should be displayed
+        // But skip obvious system events and don't display raw JSON for tool_use
+        if (typeof event === 'string') {
+          // Don't show raw tool_use JSON
+          if (event.includes('"type":"tool_use"')) {
+            return;
+          }
+          // Don't show obvious system messages
+          if (event.includes('"type":"output"') || event.includes('"chunk"') || event.includes('"subtype"')) {
+            return;
+          }
+        }
+        
+        // For anything else, display as assistant message (but this should be rare)
+        // addMessage('assistant', typeof event === 'string' ? event : JSON.stringify(event));
       }
     });
 
@@ -152,29 +241,71 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
       const result = await window.electronAPI.sessions.getThreadMessages(threadIdToLoad);
       console.log('Thread messages result:', result);
       if (result.success && result.messages && result.messages.length > 0) {
-        const historyMessages: ChatMessage[] = result.messages.map((msg: any) => {
+        const historyMessages: ChatMessage[] = [];
+        
+        for (const msg of result.messages) {
           // Parse message content if it's JSON
           let content = msg.content;
+          let toolCalls: any[] = [];
+          
           try {
             // Try to parse as JSON array (Amp format)
             const parsed = JSON.parse(content);
             if (Array.isArray(parsed)) {
+              // Extract tool calls
+              toolCalls = parsed.filter((c: any) => c.type === 'tool_use');
+              
+              // Extract text content
               content = parsed
                 .filter((c: any) => c.type === 'text')
                 .map((c: any) => c.text)
                 .join(' ');
+            } else if (parsed.type === 'tool_use') {
+              // Single tool_use object
+              toolCalls = [parsed];
+              content = ''; // No text content for pure tool calls
             }
           } catch {
-            // If it's not JSON, use as-is
+            // If it's not JSON, check if it contains tool_use
+            if (content.includes('"type":"tool_use"')) {
+              try {
+                const toolParsed = JSON.parse(content);
+                if (toolParsed.type === 'tool_use') {
+                  toolCalls = [toolParsed];
+                  content = '';
+                }
+              } catch {
+                // Use as-is if parsing fails
+              }
+            }
           }
           
-          return {
-            id: msg.id,
-            sender: msg.role as 'user' | 'assistant',
-            content: content.trim() || msg.content,
-            timestamp: msg.createdAt
-          };
-        });
+          // Add tool call messages first
+          for (const toolCall of toolCalls) {
+            historyMessages.push({
+              id: toolCall.id || `tool-${msg.id}-${Date.now()}`,
+              sender: 'tool',
+              content: `Tool: ${toolCall.name || 'unknown_tool'}`,
+              timestamp: msg.createdAt,
+              toolCall: {
+                id: toolCall.id || `tool-${msg.id}-${Date.now()}`,
+                name: toolCall.name || 'unknown_tool',
+                input: toolCall.input || {},
+                status: 'success'
+              }
+            });
+          }
+          
+          // Add text message if there's content
+          if (content && content.trim()) {
+            historyMessages.push({
+              id: msg.id,
+              sender: msg.role as 'user' | 'assistant',
+              content: content.trim(),
+              timestamp: msg.createdAt
+            });
+          }
+        }
         
         console.log('Loaded thread messages:', historyMessages);
         setMessages(historyMessages);
@@ -212,11 +343,30 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
               });
             }
           } else if (event.type === 'assistant' && event.message?.content) {
+            // Extract tool calls from assistant messages
+            const toolCalls = event.message.content.filter((c: any) => c.type === 'tool_use');
             const textContent = event.message.content
               .filter((c: any) => c.type === 'text')
               .map((c: any) => c.text)
               .join(' ');
             
+            // Add tool calls first
+            for (const toolCall of toolCalls) {
+              historyMessages.push({
+                id: toolCall.id || `tool-${event.timestamp || Date.now()}`,
+                sender: 'tool',
+                content: `Tool: ${toolCall.name || 'unknown_tool'}`,
+                timestamp: event.timestamp || new Date().toISOString(),
+                toolCall: {
+                  id: toolCall.id || `tool-${event.timestamp || Date.now()}`,
+                  name: toolCall.name || 'unknown_tool',
+                  input: toolCall.input || {},
+                  status: 'success'
+                }
+              });
+            }
+            
+            // Add text content if available
             if (textContent.trim()) {
               historyMessages.push({
                 id: `assistant-${event.timestamp || Date.now()}`,
@@ -255,6 +405,21 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
     setMessages(prev => [...prev, newMessage]);
   };
 
+  const addToolMessage = (toolCall: { id: string; name: string; input: any; status?: 'pending' | 'success' | 'error' }) => {
+    const newMessage: ChatMessage = {
+      id: toolCall.id || `tool-${Date.now()}-${Math.random()}`,
+      sender: 'tool',
+      content: `Tool: ${toolCall.name}`,
+      timestamp: new Date().toISOString(),
+      toolCall: {
+        ...toolCall,
+        status: toolCall.status || 'success'
+      }
+    };
+    
+    setMessages(prev => [...prev, newMessage]);
+  };
+
   const startNewThread = async () => {
     // Stop any existing session first
     if (isStarted) {
@@ -280,7 +445,8 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
     setIsStarted(true);
     
     try {
-      const result = await window.electronAPI.interactive.start(session.id, threadId || undefined);
+      // Force new thread creation to avoid continuation issues with auto-created threads
+      const result = await window.electronAPI.interactive.start(session.id, 'new');
       
       if (!result.success) {
         setError(result.error || 'Failed to start interactive session');
@@ -459,26 +625,90 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
           </div>
         ) : (
           messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[80%] p-3 rounded-lg text-sm ${
-                  message.sender === 'user'
-                    ? 'bg-gruvbox-bright-blue text-gruvbox-bg0'
-                    : 'bg-gruvbox-bg2 text-gruvbox-fg1 border border-gruvbox-bg3'
-                }`}
-              >
-                <div className="whitespace-pre-wrap">{message.content}</div>
-                <div
-                  className={`text-xs mt-1 opacity-70 ${
-                    message.sender === 'user' ? 'text-gruvbox-bg0' : 'text-gruvbox-fg2'
-                  }`}
-                >
-                  {new Date(message.timestamp).toLocaleTimeString()}
-                </div>
-              </div>
+            <div key={message.id}>
+{(() => {
+                // Check if this is a tool call message
+                if (message.sender === 'tool' && message.toolCall) {
+                  return (
+                    <ToolCallDisplay 
+                      toolCall={message.toolCall}
+                      className="mb-3"
+                    />
+                  );
+                }
+                
+                // Check if the message content contains raw tool_use JSON
+                if (message.sender === 'assistant' && message.content.includes('"type":"tool_use"')) {
+                  try {
+                    const parsed = JSON.parse(message.content);
+                    if (parsed.type === 'tool_use') {
+                      const toolCall = {
+                        id: parsed.id || `tool_${Date.now()}`,
+                        name: parsed.name || 'unknown_tool',
+                        input: parsed.input || {},
+                        timestamp: message.timestamp,
+                        status: 'success' as const
+                      };
+                      return (
+                        <ToolCallDisplay 
+                          toolCall={toolCall}
+                          className="mb-3"
+                        />
+                      );
+                    }
+                  } catch (err) {
+                    // If parsing fails, fall back to regular message display
+                  }
+                }
+                
+                // Regular message display
+                return (
+                  <div
+                    className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'} mb-3`}
+                  >
+                    <div
+                      className={`max-w-[80%] p-3 rounded-lg text-sm ${
+                        message.sender === 'user'
+                          ? 'bg-gruvbox-bright-blue text-gruvbox-bg0'
+                          : 'bg-gruvbox-bg2 text-gruvbox-fg1 border border-gruvbox-bg3'
+                      }`}
+                    >
+                      <div className="whitespace-pre-wrap">
+                        {(() => {
+                          // Check for file creation messages and add filename highlighting
+                          const fileCreatedMatch = message.content.match(/Created (\S+\.\w+) with/);
+                          if (fileCreatedMatch) {
+                            const filename = fileCreatedMatch[1];
+                            const beforeMatch = message.content.substring(0, fileCreatedMatch.index);
+                            const afterMatch = message.content.substring(fileCreatedMatch.index + fileCreatedMatch[0].length);
+                            
+                            return (
+                              <span>
+                                {beforeMatch}Created{' '}
+                                <span 
+                                  className="bg-gruvbox-blue/20 text-gruvbox-blue px-1 py-0.5 rounded border border-gruvbox-blue/40 hover:bg-gruvbox-blue/30 cursor-help transition-colors font-semibold text-xs"
+                                  title="Full path not available from this message"
+                                >
+                                  {filename}
+                                </span>
+                                {' '}with{afterMatch}
+                              </span>
+                            );
+                          }
+                          return message.content;
+                        })()}
+                      </div>
+                      <div
+                        className={`text-xs mt-1 opacity-70 ${
+                          message.sender === 'user' ? 'text-gruvbox-bg0' : 'text-gruvbox-fg2'
+                        }`}
+                      >
+                        {new Date(message.timestamp).toLocaleTimeString()}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           ))
         )}

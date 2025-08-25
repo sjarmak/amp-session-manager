@@ -59,6 +59,8 @@ export class AmpAdapter extends EventEmitter {
   public lastUsedArgs?: string[];
   private store?: any;
   private jsonBuffer: string = '';
+  /** remembers the most recently announced model for this adapter run */
+  private lastModel: string | undefined;
 
   constructor(config: AmpAdapterConfig = {}, store?: any) {
     super();
@@ -195,10 +197,11 @@ export class AmpAdapter extends EventEmitter {
     if (modelOverride === 'gpt-5') {
       args.push('--try-gpt5');
     } else if (modelOverride === 'alloy') {
-      // For alloy mode, we need to set the config instead of a flag
-      // This will be handled via environment variable  
-    } else if (modelOverride) {
-      args.push('--model', modelOverride);
+      // Alloy is handled via environment variable, not command line args
+      // Environment variable will be set below
+    } else if (modelOverride && modelOverride !== 'default') {
+      // Note: amp CLI may not support --model flag for all models
+      console.warn(`Model override '${modelOverride}' may not be supported by amp CLI`);
     }
 
     // Enable streaming JSON for real-time telemetry if configured
@@ -222,7 +225,7 @@ export class AmpAdapter extends EventEmitter {
       console.warn('Debug logging unavailable for thread continuation:', (debugSetupError as Error).message);
     }
 
-    return this.executeAmpCommandNoStdin(args, workingDir, sessionId, threadId);
+    return this.executeAmpCommandNoStdin(args, workingDir, modelOverride, sessionId, threadId);
   }
 
   private async runAmpCommand(
@@ -251,29 +254,32 @@ export class AmpAdapter extends EventEmitter {
     if (modelOverride === 'gpt-5') {
       args.push('--try-gpt5');
     } else if (modelOverride === 'alloy') {
-      // For alloy mode, we need to set the config instead of a flag
-      // This will be handled via environment variable
-    } else if (modelOverride) {
-      args.push('--model', modelOverride);
+      // Alloy is handled via environment variable, not command line args
+      // Environment variable will be set in executeAmpCommand
+    } else if (modelOverride && modelOverride !== 'default') {
+      // Note: amp CLI may not support --model flag for all models
+      console.warn(`Model override '${modelOverride}' may not be supported by amp CLI`);
     }
 
-    return this.executeAmpCommand(args, finalPrompt, workingDir, sessionId, true, threadId);
+    return this.executeAmpCommand(args, finalPrompt, workingDir, modelOverride, sessionId, true, threadId);
   }
 
   private async executeAmpCommandNoStdin(
     args: string[],
     workingDir: string,
+    modelOverride?: string,
     sessionId?: string,
     threadId?: string
   ): Promise<AmpIterationResult> {
     // For commands that don't need stdin (like --execute commands)
-    return this.executeAmpCommand(args, '', workingDir, sessionId, false, threadId);
+    return this.executeAmpCommand(args, '', workingDir, modelOverride, sessionId, false, threadId);
   }
 
   private async executeAmpCommand(
     args: string[],
     finalPrompt: string,
     workingDir: string,
+    modelOverride?: string,
     sessionId?: string,
     useStdin: boolean = true,
     threadId?: string
@@ -348,9 +354,8 @@ export class AmpAdapter extends EventEmitter {
         }
       }
       
-      // Handle alloy mode via environment variable - check if alloy model is in args
-      const hasAlloyModel = args.some(arg => arg.includes('alloy'));
-      if (hasAlloyModel) {
+      // Handle alloy mode via environment variable
+      if (modelOverride === 'alloy') {
         env['amp.internal.alloy.enable'] = 'true';
       }
       
@@ -516,8 +521,11 @@ export class AmpAdapter extends EventEmitter {
       // Add model override for oracle
       if (modelOverride === 'gpt-5') {
         args.push('--try-gpt5');
-      } else if (modelOverride && modelOverride !== 'alloy') {
-        args.push('--model', modelOverride);
+      } else if (modelOverride === 'alloy') {
+        // Alloy is handled via environment variable (set below)
+      } else if (modelOverride && modelOverride !== 'default') {
+        // Note: amp CLI may not support --model flag for all models
+        console.warn(`Model override '${modelOverride}' may not be supported by amp CLI`);
       }
       
       // Enable streaming JSON for oracle if supported and configured
@@ -841,6 +849,16 @@ Please provide a thorough analysis and actionable recommendations.`;
         console.log(`[DEBUG] Stream event result:`, streamEvent ? { type: streamEvent.type, hasContent: !!(streamEvent.content || streamEvent.result) } : 'null');
         
         if (streamEvent) {
+          // Track the current model from model_info, token_usage, or llm_usage events
+          if (streamEvent.type === 'model_info' || 
+              (streamEvent.type === 'token_usage' && streamEvent.model)) {
+            this.lastModel = streamEvent.model;
+          }
+          
+          // Back-fill model for assistant messages that don't have one
+          if (streamEvent.type === 'assistant_message' && !streamEvent.model) {
+            streamEvent.model = this.lastModel ?? 'unknown';
+          }
           // Update real-time telemetry
           this.updateRealtimeTelemetry(realtimeTelemetry, streamEvent);
           
@@ -1189,6 +1207,21 @@ Please provide a thorough analysis and actionable recommendations.`;
           session_id: parsed.session_id
         };
 
+      /* ──────────────────────────────── LLM usage (similar to token_usage but from metrics) ───────────────────── */
+      case 'llm_usage': {
+        return {
+          type: 'token_usage',
+          timestamp: ts,
+          tokens: {
+            prompt: parsed.data?.promptTokens ?? parsed.promptTokens ?? 0,
+            completion: parsed.data?.completionTokens ?? parsed.completionTokens ?? 0,
+            total: parsed.data?.totalTokens ?? parsed.totalTokens ?? 0
+          },
+          model: parsed.data?.model ?? parsed.model,
+          cost: parsed.data?.costUsd ?? parsed.costUsd ?? 0
+        };
+      }
+
       /* ──────────────────────────────── model selection / info ───────────────────── */
       case 'model_info':
       case 'model_change':
@@ -1241,6 +1274,11 @@ Please provide a thorough analysis and actionable recommendations.`;
     
     if (event.type === 'model_info' && event.model && !telemetry.model) {
       telemetry.model = event.model;
+    }
+    
+    // Ensure telemetry always has a model if we've tracked one
+    if (!telemetry.model && this.lastModel) {
+      telemetry.model = this.lastModel;
     }
     
     // Handle assistant_message events with tools
@@ -1389,6 +1427,7 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
       if (threadId && threadId !== 'new') {
         // Continue specific existing thread
         args.unshift('threads', 'continue', threadId);
+        console.log(`Attempting to continue thread ${threadId} for interactive session`);
       } else if (threadId === 'new' || !threadId) {
         // Force new thread creation or handle case with no threadId
         if (threadId === 'new') {
@@ -1427,8 +1466,13 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
       // Add model override if specified
       if (modelOverride === 'gpt-5') {
         args.push('--try-gpt5');
+      } else if (modelOverride === 'alloy') {
+        // Alloy is handled via environment variable, not command line args
+        // Environment variable will be set below
       } else if (modelOverride && modelOverride !== 'default') {
-        args.push('--model', modelOverride);
+        // Note: amp CLI may not support --model flag for all models
+        // This may need to be handled differently based on the specific model
+        console.warn(`Model override '${modelOverride}' may not be supported by amp CLI`);
       }
 
       // Add extra args
@@ -1440,7 +1484,9 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
 
       // Set up environment
       const env = { ...process.env, ...config.env };
-      if (config.enableJSONLogs) {
+      
+      // Set alloy environment variable if alloy model is selected
+      if (modelOverride === 'alloy') {
         env['amp.internal.alloy.enable'] = 'true';
       }
 
@@ -1499,14 +1545,21 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
     this.child.on('close', (exitCode: number) => {
       console.log('Interactive amp process closed with code:', exitCode);
       
+      // Always log stderr for debugging
+      if (stderrBuffer.trim()) {
+        console.log('Interactive amp process stderr:', stderrBuffer.trim());
+      }
+      
       // Check for authentication errors
       if (exitCode === 1 && stderrBuffer.includes('Not logged in')) {
         this.state = 'error';
         this.emit('error', new Error('Amp CLI authentication required. Please run "amp login" to authenticate.'));
       } else {
         this.state = exitCode === 0 ? 'closed' : 'error';
-        if (exitCode !== 0 && stderrBuffer.trim()) {
-          this.emit('error', new Error(`Amp process failed: ${stderrBuffer.trim()}`));
+        if (exitCode !== 0) {
+          const errorMsg = stderrBuffer.trim() || 'Amp process failed with unknown error';
+          console.error('Amp process failed with exit code', exitCode, ':', errorMsg);
+          this.emit('error', new Error(`Amp process failed: ${errorMsg}`));
         }
       }
       

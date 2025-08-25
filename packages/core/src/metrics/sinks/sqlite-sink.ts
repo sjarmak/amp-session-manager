@@ -425,7 +425,8 @@ export class SQLiteMetricsSink implements MetricsSink {
     insertions: number;
     deletions: number;
   }> {
-    const result = this.db.prepare(`
+    // First try to get from git operations table
+    const gitResult = this.db.prepare(`
       SELECT 
         sha_after,
         SUM(files_changed) as files_changed,
@@ -436,13 +437,34 @@ export class SQLiteMetricsSink implements MetricsSink {
       GROUP BY iteration_id
     `).get(iterationId) as any;
 
-    this.logger.debug(`Git stats for iteration ${iterationId}:`, result);
+    // If no git operations data, fallback to file edits table
+    if (!gitResult) {
+      const fileResult = this.db.prepare(`
+        SELECT 
+          COUNT(DISTINCT path) as files_changed,
+          SUM(lines_added) as insertions,
+          SUM(lines_deleted) as deletions
+        FROM metric_file_edits 
+        WHERE iteration_id = ?
+      `).get(iterationId) as any;
+
+      this.logger.debug(`Git stats from file edits for iteration ${iterationId}:`, fileResult);
+
+      return {
+        shaAfter: null, // No SHA available from file edits
+        filesChanged: fileResult?.files_changed || 0,
+        insertions: fileResult?.insertions || 0,
+        deletions: fileResult?.deletions || 0
+      };
+    }
+
+    this.logger.debug(`Git stats for iteration ${iterationId}:`, gitResult);
 
     return {
-      shaAfter: result?.sha_after || null,
-      filesChanged: result?.files_changed || 0,
-      insertions: result?.insertions || 0,
-      deletions: result?.deletions || 0
+      shaAfter: gitResult?.sha_after || null,
+      filesChanged: gitResult?.files_changed || 0,
+      insertions: gitResult?.insertions || 0,
+      deletions: gitResult?.deletions || 0
     };
   }
 

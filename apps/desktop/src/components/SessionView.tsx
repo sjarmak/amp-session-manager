@@ -4,6 +4,7 @@ import { MergeWizard } from "./MergeWizard";
 import { SessionMetrics } from "./SessionMetrics";
 import { JSONMetrics } from "./JSONMetrics";
 import { InteractiveTab } from "./InteractiveTab";
+import { ToolCallDisplay } from "./ToolCallDisplay";
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
 
@@ -456,28 +457,116 @@ export function SessionView({
                                 ? 'text-gruvbox-bright-blue'
                                 : 'text-gruvbox-fg2'
                             }`}>
-                              {message.role === 'user' ? '👤 User' : message.role === 'assistant' ? '🤖 Assistant' : '⚙️ System'}
+                              {message.role === 'user' ? 'User' : message.role === 'assistant' ? 'Assistant' : 'System'}
                               <span className="ml-2 text-gruvbox-fg2">
                                 {new Date(message.createdAt).toLocaleTimeString()}
                               </span>
                             </div>
-                            <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap bg-gruvbox-bg3/50 p-2 rounded">
-                              {(() => {
-                                try {
-                                  // Try to parse as JSON first (for assistant messages)
-                                  const parsed = JSON.parse(message.content);
-                                  if (parsed.text) {
-                                    return parsed.text;
-                                  } else if (parsed.content) {
-                                    return parsed.content;
-                                  }
-                                  return message.content;
-                                } catch {
-                                  // If not JSON, return content as-is
-                                  return message.content;
+                            {(() => {
+                              try {
+                                // Try to parse as JSON first (for assistant messages)
+                                const parsed = JSON.parse(message.content);
+                                
+                                // Check if this is a tool_use message
+                                if (parsed.type === 'tool_use' && parsed.name) {
+                                  const toolCall = {
+                                    id: parsed.id || `tool_${Date.now()}`,
+                                    name: parsed.name,
+                                    input: parsed.input || {},
+                                    timestamp: message.createdAt,
+                                    status: 'success' as const
+                                  };
+                                  return <ToolCallDisplay toolCall={toolCall} className="mt-2" />;
                                 }
-                              })()}
-                            </div>
+                                
+                                // Handle JSON array format (Amp format with mixed content types)
+                                if (Array.isArray(parsed)) {
+                                  const elements: JSX.Element[] = [];
+                                  let textContent = '';
+                                  let hasToolCalls = false;
+                                  
+                                  // First pass: collect all text and identify tool calls
+                                  for (const item of parsed) {
+                                    if (item.type === 'tool_use' && item.name) {
+                                      hasToolCalls = true;
+                                    } else if (item.type === 'text' && item.text) {
+                                      textContent += (textContent ? ' ' : '') + item.text;
+                                    }
+                                  }
+                                  
+                                  // If we have both tool calls and text, show them separately
+                                  if (hasToolCalls) {
+                                    for (let i = 0; i < parsed.length; i++) {
+                                      const item = parsed[i];
+                                      
+                                      if (item.type === 'tool_use' && item.name) {
+                                        const toolCall = {
+                                          id: item.id || `tool_${Date.now()}_${i}`,
+                                          name: item.name,
+                                          input: item.input || {},
+                                          timestamp: message.createdAt,
+                                          status: 'success' as const
+                                        };
+                                        elements.push(
+                                          <ToolCallDisplay key={i} toolCall={toolCall} className="mb-2" />
+                                        );
+                                      }
+                                    }
+                                    
+                                    // Add text content if any
+                                    if (textContent.trim()) {
+                                      elements.unshift(
+                                        <div key="text" className="text-sm text-gruvbox-fg1 whitespace-pre-wrap mb-2">
+                                          {textContent}
+                                        </div>
+                                      );
+                                    }
+                                  } else if (textContent.trim()) {
+                                    // Only text content, no tool calls - display as normal conversation text
+                                    return (
+                                      <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap">
+                                        {textContent}
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  return elements.length > 0 ? <div>{elements}</div> : (
+                                    <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap bg-gruvbox-bg3/50 p-2 rounded">
+                                      {message.content}
+                                    </div>
+                                  );
+                                }
+                                
+                                // Extract text content from single objects
+                                if (parsed.text) {
+                                  return (
+                                    <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap bg-gruvbox-bg3/50 p-2 rounded">
+                                      {parsed.text}
+                                    </div>
+                                  );
+                                } else if (parsed.content) {
+                                  return (
+                                    <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap bg-gruvbox-bg3/50 p-2 rounded">
+                                      {parsed.content}
+                                    </div>
+                                  );
+                                }
+                                
+                                // Fallback for other JSON structures
+                                return (
+                                  <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap bg-gruvbox-bg3/50 p-2 rounded">
+                                    {message.content}
+                                  </div>
+                                );
+                              } catch {
+                                // If not JSON, return content as-is
+                                return (
+                                  <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap bg-gruvbox-bg3/50 p-2 rounded">
+                                    {message.content}
+                                  </div>
+                                );
+                              }
+                            })()}
                           </div>
                         ))}
                       </div>

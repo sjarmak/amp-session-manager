@@ -21,10 +21,35 @@ interface ParsedStreamMetrics {
   }>;
 }
 
+/**
+ * Map model override values to display names
+ */
+function getModelDisplayName(modelOverride?: string): string {
+  switch (modelOverride) {
+    case 'gpt-5':
+      return 'gpt5';
+    case 'alloy':
+      return 'Alloy';
+    case '':
+    case undefined:
+    case null:
+      return 'Claude Sonnet 4';
+    default:
+      return modelOverride || 'Claude Sonnet 4';
+  }
+}
+
 export function ConversationFlow({ session }: ConversationFlowProps) {
   const [metrics, setMetrics] = useState<ParsedStreamMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Debug logging
+  console.log('[ConversationFlow] Session data:', { 
+    id: session.id, 
+    modelOverride: session.modelOverride,
+    mappedModel: getModelDisplayName(session.modelOverride)
+  });
 
   useEffect(() => {
     const fetchConversationData = async () => {
@@ -67,10 +92,20 @@ export function ConversationFlow({ session }: ConversationFlowProps) {
             if (event.type === 'assistant_message') {
               const textContent = event.data?.content || '';
               if (textContent.trim()) {
+                const modelFromEvent = event.data?.model;
+                const fallbackModel = getModelDisplayName(session.modelOverride);
+                const finalModel = modelFromEvent || fallbackModel;
+                console.log('[ConversationFlow] Stream event model resolution:', { 
+                  modelFromEvent, 
+                  sessionModelOverride: session.modelOverride, 
+                  fallbackModel, 
+                  finalModel 
+                });
+                
                 parsedMetrics.assistantMessages.push({
                   timestamp: event.timestamp,
                   content: textContent,
-                  model: event.data?.model || 'unknown',
+                  model: finalModel,
                   usage: event.data?.usage
                 });
               }
@@ -88,10 +123,20 @@ export function ConversationFlow({ session }: ConversationFlowProps) {
             const iterations = iterationsResult.iterations || [];
             for (const iteration of iterations) {
               if (iteration.output) {
+                const modelFromIteration = iteration.model;
+                const fallbackModel = getModelDisplayName(session.modelOverride);
+                const finalModel = modelFromIteration || fallbackModel;
+                console.log('[ConversationFlow] Iteration model resolution:', { 
+                  modelFromIteration, 
+                  sessionModelOverride: session.modelOverride, 
+                  fallbackModel, 
+                  finalModel 
+                });
+                
                 parsedMetrics.assistantMessages.push({
                   timestamp: iteration.startedAt || new Date().toISOString(),
                   content: iteration.output,
-                  model: iteration.model || 'unknown',
+                  model: finalModel,
                   usage: {
                     input_tokens: iteration.promptTokens || 0,
                     output_tokens: iteration.completionTokens || 0

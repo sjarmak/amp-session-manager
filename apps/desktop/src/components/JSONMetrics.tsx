@@ -1,4 +1,23 @@
 import React, { useState, useEffect } from 'react';
+import { ToolCallDisplay } from './ToolCallDisplay';
+
+/**
+ * Map model override values to display names
+ */
+function getModelDisplayName(modelOverride?: string): string {
+  switch (modelOverride) {
+    case 'gpt-5':
+      return 'gpt5';
+    case 'alloy':
+      return 'Alloy';
+    case '':
+    case undefined:
+    case null:
+      return 'Claude Sonnet 4';
+    default:
+      return modelOverride || 'Claude Sonnet 4';
+  }
+}
 
 interface JSONMetricsProps {
   sessionId: string;
@@ -11,6 +30,7 @@ interface ParsedStreamMetrics {
     timestamp: string;
     content: string;
     model: string;
+    threadId?: string;
     usage?: {
       input_tokens?: number;
       output_tokens?: number;
@@ -28,6 +48,7 @@ interface ParsedStreamMetrics {
   toolUsage: Array<{
     toolName: string;
     timestamp: string;
+    threadId?: string;
     args?: any;
   }>;
   totalTokens: {
@@ -43,13 +64,93 @@ interface ParsedStreamMetrics {
   userMessages: Array<{
     timestamp: string;
     message: string;
+    threadId?: string;
   }>;
   linesChanged: {
     added: number;
     deleted: number;
     total: number;
   };
+  threads: Array<{
+    id: string;
+    name: string;
+    messages: Array<{
+      type: 'user' | 'assistant';
+      timestamp: string;
+      content: string;
+      model?: string;
+      usage?: any;
+      tools?: string[];
+    }>;
+  }>;
 }
+
+// Helper function to parse message content and extract tool calls
+const parseMessageContent = (content: string) => {
+  const textParts: string[] = [];
+  const toolCalls: Array<{
+    id: string;
+    name: string;
+    input: any;
+    timestamp?: string;
+    status?: 'pending' | 'success' | 'error';
+  }> = [];
+
+  try {
+    // Check if content looks like it contains tool_use JSON
+    if (content.includes('"type":"tool_use"') || content.includes("'type':'tool_use'")) {
+      // Try to extract JSON objects from the content
+      const jsonMatches = content.match(/\[?\{[^}]*"type":\s*"tool_use"[^}]*\}[^\]]*\]?/g);
+      if (jsonMatches) {
+        for (const match of jsonMatches) {
+          try {
+            let parsed;
+            if (match.startsWith('[')) {
+              parsed = JSON.parse(match);
+              if (Array.isArray(parsed)) {
+                parsed = parsed[0]; // Take first item if it's an array
+              }
+            } else {
+              parsed = JSON.parse(match);
+            }
+            
+            if (parsed.type === 'tool_use') {
+              toolCalls.push({
+                id: parsed.id || 'unknown',
+                name: parsed.name || 'unknown_tool',
+                input: parsed.input || {},
+                status: 'success'
+              });
+            }
+          } catch (e) {
+            // Ignore parse errors for individual matches
+          }
+        }
+        
+        // Remove the JSON parts from content for text extraction
+        let cleanContent = content;
+        for (const match of jsonMatches) {
+          cleanContent = cleanContent.replace(match, '').trim();
+        }
+        if (cleanContent) {
+          textParts.push(cleanContent);
+        }
+      } else {
+        textParts.push(content);
+      }
+    } else {
+      textParts.push(content);
+    }
+  } catch (e) {
+    // If parsing fails, just use the raw content as text
+    textParts.push(content);
+  }
+
+  return {
+    textContent: textParts.join('\n').trim(),
+    toolCalls
+  };
+};
 
 export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsProps) {
   const [metrics, setMetrics] = useState<ParsedStreamMetrics | null>(null);
@@ -72,36 +173,72 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
         const streamEventsResult = await window.electronAPI.sessions.getStreamEvents(sessionId);
         
         let jsonEvents: any[] = [];
+        let hasThreadMessages = false;
+        let threadsData: any[] = [];
+        
+        // First, try to get thread messages (most accurate source for user messages)
+        try {
+          const threadsResult = await window.electronAPI.sessions.getThreads(sessionId);
+          if (threadsResult.success && threadsResult.threads && threadsResult.threads.length > 0) {
+            threadsData = threadsResult.threads;
+            
+            // Get messages from all threads
+            for (const thread of threadsResult.threads) {
+              const messagesResult = await window.electronAPI.sessions.getThreadMessages(thread.id);
+              if (messagesResult.success && messagesResult.messages && messagesResult.messages.length > 0) {
+                hasThreadMessages = true;
+                messagesResult.messages.forEach((msg: any) => {
+                  jsonEvents.push({
+                    type: msg.role === 'user' ? 'user_message' : 'assistant_message',
+                    timestamp: msg.createdAt,
+                    message: msg.role === 'user' ? msg.content : '',
+                    content: msg.role === 'assistant' ? msg.content : '',
+                    model: 'unknown', // Thread messages don't store model info
+                    threadId: thread.id,
+                    threadName: thread.name
+                  });
+                });
+              }
+            }
+          }
+        } catch (threadError) {
+          console.log('Could not load thread messages:', threadError);
+        }
         
         if (streamEventsResult.success && streamEventsResult.streamEvents && streamEventsResult.streamEvents.length > 0) {
           // Use real stream events if available
-          jsonEvents = streamEventsResult.streamEvents.map(event => ({
+          const streamEvents = streamEventsResult.streamEvents.map(event => ({
             type: event.type,
             timestamp: event.timestamp,
             ...event.data
           }));
           
-          // Add user messages from session object to stream events
-          if (session?.ampPrompt) {
-            jsonEvents.unshift({
-              type: 'user_message',
-              timestamp: session.createdAt || new Date().toISOString(),
-              message: session.ampPrompt
-            });
-          }
+          // Only add assistant messages from stream events to avoid duplicating thread messages
+          jsonEvents.push(...streamEvents.filter(event => event.type === 'assistant_message' || event.type === 'tool_result'));
           
-          // Add followup prompts if available
-          if (session?.followUpPrompts && Array.isArray(session.followUpPrompts)) {
-            session.followUpPrompts.forEach((prompt: string, index: number) => {
-              const baseTime = new Date(session.createdAt || new Date()).getTime();
-              const estimatedTimestamp = new Date(baseTime + (index + 1) * 60000).toISOString();
-              
-              jsonEvents.push({
+          // Only add session prompts if we don't have thread messages
+          if (!hasThreadMessages) {
+            if (session?.ampPrompt) {
+              jsonEvents.unshift({
                 type: 'user_message',
-                timestamp: estimatedTimestamp,
-                message: prompt
+                timestamp: session.createdAt || new Date().toISOString(),
+                message: session.ampPrompt
               });
-            });
+            }
+            
+            // Add followup prompts if available
+            if (session?.followUpPrompts && Array.isArray(session.followUpPrompts)) {
+              session.followUpPrompts.forEach((prompt: string, index: number) => {
+                const baseTime = new Date(session.createdAt || new Date()).getTime();
+                const estimatedTimestamp = new Date(baseTime + (index + 1) * 60000).toISOString();
+                
+                jsonEvents.push({
+                  type: 'user_message',
+                  timestamp: estimatedTimestamp,
+                  message: prompt
+                });
+              });
+            }
           }
         } else {
           // Fallback to synthetic events from iterations, tool calls, and user messages
@@ -118,29 +255,32 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
           const iterations = iterationsResult.iterations || [];
           const toolCalls = toolCallsResult.toolCalls || [];
           
-          // Add user messages from session object (same as Overview tab)
-          if (session?.ampPrompt) {
-            // Add initial prompt as first user message
-            jsonEvents.push({
-              type: 'user_message',
-              timestamp: session.createdAt || new Date().toISOString(),
-              message: session.ampPrompt
-            });
-          }
-          
-          // Add followup prompts if available
-          if (session?.followUpPrompts && Array.isArray(session.followUpPrompts)) {
-            session.followUpPrompts.forEach((prompt: string, index: number) => {
-              // Estimate timestamp for followup prompts (they don't have explicit timestamps)
-              const baseTime = new Date(session.createdAt || new Date()).getTime();
-              const estimatedTimestamp = new Date(baseTime + (index + 1) * 60000).toISOString(); // Add 1 minute per followup
-              
+          // Only add session prompts if we don't have thread messages
+          if (!hasThreadMessages) {
+            // Fallback to session prompts if thread messages are not available
+            if (session?.ampPrompt) {
+              // Add initial prompt as first user message
               jsonEvents.push({
                 type: 'user_message',
-                timestamp: estimatedTimestamp,
-                message: prompt
+                timestamp: session.createdAt || new Date().toISOString(),
+                message: session.ampPrompt
               });
-            });
+            }
+            
+            // Add followup prompts if available
+            if (session?.followUpPrompts && Array.isArray(session.followUpPrompts)) {
+              session.followUpPrompts.forEach((prompt: string, index: number) => {
+                // Estimate timestamp for followup prompts (they don't have explicit timestamps)
+                const baseTime = new Date(session.createdAt || new Date()).getTime();
+                const estimatedTimestamp = new Date(baseTime + (index + 1) * 60000).toISOString(); // Add 1 minute per followup
+                
+                jsonEvents.push({
+                  type: 'user_message',
+                  timestamp: estimatedTimestamp,
+                  message: prompt
+                });
+              });
+            }
           }
         
         // Add iteration events
@@ -150,7 +290,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               type: 'assistant',
               message: {
                 content: [{ type: 'text', text: iteration.output }],
-                model: iteration.model || 'unknown',
+                model: iteration.model || getModelDisplayName(session?.modelOverride),
                 usage: {
                   input_tokens: iteration.promptTokens || 0,
                   output_tokens: iteration.completionTokens || 0,
@@ -209,7 +349,8 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
           filesCreated: [],
           filesModified: [],
           userMessages: [],
-          linesChanged: { added: 0, deleted: 0, total: 0 }
+          linesChanged: { added: 0, deleted: 0, total: 0 },
+          threads: []
         };
         
         for (const event of jsonEvents) {
@@ -217,7 +358,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
             case 'assistant_message':
               // Handle real stream events - supports both direct content and nested message structure
               let messageContent = '';
-              let messageModel = 'unknown';
+              let messageModel = getModelDisplayName(session?.modelOverride);
               let messageUsage = null;
               
               if (event.message) {
@@ -226,7 +367,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                   ?.filter((item: any) => item.type === 'text')
                   ?.map((item: any) => item.text)
                   ?.join('') || '';
-                messageModel = event.message.model || 'unknown';
+                messageModel = event.message.model || getModelDisplayName(session?.modelOverride);
                 messageUsage = event.message.usage;
                 
                 // Extract tool usage from message content
@@ -236,7 +377,8 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                       parsedMetrics.toolUsage.push({
                         toolName: item.name,
                         timestamp: event.timestamp || new Date().toISOString(),
-                        args: item.input
+                        args: item.input,
+                        threadId: event.threadId
                       });
                     }
                   });
@@ -244,7 +386,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               } else {
                 // Handle direct structure
                 messageContent = event.content || '';
-                messageModel = event.model || 'unknown';
+                messageModel = event.model || getModelDisplayName(session?.modelOverride);
                 messageUsage = event.usage;
                 
                 // Extract tools from direct event tools array
@@ -253,7 +395,8 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                     parsedMetrics.toolUsage.push({
                       toolName: toolName,
                       timestamp: event.timestamp || new Date().toISOString(),
-                      args: {}
+                      args: {},
+                      threadId: event.threadId
                     });
                   });
                 }
@@ -265,7 +408,8 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                   timestamp: event.timestamp || new Date().toISOString(),
                   content: messageContent,
                   model: messageModel,
-                  usage: messageUsage
+                  usage: messageUsage,
+                  threadId: event.threadId
                 });
               }
               
@@ -311,7 +455,8 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               parsedMetrics.toolUsage.push({
                 toolName: event.toolName || event.tool || event.data?.tool,
                 timestamp: event.timestamp || new Date().toISOString(),
-                args: event.args || event.data?.args || {}
+                args: event.args || event.data?.args || {},
+                threadId: event.threadId
               });
               break;
               
@@ -340,7 +485,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                   parsedMetrics.assistantMessages.push({
                     timestamp: event.timestamp || new Date().toISOString(),
                     content: textContent,
-                    model: event.message.model || 'unknown',
+                    model: event.message.model || getModelDisplayName(session?.modelOverride),
                     usage: event.message.usage
                   });
                 }
@@ -367,7 +512,8 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                       parsedMetrics.toolUsage.push({
                         toolName: item.name,
                         timestamp: event.timestamp || new Date().toISOString(),
-                        args: item.input
+                        args: item.input,
+                        threadId: event.threadId
                       });
                     }
                   });
@@ -389,7 +535,8 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               // Handle user message events
               parsedMetrics.userMessages.push({
                 timestamp: event.timestamp || new Date().toISOString(),
-                message: event.message || event.data?.message || ''
+                message: event.message || event.data?.message || '',
+                threadId: event.threadId
               });
               break;
               
@@ -467,14 +614,121 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
           .map(tool => tool.args?.path)
           .filter(Boolean);
         
-        // Combine and dedupe files by category
+        // Helper function to validate if a string is a valid file path
+        const isValidFilePath = (path: string): boolean => {
+          if (!path || typeof path !== 'string') return false;
+          // Filter out JSON objects, arrays, and other non-path strings
+          if (path.includes('{') || path.includes('[') || path.includes('"type"')) return false;
+          // Must have at least one alphanumeric character
+          if (!/[a-zA-Z0-9]/.test(path)) return false;
+          // Should not be longer than reasonable file path length
+          if (path.length > 500) return false;
+          return true;
+        };
+
+        // Combine and dedupe files by category, filtering out invalid paths
         parsedMetrics.filesCreated = Array.from(
           new Set([...filesCreatedFromMessages, ...filesCreatedFromTools])
-        );
+        ).filter(isValidFilePath);
         
         parsedMetrics.filesModified = Array.from(
           new Set([...filesModifiedFromMessages, ...filesModifiedFromTools])
-        );
+        ).filter(isValidFilePath);
+        
+        // Build threads structure for conversation flow
+        const threadMap = new Map<string, {
+          id: string;
+          name: string;
+          messages: Array<{
+            type: 'user' | 'assistant';
+            timestamp: string;
+            content: string;
+            model?: string;
+            usage?: any;
+            tools?: string[];
+          }>;
+        }>();
+
+        // Initialize threads from threadsData if available
+        for (const threadData of threadsData) {
+          threadMap.set(threadData.id, {
+            id: threadData.id,
+            name: threadData.name || `Thread ${threadData.id}`,
+            messages: []
+          });
+        }
+
+        // If no threads data but we have messages, create a default thread
+        if (threadMap.size === 0 && (parsedMetrics.userMessages.length > 0 || parsedMetrics.assistantMessages.length > 0)) {
+          threadMap.set('default', {
+            id: 'default',
+            name: 'Main Conversation',
+            messages: []
+          });
+        }
+
+        // Add user messages to threads
+        for (const userMsg of parsedMetrics.userMessages) {
+          const threadId = userMsg.threadId || 'default';
+          const thread = threadMap.get(threadId);
+          if (thread) {
+            thread.messages.push({
+              type: 'user',
+              timestamp: userMsg.timestamp,
+              content: userMsg.message,
+            });
+          }
+        }
+
+        // Add assistant messages to threads
+        for (const assistantMsg of parsedMetrics.assistantMessages) {
+          const threadId = assistantMsg.threadId || 'default';
+          const thread = threadMap.get(threadId);
+          if (thread) {
+            // Parse the message content to extract tools
+            const parsed = parseMessageContent(assistantMsg.content);
+            const toolsFromMessage = parsed.toolCalls.map(tc => tc.name);
+            
+            // Also find tools used in this message's timeframe (within 10 seconds)
+            const msgTime = new Date(assistantMsg.timestamp).getTime();
+            const relatedTools = parsedMetrics.toolUsage
+              .filter(tool => {
+                const toolTime = new Date(tool.timestamp).getTime();
+                return Math.abs(toolTime - msgTime) < 10000 && // 10 seconds
+                       (tool.threadId === threadId || !tool.threadId);
+              })
+              .map(tool => tool.toolName);
+
+            // Combine tools from message content and usage events
+            const allTools = Array.from(new Set([...toolsFromMessage, ...relatedTools]));
+
+            thread.messages.push({
+              type: 'assistant',
+              timestamp: assistantMsg.timestamp,
+              content: assistantMsg.content,
+              model: assistantMsg.model,
+              usage: assistantMsg.usage,
+              tools: allTools.length > 0 ? allTools : undefined
+            });
+            
+            // Add extracted tool calls to the global tool usage tracking
+            for (const toolCall of parsed.toolCalls) {
+              parsedMetrics.toolUsage.push({
+                toolName: toolCall.name,
+                timestamp: assistantMsg.timestamp,
+                threadId: threadId,
+                args: toolCall.input
+              });
+            }
+          }
+        }
+
+        // Sort messages within each thread by timestamp
+        for (const thread of threadMap.values()) {
+          thread.messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        }
+
+        parsedMetrics.threads = Array.from(threadMap.values());
         
         setMetrics(parsedMetrics);
         
@@ -627,70 +881,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
         </div>
       </div>
 
-      {/* Conversation Flow */}
-      {(metrics.assistantMessages.length > 0 || metrics.userMessages.length > 0) && (
-        <div className="bg-gruvbox-bg1 border border-gruvbox-bg3 rounded-lg p-4">
-          <h4 className="font-semibold mb-3 text-gruvbox-fg0">Conversation Flow</h4>
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {(() => {
-              // Merge user messages and assistant messages in chronological order
-              const allMessages = [
-                ...metrics.userMessages.map(msg => ({
-                  type: 'user' as const,
-                  timestamp: msg.timestamp,
-                  content: msg.message,
-                  ...msg
-                })),
-                ...metrics.assistantMessages.map(msg => ({
-                  type: 'assistant' as const,
-                  timestamp: msg.timestamp,
-                  content: msg.content,
-                  ...msg
-                }))
-              ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-              return allMessages.map((msg, index) => (
-                <div key={index} className={`border-l-4 pl-4 pr-4 py-3 rounded-r-lg ${
-                  msg.type === 'user' 
-                    ? 'border-gruvbox-purple bg-gruvbox-bg2' 
-                    : 'border-gruvbox-blue bg-gruvbox-bg2'
-                }`}>
-                  <div className="flex justify-between items-start mb-2 gap-4">
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className={`text-sm font-semibold ${
-                        msg.type === 'user' ? 'text-gruvbox-purple' : 'text-gruvbox-blue'
-                      }`}>
-                        {msg.type === 'user' ? 'User' : 'Amp'}
-                      </span>
-                      {msg.type === 'assistant' && msg.model && (
-                        <span className="text-xs bg-gruvbox-bg3 text-gruvbox-fg2 px-2 py-1 rounded">
-                          {msg.model}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs text-gruvbox-fg2 text-right flex-shrink-0">
-                      <div>{new Date(msg.timestamp).toLocaleString()}</div>
-                      {msg.type === 'assistant' && msg.usage && (
-                        <div className="mt-1">
-                          Tokens: {(msg.usage.input_tokens || 0) + (msg.usage.output_tokens || 0)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-sm text-gruvbox-fg1 min-w-0">
-                    <div className="whitespace-pre-wrap break-words">
-                      {msg.content.length > 500 
-                        ? `${msg.content.slice(0, 500)}...` 
-                        : msg.content
-                      }
-                    </div>
-                  </div>
-                </div>
-              ));
-            })()}
-          </div>
-        </div>
-      )}
 
       {/* Files Created */}
       {metrics.filesCreated.length > 0 && (
@@ -704,7 +895,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               
               return (
                 <div key={index} className="text-sm font-mono text-gruvbox-fg1 bg-gruvbox-bg2 border-l-2 border-gruvbox-green px-2 py-1 rounded flex justify-between items-center">
-                  <span>{filename}</span>
+                  <span title={isFullPath ? file : undefined}>{filename}</span>
                   {fileUrl && (
                     <a 
                       href={fileUrl} 
@@ -733,7 +924,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               
               return (
                 <div key={index} className="text-sm font-mono text-gruvbox-fg1 bg-gruvbox-bg2 border-l-2 border-gruvbox-blue px-2 py-1 rounded flex justify-between items-center">
-                  <span>{filename}</span>
+                  <span title={isFullPath ? file : undefined}>{filename}</span>
                   {fileUrl && (
                     <a 
                       href={fileUrl} 
