@@ -19,13 +19,13 @@ export function SessionView({
   onSessionUpdated,
 }: SessionViewProps) {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "actions" | "json-metrics"
+    "overview" | "actions"
   >("overview");
   
   // Temporarily disabled localStorage tab restoration for debugging
   // React.useEffect(() => {
   //   const saved = localStorage.getItem(`sessionTab_${session.id}`);
-  //   const validTabs = ["overview", "actions", "json-metrics"];
+  //   const validTabs = ["overview", "actions"];
   //   if (saved && validTabs.includes(saved)) {
   //     setActiveTab(saved as any);
   //   }
@@ -236,7 +236,7 @@ export function SessionView({
       )}
 
       <div className="flex space-x-1 border-b border-gray-200">
-        {["overview", "actions", "json-metrics"].map((tab) => (
+        {["overview", "actions"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as any)}
@@ -246,7 +246,7 @@ export function SessionView({
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
-            {tab === "json-metrics" ? "JSON Metrics" : tab}
+            {tab}
           </button>
         ))}
       </div>
@@ -479,11 +479,7 @@ export function SessionView({
         </div>
       )}
 
-      {activeTab === "json-metrics" && (
-        <div className="bg-white rounded-lg border">
-          <JSONMetrics sessionId={session.id} session={session} className="p-6" />
-        </div>
-      )}
+
 
 
 
