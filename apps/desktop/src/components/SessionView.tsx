@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import type { Session } from "@ampsm/types";
 import { MergeWizard } from "./MergeWizard";
-import { OutputViewer } from "./OutputViewer";
 import { SessionMetrics } from "./SessionMetrics";
 import { JSONMetrics } from "./JSONMetrics";
 
@@ -20,13 +19,13 @@ export function SessionView({
   onSessionUpdated,
 }: SessionViewProps) {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "output" | "actions" | "metrics" | "json-metrics"
+    "overview" | "actions" | "json-metrics"
   >("overview");
   
   // Temporarily disabled localStorage tab restoration for debugging
   // React.useEffect(() => {
   //   const saved = localStorage.getItem(`sessionTab_${session.id}`);
-  //   const validTabs = ["overview", "output", "actions", "metrics", "json-metrics"];
+  //   const validTabs = ["overview", "actions", "json-metrics"];
   //   if (saved && validTabs.includes(saved)) {
   //     setActiveTab(saved as any);
   //   }
@@ -237,7 +236,7 @@ export function SessionView({
       )}
 
       <div className="flex space-x-1 border-b border-gray-200">
-        {["overview", "actions", "output", "metrics", "json-metrics"].map((tab) => (
+        {["overview", "actions", "json-metrics"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as any)}
@@ -343,49 +342,12 @@ export function SessionView({
             </dl>
           </div>
 
-          <div className="bg-white p-6 rounded-lg border">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Prompt</h3>
-              {session.contextIncluded && (
-                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                  CONTEXT.md included
-                </span>
-              )}
-            </div>
-            <div className="space-y-4">
-              <div className="bg-blue-50 p-4 rounded-md border-l-4 border-blue-400">
-                <h4 className="text-sm font-medium text-blue-800 mb-2">
-                  Original Prompt
-                </h4>
-                <p className="text-gray-800 whitespace-pre-wrap">
-                  {session.ampPrompt}
-                </p>
-              </div>
-              {session.followUpPrompts &&
-                session.followUpPrompts.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-medium text-gray-700">
-                      Follow-up Messages
-                    </h4>
-                    {session.followUpPrompts.map((prompt, index) => (
-                      <div
-                        key={index}
-                        className="bg-amber-50 p-4 rounded-md border-l-4 border-amber-400"
-                      >
-                        <p className="text-gray-800 whitespace-pre-wrap">
-                          {prompt}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-            </div>
-          </div>
 
-          {/* Session Summary */}
+
+          {/* Session Summary with Complete Metrics */}
           <div className="bg-white p-6 rounded-lg border">
             <h3 className="text-lg font-semibold mb-4">Session Summary</h3>
-            <SessionMetrics sessionId={session.id} className="space-y-4" />
+            <JSONMetrics sessionId={session.id} session={session} />
           </div>
 
           {/* Delete Session Button */}
@@ -405,12 +367,6 @@ export function SessionView({
               Delete Session
             </button>
           </div>
-        </div>
-      )}
-
-      {activeTab === "output" && (
-        <div className="bg-white rounded-lg border">
-          <OutputViewer sessionId={session.id} className="p-6" />
         </div>
       )}
 
@@ -520,12 +476,6 @@ export function SessionView({
               Start Merge Wizard
             </button>
           </div>
-        </div>
-      )}
-
-      {activeTab === "metrics" && (
-        <div className="bg-white rounded-lg border">
-          <SessionMetrics sessionId={session.id} className="p-6" />
         </div>
       )}
 

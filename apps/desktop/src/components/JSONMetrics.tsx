@@ -215,37 +215,72 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
         for (const event of jsonEvents) {
           switch (event.type) {
             case 'assistant_message':
-              // Handle real stream events
-              parsedMetrics.assistantMessages.push({
-                timestamp: event.timestamp || new Date().toISOString(),
-                content: event.content || '',
-                model: event.model || 'unknown',
-                usage: event.usage
-              });
+              // Handle real stream events - supports both direct content and nested message structure
+              let messageContent = '';
+              let messageModel = 'unknown';
+              let messageUsage = null;
               
-              // Extract token usage from real stream events
-              if (event.usage) {
-                parsedMetrics.totalTokens.input += event.usage.input_tokens || 0;
-                parsedMetrics.totalTokens.output += event.usage.output_tokens || 0;
-                parsedMetrics.totalTokens.cacheCreation += event.usage.cache_creation_input_tokens || 0;
-                parsedMetrics.totalTokens.cacheRead += event.usage.cache_read_input_tokens || 0;
+              if (event.message) {
+                // Handle nested message structure
+                messageContent = event.message.content
+                  ?.filter((item: any) => item.type === 'text')
+                  ?.map((item: any) => item.text)
+                  ?.join('') || '';
+                messageModel = event.message.model || 'unknown';
+                messageUsage = event.message.usage;
+                
+                // Extract tool usage from message content
+                if (event.message.content && Array.isArray(event.message.content)) {
+                  event.message.content.forEach((item: any) => {
+                    if (item.type === 'tool_use') {
+                      parsedMetrics.toolUsage.push({
+                        toolName: item.name,
+                        timestamp: event.timestamp || new Date().toISOString(),
+                        args: item.input
+                      });
+                    }
+                  });
+                }
+              } else {
+                // Handle direct structure
+                messageContent = event.content || '';
+                messageModel = event.model || 'unknown';
+                messageUsage = event.usage;
+                
+                // Extract tools from direct event tools array
+                if (event.tools && Array.isArray(event.tools)) {
+                  event.tools.forEach((toolName: string) => {
+                    parsedMetrics.toolUsage.push({
+                      toolName: toolName,
+                      timestamp: event.timestamp || new Date().toISOString(),
+                      args: {}
+                    });
+                  });
+                }
+              }
+              
+              // Only add messages that have actual text content (ignore tool-only messages)
+              if (messageContent.trim()) {
+                parsedMetrics.assistantMessages.push({
+                  timestamp: event.timestamp || new Date().toISOString(),
+                  content: messageContent,
+                  model: messageModel,
+                  usage: messageUsage
+                });
+              }
+              
+              // Extract token usage
+              if (messageUsage) {
+                parsedMetrics.totalTokens.input += messageUsage.input_tokens || 0;
+                parsedMetrics.totalTokens.output += messageUsage.output_tokens || 0;
+                parsedMetrics.totalTokens.cacheCreation += messageUsage.cache_creation_input_tokens || 0;
+                parsedMetrics.totalTokens.cacheRead += messageUsage.cache_read_input_tokens || 0;
                 parsedMetrics.totalTokens.total = parsedMetrics.totalTokens.input + parsedMetrics.totalTokens.output;
               }
               
-              // Track models from real stream events
-              if (event.model && !parsedMetrics.models.includes(event.model)) {
-                parsedMetrics.models.push(event.model);
-              }
-              
-              // Extract tools from assistant message events
-              if (event.tools && Array.isArray(event.tools)) {
-                event.tools.forEach((toolName: string) => {
-                  parsedMetrics.toolUsage.push({
-                    toolName: toolName,
-                    timestamp: event.timestamp || new Date().toISOString(),
-                    args: {}
-                  });
-                });
+              // Track models
+              if (messageModel && !parsedMetrics.models.includes(messageModel)) {
+                parsedMetrics.models.push(messageModel);
               }
               break;
               
@@ -280,39 +315,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               });
               break;
               
-            case 'assistant_message':
-              // Handle real assistant message events from stream
-              if (event.message) {
-                const textContent = event.message.content
-                  ?.filter((item: any) => item.type === 'text')
-                  ?.map((item: any) => item.text)
-                  ?.join('') || '';
-                
-                // Only add messages that have actual text content (ignore tool-only messages)
-                if (textContent.trim()) {
-                  parsedMetrics.assistantMessages.push({
-                    timestamp: event.timestamp || new Date().toISOString(),
-                    content: textContent,
-                    model: event.message.model || 'unknown',
-                    usage: event.message.usage
-                  });
-                }
-                
-                // ALWAYS extract tool usage from message content (even for tool-only messages)
-                if (event.message.content && Array.isArray(event.message.content)) {
-                  event.message.content.forEach((item: any) => {
-                    if (item.type === 'tool_use') {
-                      console.log('[DEBUG] Found tool_use in stream assistant message:', item.name);
-                      parsedMetrics.toolUsage.push({
-                        toolName: item.name,
-                        timestamp: event.timestamp || new Date().toISOString(),
-                        args: item.input
-                      });
-                    }
-                  });
-                }
-              }
-              break;
+
               
             case 'session_result':
               parsedMetrics.sessionResults.push({
@@ -647,29 +650,40 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
               return allMessages.map((msg, index) => (
-                <div key={index} className={`border-l-4 pl-4 py-2 ${
+                <div key={index} className={`border-l-4 pl-4 pr-4 py-3 rounded-r-lg ${
                   msg.type === 'user' 
-                    ? 'border-purple-200 bg-purple-50' 
-                    : 'border-blue-200 bg-gray-50'
+                    ? 'border-purple-400 bg-purple-50' 
+                    : 'border-blue-400 bg-blue-50'
                 }`}>
-                  <div className="text-sm text-gray-600 mb-1 flex justify-between items-center">
-                    <span className={`font-semibold ${
-                      msg.type === 'user' ? 'text-purple-700' : 'text-blue-700'
-                    }`}>
-                      {msg.type === 'user' ? 'User' : `Assistant (${msg.model || 'unknown'})`}
-                    </span>
-                    <div className="text-xs text-gray-500">
-                      {new Date(msg.timestamp).toLocaleString()}
-                      {msg.type === 'assistant' && msg.usage && (
-                        <span className="ml-2">
-                          Tokens: {(msg.usage.input_tokens || 0) + (msg.usage.output_tokens || 0)}
+                  <div className="flex justify-between items-start mb-2 gap-4">
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className={`text-sm font-semibold ${
+                        msg.type === 'user' ? 'text-purple-700' : 'text-blue-700'
+                      }`}>
+                        {msg.type === 'user' ? 'User' : 'Assistant'}
+                      </span>
+                      {msg.type === 'assistant' && msg.model && (
+                        <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">
+                          {msg.model}
                         </span>
                       )}
                     </div>
+                    <div className="text-xs text-gray-500 text-right flex-shrink-0">
+                      <div>{new Date(msg.timestamp).toLocaleString()}</div>
+                      {msg.type === 'assistant' && msg.usage && (
+                        <div className="mt-1">
+                          Tokens: {(msg.usage.input_tokens || 0) + (msg.usage.output_tokens || 0)}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-sm font-mono whitespace-pre-wrap">
-                    {msg.content.slice(0, msg.type === 'user' ? 300 : 200)}
-                    {msg.content.length > (msg.type === 'user' ? 300 : 200) && '...'}
+                  <div className="text-sm text-gray-800 min-w-0">
+                    <div className="whitespace-pre-wrap break-words">
+                      {msg.content.length > 500 
+                        ? `${msg.content.slice(0, 500)}...` 
+                        : msg.content
+                      }
+                    </div>
                   </div>
                 </div>
               ));
@@ -697,7 +711,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                       className="text-blue-600 hover:text-blue-800 text-xs"
                       title="Open file"
                     >
-                      📄
+                    Open
                     </a>
                   )}
                 </div>
@@ -726,7 +740,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                       className="text-blue-600 hover:text-blue-800 text-xs"
                       title="Open file"
                     >
-                      📄
+                    Open
                     </a>
                   )}
                 </div>
