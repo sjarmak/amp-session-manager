@@ -808,16 +808,8 @@ Please provide a thorough analysis and actionable recommendations.`;
           // Persist stream event to store if sessionId provided
           if (sessionId && this.store) {
             try {
-              // Don't store assistant messages without content to avoid blank UI entries
-              const shouldStore = streamEvent.type !== 'assistant_message' || 
-                                !!(streamEvent.content || streamEvent.result);
-              
-              if (shouldStore) {
-                console.log(`[DEBUG] Persisting stream event to store:`, { sessionId, type: streamEvent.type });
-                this.store.addStreamEvent(sessionId, streamEvent.type, streamEvent.timestamp, streamEvent);
-              } else {
-                console.log(`[DEBUG] Skipping empty assistant message storage`);
-              }
+              console.log(`[DEBUG] Persisting stream event to store:`, { sessionId, type: streamEvent.type });
+              this.store.addStreamEvent(sessionId, streamEvent.type, streamEvent.timestamp, streamEvent);
             } catch (error) {
               console.warn('Failed to persist stream event:', error);
             }

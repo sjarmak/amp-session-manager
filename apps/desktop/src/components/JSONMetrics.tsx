@@ -189,6 +189,16 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
         
         setRawStreamData(jsonEvents);
         
+        // Debug: Log the structure of apiSummary
+        if (apiSummary) {
+          console.log('[DEBUG] API Summary structure:', {
+            hasSummary: !!apiSummary.summary,
+            hasToolUsage: !!apiSummary.summary?.toolUsage,
+            toolUsageKeys: apiSummary.summary?.toolUsage ? Object.keys(apiSummary.summary.toolUsage) : [],
+            toolUsageData: apiSummary.summary?.toolUsage
+          });
+        }
+        
         // Parse metrics from JSON events
         const parsedMetrics: ParsedStreamMetrics = {
           assistantMessages: [],
@@ -270,6 +280,40 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               });
               break;
               
+            case 'assistant_message':
+              // Handle real assistant message events from stream
+              if (event.message) {
+                const textContent = event.message.content
+                  ?.filter((item: any) => item.type === 'text')
+                  ?.map((item: any) => item.text)
+                  ?.join('') || '';
+                
+                // Only add messages that have actual text content (ignore tool-only messages)
+                if (textContent.trim()) {
+                  parsedMetrics.assistantMessages.push({
+                    timestamp: event.timestamp || new Date().toISOString(),
+                    content: textContent,
+                    model: event.message.model || 'unknown',
+                    usage: event.message.usage
+                  });
+                }
+                
+                // ALWAYS extract tool usage from message content (even for tool-only messages)
+                if (event.message.content && Array.isArray(event.message.content)) {
+                  event.message.content.forEach((item: any) => {
+                    if (item.type === 'tool_use') {
+                      console.log('[DEBUG] Found tool_use in stream assistant message:', item.name);
+                      parsedMetrics.toolUsage.push({
+                        toolName: item.name,
+                        timestamp: event.timestamp || new Date().toISOString(),
+                        args: item.input
+                      });
+                    }
+                  });
+                }
+              }
+              break;
+              
             case 'session_result':
               parsedMetrics.sessionResults.push({
                 timestamp: event.timestamp || new Date().toISOString(),
@@ -316,6 +360,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                 if (event.message.content && Array.isArray(event.message.content)) {
                   event.message.content.forEach((item: any) => {
                     if (item.type === 'tool_use') {
+                      console.log('[DEBUG] Found tool_use in assistant message:', item.name);
                       parsedMetrics.toolUsage.push({
                         toolName: item.name,
                         timestamp: event.timestamp || new Date().toISOString(),
@@ -503,20 +548,35 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
           <h4 className="font-semibold text-green-900 mb-2">Tool Usage</h4>
           <div className="space-y-1 text-sm">
-            {Object.entries(
-              metrics.toolUsage.reduce((acc, tool) => {
+            {/* Use API summary data if available, fallback to stream data */}
+            {(() => {
+              // Try API summary first (reliable for completed sessions)
+              if (apiSummary?.summary?.toolUsage && Array.isArray(apiSummary.summary.toolUsage) && apiSummary.summary.toolUsage.length > 0) {
+                return apiSummary.summary.toolUsage.map((stats: any) => (
+                  <div key={stats.toolName} className="flex justify-between">
+                    <span className="capitalize">{stats.toolName.replace('_', ' ')}:</span>
+                    <span className="font-mono">{stats.callCount}</span>
+                  </div>
+                ));
+              }
+              
+              // Fallback to stream data (for new/active sessions)
+              const streamToolUsage = metrics.toolUsage.reduce((acc, tool) => {
                 acc[tool.toolName] = (acc[tool.toolName] || 0) + 1;
                 return acc;
-              }, {} as Record<string, number>)
-            ).map(([toolName, count]) => (
-              <div key={toolName} className="flex justify-between">
-                <span className="capitalize">{toolName.replace('_', ' ')}:</span>
-                <span className="font-mono">{count}</span>
-              </div>
-            ))}
-            {metrics.toolUsage.length === 0 && (
-              <div className="text-gray-500">No tools used</div>
-            )}
+              }, {} as Record<string, number>);
+              
+              if (Object.keys(streamToolUsage).length > 0) {
+                return Object.entries(streamToolUsage).map(([toolName, count]) => (
+                  <div key={toolName} className="flex justify-between">
+                    <span className="capitalize">{toolName.replace('_', ' ')}:</span>
+                    <span className="font-mono">{count}</span>
+                  </div>
+                ));
+              }
+              
+              return <div className="text-gray-500">No tools used</div>;
+            })()}
           </div>
         </div>
 
