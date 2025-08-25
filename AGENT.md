@@ -135,9 +135,9 @@ Edit 3. Create branch:
 - `AGENT_CONTEXT/ITERATION_LOG.md` (append-only)
 - `AGENT_CONTEXT/LAST_STATUS.json`
 
-7. Initial commit (if new files were added):
-   git add AGENT_CONTEXT
-   git commit -m "amp: initialize agent context for session"
+7. Stage context files:
+   # Stage context files (no initial commit - branch starts at base tip)
+git add AGENT_CONTEXT
 
 markdown
 Copy

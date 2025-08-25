@@ -133,12 +133,10 @@ export class WorktreeManager {
         JSON.stringify({ status: 'idle', lastUpdate: session.createdAt }, null, 2)
       );
 
-      // Initial commit
-      const commitSha = await git.commitChanges('amp: initialize agent context for session', session.worktreePath);
-      
-      if (commitSha) {
-        console.log(`✓ Session created with initial commit: ${commitSha.slice(0, 8)}`);
-      }
+      // Stage context files so they're ready for the first iteration,
+      // but do NOT commit — we want the branch to start at the base tip.
+      await git.stageAllChanges(session.worktreePath);
+      console.log('✓ AGENT_CONTEXT staged (no commit yet)');
 
       // Handle initial execution based on mode
       if (options.mode === 'interactive') {
@@ -750,6 +748,13 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
     }
 
     const git = new GitOps(session.repoRoot);
+    
+    // Check if we have any commits to squash
+    const branchInfo = await git.getBranchInfo(session.worktreePath, session.baseBranch);
+    if (branchInfo.aheadBy === 0) {
+      throw new Error('No commits to squash - session has no changes to merge');
+    }
+    
     await git.squashCommits(session.baseBranch, options.message, session.worktreePath, options.includeManual);
     
     console.log(`✓ Squashed session commits: ${options.message}`);

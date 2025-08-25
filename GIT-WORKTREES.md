@@ -59,8 +59,8 @@ git worktree add .worktrees/<session-id> amp/feature-x/20240101-120000
 cd .worktrees/<session-id>
 mkdir AGENT_CONTEXT
 # ... create context files
+# Stage context files (no commit - branch starts at base tip)
 git add AGENT_CONTEXT/
-git commit -m "amp: initialize agent context for session"
 ```
 
 ### 2. Iteration Commits

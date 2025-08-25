@@ -38,27 +38,27 @@ function Stepper({ currentStep, completedSteps, hasError }: StepperProps) {
           <React.Fragment key={step.key}>
             <div className="flex flex-col items-center">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
-                isCompleted ? 'bg-green-500 text-white' :
-                isError ? 'bg-red-500 text-white' :
-                isCurrent ? 'bg-blue-500 text-white' :
-                'bg-gray-300 text-gray-600'
+                isCompleted ? 'bg-gruvbox-green text-gruvbox-dark0' :
+                isError ? 'bg-gruvbox-red text-gruvbox-light0' :
+                isCurrent ? 'bg-gruvbox-blue text-gruvbox-dark0' :
+                'bg-gruvbox-bg3 text-gruvbox-light4'
               }`}>
                 {isCompleted ? '✓' : index + 1}
               </div>
               <span className={`text-xs mt-1 ${
-                isCurrent ? 'text-blue-600 font-semibold' :
-                isCompleted ? 'text-green-600' :
-                isError ? 'text-red-600' :
-                'text-gray-500'
+                isCurrent ? 'text-gruvbox-blue font-semibold' :
+                isCompleted ? 'text-gruvbox-green' :
+                isError ? 'text-gruvbox-red' :
+                'text-gruvbox-light4'
               }`}>
                 {step.label}
               </span>
             </div>
             {index < STEPS.length - 1 && (
               <div className={`flex-1 h-0.5 mx-2 ${
-                index < currentIndex ? 'bg-green-500' :
-                index === currentIndex && hasError ? 'bg-red-500' :
-                'bg-gray-300'
+                index < currentIndex ? 'bg-gruvbox-green' :
+                index === currentIndex && hasError ? 'bg-gruvbox-red' :
+                'bg-gruvbox-bg3'
               }`} />
             )}
           </React.Fragment>
@@ -269,21 +269,21 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-auto p-6">
+    <div className="fixed inset-0 bg-gruvbox-dark0/80 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-gruvbox-dark1 rounded-lg shadow-2xl shadow-gruvbox-dark0/50 border border-gruvbox-light2/20 w-full max-w-4xl max-h-[90vh] overflow-auto p-6">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Merge to Main</h2>
+          <h2 className="text-2xl font-bold text-gruvbox-light1">Merge to Main</h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gruvbox-light4 hover:text-gruvbox-light2 w-8 h-8 flex items-center justify-center hover:bg-gruvbox-light2/10 rounded transition-colors text-xl font-bold"
           >
             ✕
           </button>
         </div>
 
-        <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-          <h3 className="font-semibold text-blue-900">Session: {session.name}</h3>
-          <p className="text-sm text-blue-700">
+        <div className="mb-6 p-4 bg-gruvbox-blue/10 border border-gruvbox-blue/30 rounded-lg">
+          <h3 className="font-semibold text-gruvbox-light1">Session: {session.name}</h3>
+          <p className="text-sm text-gruvbox-light3">
             {session.branchName} → {session.baseBranch}
           </p>
         </div>
@@ -295,39 +295,39 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
         />
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800">{error}</p>
+          <div className="mb-6 p-4 bg-gruvbox-red/10 border border-gruvbox-red/30 rounded-lg">
+            <p className="text-gruvbox-red">{error}</p>
           </div>
         )}
 
         {/* Preflight Step */}
         {currentStep === 'preflight' && (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Preflight Checks</h3>
+            <h3 className="text-lg font-semibold text-gruvbox-light1">Preflight Checks</h3>
             
             {preflightResult ? (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className={`p-3 rounded ${preflightResult.repoClean ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+                  <div className={`p-3 rounded border ${preflightResult.repoClean ? 'bg-gruvbox-green/10 border-gruvbox-green/30 text-gruvbox-green' : 'bg-gruvbox-red/10 border-gruvbox-red/30 text-gruvbox-red'}`}>
                     Repository Clean: {preflightResult.repoClean ? 'Yes' : 'No'}
                   </div>
-                  <div className={`p-3 rounded ${preflightResult.baseUpToDate ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+                  <div className={`p-3 rounded border ${preflightResult.baseUpToDate ? 'bg-gruvbox-green/10 border-gruvbox-green/30 text-gruvbox-green' : 'bg-gruvbox-red/10 border-gruvbox-red/30 text-gruvbox-red'}`}>
                     Base Up to Date: {preflightResult.baseUpToDate ? 'Yes' : 'No'}
                   </div>
                   {preflightResult.testsPass !== undefined && (
-                    <div className={`p-3 rounded ${preflightResult.testsPass ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+                    <div className={`p-3 rounded border ${preflightResult.testsPass ? 'bg-gruvbox-green/10 border-gruvbox-green/30 text-gruvbox-green' : 'bg-gruvbox-red/10 border-gruvbox-red/30 text-gruvbox-red'}`}>
                       Tests Pass: {preflightResult.testsPass ? 'Yes' : 'No'}
                     </div>
                   )}
                   {preflightResult.typecheckPasses !== undefined && (
-                    <div className={`p-3 rounded ${preflightResult.typecheckPasses ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+                    <div className={`p-3 rounded border ${preflightResult.typecheckPasses ? 'bg-gruvbox-green/10 border-gruvbox-green/30 text-gruvbox-green' : 'bg-gruvbox-red/10 border-gruvbox-red/30 text-gruvbox-red'}`}>
                       Typecheck Passes: {preflightResult.typecheckPasses ? 'Yes' : 'No'}
                     </div>
                   )}
                 </div>
                 
-                <div className="p-3 bg-gray-50 rounded">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="p-3 bg-gruvbox-bg1 border border-gruvbox-light2/20 rounded">
+                  <div className="grid grid-cols-2 gap-4 text-sm text-gruvbox-light2">
                     <div>Ahead by: {preflightResult.aheadBy} commits</div>
                     <div>Behind by: {preflightResult.behindBy} commits</div>
                     <div>Amp commits: {preflightResult.ampCommitsCount}</div>
@@ -336,9 +336,9 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
                 </div>
                 
                 {preflightResult.issues.length > 0 && (
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
-                    <h4 className="font-semibold text-yellow-800 mb-2">Issues:</h4>
-                    <ul className="text-sm text-yellow-700">
+                  <div className="p-3 bg-gruvbox-yellow/10 border border-gruvbox-yellow/30 rounded">
+                    <h4 className="font-semibold text-gruvbox-yellow mb-2">Issues:</h4>
+                    <ul className="text-sm text-gruvbox-yellow">
                       {preflightResult.issues.map((issue, index) => (
                         <li key={index}>• {issue}</li>
                       ))}
@@ -348,8 +348,8 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
               </div>
             ) : loading ? (
               <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                <p className="mt-2 text-gray-600">Running preflight checks...</p>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gruvbox-blue mx-auto"></div>
+                <p className="mt-2 text-gruvbox-light3">Running preflight checks...</p>
               </div>
             ) : null}
 
@@ -357,14 +357,14 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
               <button
                 onClick={runPreflight}
                 disabled={loading}
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                className="px-4 py-2 bg-gruvbox-blue text-gruvbox-dark0 rounded hover:bg-gruvbox-blue disabled:opacity-50 transition-colors"
               >
                 Re-run Checks
               </button>
               <button
                 onClick={() => setCurrentStep('squash')}
                 disabled={!preflightResult || loading}
-                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                className="px-4 py-2 bg-gruvbox-green text-gruvbox-dark0 rounded hover:bg-gruvbox-green disabled:opacity-50 transition-colors"
               >
                 Continue
               </button>
@@ -375,33 +375,33 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
         {/* Squash Step */}
         {currentStep === 'squash' && (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Squash Commits</h3>
+            <h3 className="text-lg font-semibold text-gruvbox-light1">Squash Commits</h3>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gruvbox-light2 mb-2">
                 Squash Commit Message
               </label>
               <textarea
                 value={squashMessage}
                 onChange={(e) => setSquashMessage(e.target.value)}
                 placeholder="Enter a commit message for the squashed commits..."
-                className="w-full p-3 border border-gray-300 rounded-md"
+                className="w-full p-3 bg-gruvbox-dark0 border border-gruvbox-light2/30 rounded-md text-gruvbox-light1 placeholder-gruvbox-light4 focus:outline-none focus:ring-2 focus:ring-gruvbox-aqua focus:border-gruvbox-aqua resize-none"
                 rows={3}
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gruvbox-light2 mb-2">
                 Manual Commits
               </label>
               <select
                 value={includeManual}
                 onChange={(e) => setIncludeManual(e.target.value as 'include' | 'exclude')}
-                className="w-full p-2 border border-gray-300 rounded-md"
+                className="w-full p-2 bg-gruvbox-dark0 border border-gruvbox-light2/30 rounded-md text-gruvbox-light1 focus:outline-none focus:ring-2 focus:ring-gruvbox-aqua focus:border-gruvbox-aqua"
               >
-                <option value="include">Include manual commits in squash</option>
-                <option value="exclude">Preserve manual commits separately</option>
+                <option value="include" className="bg-gruvbox-dark0 text-gruvbox-light1">Include manual commits in squash</option>
+                <option value="exclude" className="bg-gruvbox-dark0 text-gruvbox-light1">Preserve manual commits separately</option>
               </select>
             </div>
 
@@ -409,14 +409,14 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
               <button
                 onClick={() => setCurrentStep('preflight')}
                 disabled={loading}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 disabled:opacity-50"
+                className="px-4 py-2 border border-gruvbox-light2/30 text-gruvbox-light2 rounded hover:bg-gruvbox-dark2/20 hover:border-gruvbox-light3/40 disabled:opacity-50 transition-colors"
               >
                 Back
               </button>
               <button
                 onClick={runSquash}
                 disabled={loading || !squashMessage.trim()}
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                className="px-4 py-2 bg-gruvbox-blue text-gruvbox-dark0 rounded hover:bg-gruvbox-blue disabled:opacity-50 transition-colors"
               >
                 {loading ? 'Squashing...' : 'Squash & Continue'}
               </button>
@@ -427,22 +427,22 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
         {/* Conflicts Step */}
         {currentStep === 'conflicts' && (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-red-600">Rebase Conflicts Detected</h3>
+            <h3 className="text-lg font-semibold text-gruvbox-red">Rebase Conflicts Detected</h3>
             
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-800 mb-3">
+            <div className="p-4 bg-gruvbox-red/10 border border-gruvbox-red/30 rounded-lg">
+              <p className="text-gruvbox-red mb-3">
                 The following files have conflicts that need to be resolved:
               </p>
-              <ul className="text-sm text-red-700 space-y-1">
+              <ul className="text-sm text-gruvbox-light2 space-y-1">
                 {conflictFiles.map((file, index) => (
                   <li key={index} className="font-mono">• {file}</li>
                 ))}
               </ul>
             </div>
 
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h4 className="font-semibold text-blue-900 mb-2">Resolution Steps:</h4>
-              <ol className="text-sm text-blue-800 space-y-1">
+            <div className="p-4 bg-gruvbox-blue/10 border border-gruvbox-blue/30 rounded-lg">
+              <h4 className="font-semibold text-gruvbox-blue mb-2">Resolution Steps:</h4>
+              <ol className="text-sm text-gruvbox-light2 space-y-1">
                 <li>1. Open the session in your editor</li>
                 <li>2. Resolve conflicts in each file</li>
                 <li>3. Stage the resolved files with `git add`</li>
@@ -453,21 +453,21 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
             <div className="flex justify-end space-x-3">
               <button
                 onClick={openInVSCode}
-                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                className="px-4 py-2 bg-gruvbox-gray text-gruvbox-light0 rounded hover:bg-gruvbox-gray transition-colors"
               >
                 Open in VS Code
               </button>
               <button
                 onClick={abortMerge}
                 disabled={loading}
-                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
+                className="px-4 py-2 bg-gruvbox-red text-gruvbox-light0 rounded hover:bg-gruvbox-red disabled:opacity-50 transition-colors"
               >
                 Abort Merge
               </button>
               <button
                 onClick={continueMerge}
                 disabled={loading}
-                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                className="px-4 py-2 bg-gruvbox-green text-gruvbox-dark0 rounded hover:bg-gruvbox-green disabled:opacity-50 transition-colors"
               >
                 {loading ? 'Continuing...' : 'Mark Resolved & Continue'}
               </button>
@@ -478,15 +478,15 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
         {/* Merge Step */}
         {currentStep === 'merge' && (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Merge & Options</h3>
+            <h3 className="text-lg font-semibold text-gruvbox-light1">Merge & Options</h3>
             
             <div className="space-y-4">
-              <label className="flex items-center">
+              <label className="flex items-center text-gruvbox-light2">
                 <input
                   type="checkbox"
                   checked={exportPatch}
                   onChange={(e) => setExportPatch(e.target.checked)}
-                  className="mr-2"
+                  className="mr-2 rounded border-gruvbox-light2/30 bg-gruvbox-dark0 text-gruvbox-aqua focus:ring-gruvbox-aqua/20"
                 />
                 <span>Export patch file before merge</span>
               </label>
@@ -497,23 +497,23 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
                   value={patchPath}
                   onChange={(e) => setPatchPath(e.target.value)}
                   placeholder="Path to save patch file..."
-                  className="w-full p-2 border border-gray-300 rounded-md"
+                  className="w-full p-2 bg-gruvbox-dark0 border border-gruvbox-light2/30 rounded-md text-gruvbox-light1 placeholder-gruvbox-light4 focus:outline-none focus:ring-2 focus:ring-gruvbox-aqua focus:border-gruvbox-aqua"
                 />
               )}
               
-              <label className="flex items-center">
+              <label className="flex items-center text-gruvbox-light2">
                 <input
                   type="checkbox"
                   checked={cleanupAfterMerge}
                   onChange={(e) => setCleanupAfterMerge(e.target.checked)}
-                  className="mr-2"
+                  className="mr-2 rounded border-gruvbox-light2/30 bg-gruvbox-dark0 text-gruvbox-aqua focus:ring-gruvbox-aqua/20"
                 />
                 <span>Cleanup worktree and branch after merge</span>
               </label>
             </div>
 
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-green-800">
+            <div className="p-4 bg-gruvbox-green/10 border border-gruvbox-green/30 rounded-lg">
+              <p className="text-gruvbox-green">
                 Ready to merge <strong>{session.branchName}</strong> into <strong>{session.baseBranch}</strong>
               </p>
             </div>
@@ -522,14 +522,14 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
               <button
                 onClick={() => setCurrentStep('squash')}
                 disabled={loading}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 disabled:opacity-50"
+                className="px-4 py-2 border border-gruvbox-light2/30 text-gruvbox-light2 rounded hover:bg-gruvbox-dark2/20 hover:border-gruvbox-light3/40 disabled:opacity-50 transition-colors"
               >
                 Back
               </button>
               <button
                 onClick={runMerge}
                 disabled={loading || (exportPatch && !patchPath)}
-                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                className="px-4 py-2 bg-gruvbox-green text-gruvbox-dark0 rounded hover:bg-gruvbox-green disabled:opacity-50 transition-colors"
               >
                 {loading ? 'Merging...' : 'Merge to Main'}
               </button>
@@ -540,13 +540,13 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
         {/* Cleanup Step */}
         {currentStep === 'cleanup' && (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Cleanup Session</h3>
+            <h3 className="text-lg font-semibold text-gruvbox-light1">Cleanup Session</h3>
             
-            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-yellow-800 mb-2">
+            <div className="p-4 bg-gruvbox-yellow/10 border border-gruvbox-yellow/30 rounded-lg">
+              <p className="text-gruvbox-yellow mb-2">
                 The merge was successful! Would you like to clean up the session?
               </p>
-              <p className="text-sm text-yellow-700">
+              <p className="text-sm text-gruvbox-light3">
                 This will remove the worktree and delete the branch. This action cannot be undone.
               </p>
             </div>
@@ -554,14 +554,14 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setCurrentStep('complete')}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                className="px-4 py-2 border border-gruvbox-light2/30 text-gruvbox-light2 rounded hover:bg-gruvbox-dark2/20 hover:border-gruvbox-light3/40 transition-colors"
               >
                 Skip Cleanup
               </button>
               <button
                 onClick={runCleanup}
                 disabled={loading}
-                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
+                className="px-4 py-2 bg-gruvbox-red text-gruvbox-light0 rounded hover:bg-gruvbox-red disabled:opacity-50 transition-colors"
               >
                 {loading ? 'Cleaning up...' : 'Clean Up Session'}
               </button>
@@ -572,11 +572,11 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
         {/* Complete Step */}
         {currentStep === 'complete' && (
           <div className="space-y-4 text-center">
-            <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto">
-              <span className="text-2xl text-white">✓</span>
+            <div className="w-16 h-16 bg-gruvbox-green rounded-full flex items-center justify-center mx-auto">
+              <span className="text-2xl text-gruvbox-dark0">✓</span>
             </div>
-            <h3 className="text-lg font-semibold text-green-600">Merge Complete!</h3>
-            <p className="text-gray-600">
+            <h3 className="text-lg font-semibold text-gruvbox-green">Merge Complete!</h3>
+            <p className="text-gruvbox-light2">
               Session <strong>{session.name}</strong> has been successfully merged into <strong>{session.baseBranch}</strong>.
             </p>
             <div className="flex justify-center">
@@ -585,7 +585,7 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
                   onComplete();
                   onClose();
                 }}
-                className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                className="px-6 py-2 bg-gruvbox-blue text-gruvbox-dark0 rounded hover:bg-gruvbox-blue transition-colors"
               >
                 Done
               </button>

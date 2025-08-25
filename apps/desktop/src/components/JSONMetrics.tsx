@@ -171,6 +171,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
         
         // Try to get real stream events first
         const streamEventsResult = await window.electronAPI.sessions.getStreamEvents(sessionId);
+        console.log('Stream events result for session', sessionId, streamEventsResult);
         
         let jsonEvents: any[] = [];
         let hasThreadMessages = false;
@@ -212,9 +213,10 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
             timestamp: event.timestamp,
             ...event.data
           }));
+          console.log('Mapped stream events:', streamEvents);
           
-          // Only add assistant messages from stream events to avoid duplicating thread messages
-          jsonEvents.push(...streamEvents.filter(event => event.type === 'assistant_message' || event.type === 'tool_result'));
+          // Add ALL stream events, not just assistant messages and tool results
+          jsonEvents.push(...streamEvents);
           
           // Only add session prompts if we don't have thread messages
           if (!hasThreadMessages) {
@@ -328,6 +330,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
         }
         
         setRawStreamData(jsonEvents);
+        console.log('Final jsonEvents before parsing:', jsonEvents);
         
         // Debug: Log the structure of apiSummary
         if (apiSummary) {
@@ -429,14 +432,16 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               break;
               
             case 'token_usage':
+            case 'streaming_token_usage':
               // Handle real token usage events
-              if (event.totalTokens !== undefined) {
-                parsedMetrics.totalTokens.input += event.promptTokens || 0;
-                parsedMetrics.totalTokens.output += event.completionTokens || 0;
-                parsedMetrics.totalTokens.total += event.totalTokens || 0;
+              if (event.totalTokens !== undefined || event.data?.totalTokens !== undefined) {
+                parsedMetrics.totalTokens.input += event.promptTokens || event.data?.promptTokens || 0;
+                parsedMetrics.totalTokens.output += event.completionTokens || event.data?.completionTokens || 0;
+                parsedMetrics.totalTokens.total += event.totalTokens || event.data?.totalTokens || 0;
               }
-              if (event.model && !parsedMetrics.models.includes(event.model)) {
-                parsedMetrics.models.push(event.model);
+              const tokenModel = event.model || event.data?.model;
+              if (tokenModel && !parsedMetrics.models.includes(tokenModel)) {
+                parsedMetrics.models.push(tokenModel);
               }
               break;
               
@@ -453,7 +458,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
             case 'streaming_tool_finish':
               // Handle real tool usage events
               parsedMetrics.toolUsage.push({
-                toolName: event.toolName || event.tool || event.data?.tool,
+                toolName: event.toolName || event.tool || event.data?.tool || event.data?.toolName,
                 timestamp: event.timestamp || new Date().toISOString(),
                 args: event.args || event.data?.args || {},
                 threadId: event.threadId
@@ -626,9 +631,16 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
           return true;
         };
 
+        // Debug file deduplication
+        console.log('Files from messages:', filesCreatedFromMessages);
+        console.log('Files from tools:', filesCreatedFromTools);
+        
         // Combine and dedupe files by category, filtering out invalid paths
+        const allCreatedFiles = [...filesCreatedFromMessages, ...filesCreatedFromTools];
+        console.log('All created files before dedup:', allCreatedFiles);
+        
         parsedMetrics.filesCreated = Array.from(
-          new Set([...filesCreatedFromMessages, ...filesCreatedFromTools])
+          new Set(allCreatedFiles)
         ).filter(isValidFilePath);
         
         parsedMetrics.filesModified = Array.from(
@@ -891,19 +903,24 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
             {metrics.filesCreated.map((file, index) => {
               const isFullPath = file.includes('/');
               const filename = isFullPath ? file.replace(/^.*\//, '') : file;
-              const fileUrl = isFullPath ? `file:///${file}` : null;
               
               return (
                 <div key={index} className="text-sm font-mono text-gruvbox-fg1 bg-gruvbox-bg2 border-l-2 border-gruvbox-green px-2 py-1 rounded flex justify-between items-center">
                   <span title={isFullPath ? file : undefined}>{filename}</span>
-                  {fileUrl && (
-                    <a 
-                      href={fileUrl} 
-                      className="text-gruvbox-blue hover:text-gruvbox-bright-blue text-xs"
+                  {isFullPath && (
+                    <button 
+                      onClick={async () => {
+                        try {
+                          await window.electronAPI.shell.openPath(file);
+                        } catch (error) {
+                          console.error('Failed to open file:', error);
+                        }
+                      }}
+                      className="text-gruvbox-blue hover:text-gruvbox-bright-blue text-xs hover:underline cursor-pointer"
                       title="Open file"
                     >
-                    Open
-                    </a>
+                      Open
+                    </button>
                   )}
                 </div>
               );
@@ -920,24 +937,79 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
             {metrics.filesModified.map((file, index) => {
               const isFullPath = file.includes('/');
               const filename = isFullPath ? file.replace(/^.*\//, '') : file;
-              const fileUrl = isFullPath ? `file:///${file}` : null;
               
               return (
                 <div key={index} className="text-sm font-mono text-gruvbox-fg1 bg-gruvbox-bg2 border-l-2 border-gruvbox-blue px-2 py-1 rounded flex justify-between items-center">
                   <span title={isFullPath ? file : undefined}>{filename}</span>
-                  {fileUrl && (
-                    <a 
-                      href={fileUrl} 
-                      className="text-gruvbox-blue hover:text-gruvbox-bright-blue text-xs"
+                  {isFullPath && (
+                    <button 
+                      onClick={async () => {
+                        try {
+                          await window.electronAPI.shell.openPath(file);
+                        } catch (error) {
+                          console.error('Failed to open file:', error);
+                        }
+                      }}
+                      className="text-gruvbox-blue hover:text-gruvbox-bright-blue text-xs hover:underline cursor-pointer"
                       title="Open file"
                     >
-                    Open
-                    </a>
+                      Open
+                    </button>
                   )}
                 </div>
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Thread Conversations */}
+      {metrics.threads && metrics.threads.length > 0 && (
+        <div className="bg-gruvbox-bg1 border border-gruvbox-bg3 rounded-lg p-4">
+          <h4 className="font-semibold mb-3 text-gruvbox-purple">Conversation Flow</h4>
+          {metrics.threads.map((thread, threadIndex) => (
+            <div key={thread.id} className="mb-4 last:mb-0">
+              <div className="font-medium text-gruvbox-fg0 mb-2">{thread.name}</div>
+              <div className="space-y-2">
+                {thread.messages.map((message, msgIndex) => (
+                  <div key={msgIndex} className={`p-3 rounded ${
+                    message.type === 'user' 
+                      ? 'bg-gruvbox-bg2 border-l-4 border-gruvbox-green ml-0' 
+                      : 'bg-gruvbox-bg3 border-l-4 border-gruvbox-blue ml-4'
+                  }`}>
+                    <div className="flex justify-between items-start mb-1">
+                      <span className={`text-xs font-medium ${
+                        message.type === 'user' ? 'text-gruvbox-green' : 'text-gruvbox-blue'
+                      }`}>
+                        {message.type === 'user' ? 'User' : 'Assistant'}
+                        {message.model && ` (${message.model})`}
+                      </span>
+                      <span className="text-xs text-gruvbox-fg2">
+                        {new Date(message.timestamp).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap">
+                      {message.content.length > 500 
+                        ? `${message.content.substring(0, 500)}...` 
+                        : message.content}
+                    </div>
+                    {message.tools && message.tools.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-gruvbox-bg2">
+                        <div className="text-xs text-gruvbox-fg2 mb-1">Tools used:</div>
+                        <div className="flex flex-wrap gap-1">
+                          {message.tools.map((tool, toolIndex) => (
+                            <span key={toolIndex} className="px-2 py-1 bg-gruvbox-bg2 text-xs rounded text-gruvbox-yellow">
+                              {tool}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

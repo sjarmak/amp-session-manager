@@ -90,10 +90,10 @@ describe('Merge Functionality', () => {
       expect(result).toMatchObject({
         repoClean: true,
         baseUpToDate: true,
-        aheadBy: expect.any(Number),
+        aheadBy: 0, // No commits ahead initially
         behindBy: 0,
         branchpointSha: expect.any(String),
-        ampCommitsCount: 1, // Initial amp: commit
+        ampCommitsCount: 0, // No commits initially - branch starts at base tip
         issues: []
       });
     });
