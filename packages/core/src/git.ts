@@ -246,6 +246,10 @@ export class GitOps {
     return result.stdout.trim().length > 0;
   }
 
+  async stageAllChanges(worktreePath: string): Promise<void> {
+    await this.exec(['add', '-A'], worktreePath);
+  }
+
   async getChangedFiles(worktreePath: string): Promise<string[]> {
     const result = await this.exec(['status', '--porcelain'], worktreePath);
     if (!result.stdout.trim()) {

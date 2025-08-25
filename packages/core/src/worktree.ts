@@ -307,6 +307,10 @@ export class WorktreeManager {
       let changedFiles = 0;
 
       if (hasChanges) {
+        // Stage files first so diff tracker can see them
+        await git.stageAllChanges(session.worktreePath);
+        console.log(`[MAIN] Staged all changes`);
+        
         // Track file changes BEFORE committing them
         console.log(`[MAIN] About to track file changes for ${session.worktreePath}`);
         this.logger.debug(`[MAIN] About to track file changes for ${session.worktreePath}`);
@@ -316,12 +320,12 @@ export class WorktreeManager {
         const changedFilesList = await git.getChangedFiles(session.worktreePath);
         changedFiles = changedFilesList.length;
         
-        // Use instrumented git operations for metrics tracking
+        // Use instrumented git operations for metrics tracking (skip addAll since already staged)
         const commitResult = await gitInstrumentation.commit(
           'amp: iteration changes',
           sessionId,
           iterationId,
-          true
+          false  // Don't add all since we already staged
         );
         commitSha = commitResult.shaAfter;
         

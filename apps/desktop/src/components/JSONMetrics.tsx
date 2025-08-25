@@ -546,11 +546,11 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
             </div>
             <div className="flex justify-between">
               <span>Lines Added:</span>
-              <span className="font-mono text-green-600">+{apiSummary?.totalLocAdded || 0}</span>
+              <span className="font-mono text-green-600">+{apiSummary?.summary?.totalLocAdded || 0}</span>
             </div>
             <div className="flex justify-between">
               <span>Lines Deleted:</span>
-              <span className="font-mono text-red-600">-{apiSummary?.totalLocDeleted || 0}</span>
+              <span className="font-mono text-red-600">-{apiSummary?.summary?.totalLocDeleted || 0}</span>
             </div>
             {metrics.sessionResults.length > 0 && (
               <div className="flex justify-between">

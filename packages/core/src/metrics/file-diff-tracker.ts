@@ -25,8 +25,10 @@ export class FileDiffTracker {
     try {
       // Get git status to see what files have changed
       const statusOutput = this.executeGitCommand('git status --porcelain', workingDir);
+      console.log(`[DIFF] Git status output: "${statusOutput}"`);
       this.logger.debug(`[DIFF] Git status output: "${statusOutput}"`);
       if (!statusOutput.trim()) {
+        console.log(`[DIFF] No changes detected in status output`);
         this.logger.debug(`[DIFF] No changes detected in status output`);
         return []; // No changes
       }
