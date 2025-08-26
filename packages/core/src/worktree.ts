@@ -927,20 +927,24 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
 
     const git = new GitOps(session.repoRoot);
     
+    console.log(`🚀 Starting cleanup for session ${sessionId} at ${session.worktreePath}`);
     try {
       if (force) {
+        console.log(`💪 Using force cleanup`);
         // Force cleanup - bypass safety checks
         await git.forceRemoveWorktreeAndBranch(session.worktreePath, session.branchName);
       } else {
+        console.log(`🔒 Using safe cleanup`);
         await git.safeRemoveWorktreeAndBranch(session.worktreePath, session.branchName, session.baseBranch);
       }
       
+      console.log(`📀 Git cleanup completed, now removing from database...`);
       // Remove session from database only after successful git cleanup
       this.store.deleteSession(sessionId);
       
       console.log(`✓ Cleaned up session worktree, branch, and database record`);
     } catch (error) {
-      console.error(`Failed to cleanup session ${sessionId}:`, error);
+      console.error(`❌ Failed to cleanup session ${sessionId}:`, error);
       // Re-throw the error so the caller knows cleanup failed
       throw error;
     }
