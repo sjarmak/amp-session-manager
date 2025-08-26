@@ -4,7 +4,7 @@ This document explains how to set up and run end-to-end tests with real, authent
 
 ## Overview
 
-The Amp Session Manager includes comprehensive E2E tests that can run against real Amp CLI instances with proper authentication. These tests verify:
+The Amp Session Conductor includes comprehensive E2E tests that can run against real Amp CLI instances with proper authentication. These tests verify:
 
 - Authentication flow with real Amp CLI
 - Full iteration execution with telemetry capture  

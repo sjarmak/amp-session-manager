@@ -81,7 +81,7 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
   const [exportPatch, setExportPatch] = useState(false);
   const [patchPath, setPatchPath] = useState('');
   const [cleanupAfterMerge, setCleanupAfterMerge] = useState(true);
-  const [skippedSquash, setSkippedSquash] = useState(false);
+  const [skippedSquash, setSkippedSquash] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -366,12 +366,14 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
               <button
                 onClick={() => {
                   markStepCompleted('preflight');
-                  setCurrentStep('squash');
+                  markStepCompleted('squash'); // Skip squash step
+                  setSkippedSquash(true);
+                  runRebase();
                 }}
                 disabled={!preflightResult || loading || preflightResult.issues.length > 0}
                 className="px-4 py-2 bg-gruvbox-green text-gruvbox-dark0 rounded hover:bg-gruvbox-green disabled:opacity-50 transition-colors"
               >
-                Continue
+                Continue to Rebase
               </button>
             </div>
           </div>
@@ -607,7 +609,8 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
               <button
                 onClick={() => {
                   onComplete();
-                  onClose();
+                  // onClose will be called automatically when we navigate away
+                  setTimeout(() => onClose(), 100);
                 }}
                 className="px-6 py-2 bg-gruvbox-blue text-gruvbox-dark0 rounded hover:bg-gruvbox-blue transition-colors"
               >

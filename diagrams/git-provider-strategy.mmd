@@ -1,0 +1,75 @@
+graph TD
+    subgraph "Repository Sources"
+        LR[Local Repository<br/>Filesystem Access]
+        GHR[GitHub Repository<br/>Remote Clone]
+        GLR[GitLab Repository<br/>Remote Clone]
+    end
+    
+    subgraph "Git Provider Interface"
+        GP[GitProvider Interface]
+        LGP[LocalGitProvider]
+        GHGP[GitHubProvider]
+        GLGP[GitLabProvider]
+    end
+    
+    subgraph "Authentication Methods"
+        SSH[SSH Deploy Keys]
+        TOKEN[Personal Access Tokens]
+        APP[GitHub App Installation]
+        OAUTH[OAuth User Tokens]
+    end
+    
+    subgraph "Git Operations"
+        CLONE[Repository Clone]
+        BRANCH[Branch Creation]
+        WORKTREE[Worktree Management]
+        COMMIT[Change Commits]
+        PR[Pull Request Creation]
+        MERGE[Auto-merge on Success]
+    end
+    
+    subgraph "Mobile Workflows"
+        MSC[Mobile Session Creation]
+        MIR[Mobile Iteration Request]
+        MDF[Mobile Diff Review]
+        MSQ[Mobile Squash & PR]
+    end
+    
+    LR --> LGP
+    GHR --> GHGP
+    GLR --> GLGP
+    
+    LGP --> GP
+    GHGP --> GP
+    GLGP --> GP
+    
+    GHGP --> SSH
+    GHGP --> TOKEN
+    GHGP --> APP
+    GLGP --> TOKEN
+    GLGP --> OAUTH
+    
+    GP --> CLONE
+    GP --> BRANCH
+    GP --> WORKTREE
+    GP --> COMMIT
+    GP --> PR
+    GP --> MERGE
+    
+    MSC --> GP
+    MIR --> WORKTREE
+    MDF --> COMMIT
+    MSQ --> PR
+    MSQ --> MERGE
+    
+    classDef local fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    classDef remote fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef auth fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef mobile fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef interface fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    
+    class LR,LGP local
+    class GHR,GLR,GHGP,GLGP remote
+    class SSH,TOKEN,APP,OAUTH auth
+    class MSC,MIR,MDF,MSQ mobile
+    class GP interface

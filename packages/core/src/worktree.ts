@@ -187,6 +187,15 @@ export class WorktreeManager {
       } catch (cleanupError) {
         console.warn('Failed to cleanup worktree:', cleanupError);
       }
+      
+      // Remove the session from the database since it failed to create properly
+      try {
+        this.store.deleteSession(session.id);
+        console.log(`Cleaned up failed session ${session.id} from database`);
+      } catch (cleanupError) {
+        console.warn('Failed to cleanup session from database:', cleanupError);
+      }
+      
       throw error;
     }
   }
@@ -577,6 +586,17 @@ Raw Telemetry: ${JSON.stringify(result.telemetry, null, 2)}
       const currentThreadId = await getCurrentAmpThreadId();
       if (currentThreadId && currentThreadId !== session.threadId) {
         this.store.updateSessionThreadId(sessionId, currentThreadId);
+        
+        // Create or update thread record in threads table
+        const existingThreads = this.store.getSessionThreads(sessionId);
+        const threadExists = existingThreads.some(t => t.name.includes(currentThreadId));
+        
+        if (!threadExists) {
+          const threadName = `Amp Thread ${currentThreadId}`;
+          this.store.createThread(sessionId, threadName);
+          console.log(`  Created thread record: ${threadName}`);
+        }
+        
         console.log(`  Updated thread ID: ${currentThreadId}`);
       }
 

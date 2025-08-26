@@ -5,7 +5,7 @@ const commander_1 = require("commander");
 const program = new commander_1.Command();
 program
     .name('amp-sessions')
-    .description('Amp Session Manager CLI')
+    .description('Amp Session Conductor CLI')
     .version('0.1.0');
 program
     .command('list')

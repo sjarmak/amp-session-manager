@@ -1,0 +1,68 @@
+sequenceDiagram
+    participant M as Mobile Client
+    participant A as API Gateway
+    participant S as @ampsm/server
+    participant C as @ampsm/core
+    participant G as GitOps
+    participant AM as AmpAdapter
+    participant W as Git Worktree
+    participant AC as Amp CLI
+
+    Note over M,AC: Mobile Session Creation Flow
+
+    M->>A: POST /api/sessions<br/>{name, prompt, repo}
+    A->>A: Authenticate JWT
+    A->>S: Create session request
+    S->>C: SessionStore.create()
+    C->>G: createWorktree()
+    G->>W: git worktree add
+    W-->>G: Success
+    G->>G: Initialize AGENT_CONTEXT
+    G-->>C: Worktree ready
+    C-->>S: Session created
+    S-->>A: Session data
+    A-->>M: 201 Created + session ID
+
+    Note over M,AC: Real-time Iteration Flow
+
+    M->>A: WebSocket connect /stream/:id
+    A->>S: Subscribe to session events
+    M->>A: POST /api/sessions/:id/iterate<br/>{prompt}
+    A->>S: Run iteration
+    S->>C: runIteration()
+    C->>AM: continueThread()
+    AM->>AC: spawn amp process
+    
+    loop Streaming Telemetry
+        AC-->>AM: stdout/stderr chunks
+        AM->>AM: Parse JSON events
+        AM-->>C: streaming-event
+        C-->>S: Forward event
+        S-->>A: WebSocket message
+        A-->>M: Real-time update
+    end
+    
+    AC-->>AM: Process complete
+    AM->>G: Commit changes
+    G->>W: git add & commit
+    W-->>G: Commit SHA
+    G-->>AM: Success
+    AM-->>C: Iteration complete
+    C-->>S: Update session
+    S-->>A: Final status
+    A-->>M: Iteration complete
+
+    Note over M,AC: Session Squash & Merge Flow
+
+    M->>A: POST /api/sessions/:id/squash
+    A->>S: Squash request
+    S->>C: squashSession()
+    C->>G: squashCommits()
+    G->>W: git rebase -i
+    W-->>G: Squashed
+    G->>W: git rebase main
+    W-->>G: Rebased
+    G-->>C: Ready for merge
+    C-->>S: Session complete
+    S-->>A: Success
+    A-->>M: Ready to merge

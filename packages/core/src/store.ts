@@ -22,6 +22,7 @@ export class SessionStore {
       this.initTables();
       this.migrateThreadIds();
       this.migrateAutoCommitDefault();
+      this.migrateSessionThreads();
     } catch (error) {
       console.error('Failed to initialize SQLite database:', error);
       throw new Error(`Database initialization failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -386,26 +387,68 @@ export class SessionStore {
   updateSessionThreadId(id: string, threadId: string) {
     const stmt = this.db.prepare('UPDATE sessions SET threadId = ? WHERE id = ?');
     stmt.run(threadId, id);
+    
+    // Also ensure thread record exists in threads table
+    this.ensureThreadRecord(id, threadId);
+  }
+
+  // Ensure a thread record exists for a session's threadId
+  private ensureThreadRecord(sessionId: string, threadId: string) {
+    const existingThreads = this.getSessionThreads(sessionId);
+    const threadExists = existingThreads.some(t => t.name.includes(threadId));
+    
+    if (!threadExists) {
+      const threadName = `Amp Thread ${threadId}`;
+      this.createThread(sessionId, threadName);
+    }
+  }
+
+  // Migrate existing sessions with threadIds to have proper thread records
+  migrateSessionThreads() {
+    const sessionsWithThreadIds = this.db.prepare(`
+      SELECT id, threadId 
+      FROM sessions 
+      WHERE threadId IS NOT NULL AND threadId != ''
+    `).all() as Array<{id: string; threadId: string}>;
+    
+    console.log(`Found ${sessionsWithThreadIds.length} sessions with threadIds to migrate`);
+    
+    for (const session of sessionsWithThreadIds) {
+      this.ensureThreadRecord(session.id, session.threadId);
+    }
+    
+    console.log('Thread migration completed');
   }
 
   async syncAllSessionThreadIds() {
-    const { getCurrentAmpThreadId } = await import('./amp-utils.js');
-    const currentThreadId = await getCurrentAmpThreadId();
-    
-    if (!currentThreadId) {
-      return; // No current thread ID available
-    }
+    try {
+      const { getCurrentAmpThreadId } = await import('./amp-utils.js');
+      const currentThreadId = await getCurrentAmpThreadId();
+      
+      if (!currentThreadId) {
+        return; // No current thread ID available
+      }
 
-    // Get sessions that don't have a threadId set
-    const sessionsWithoutThreadId = this.db.prepare('SELECT id FROM sessions WHERE threadId IS NULL OR threadId = ""').all() as { id: string }[];
-    
-    // Update them with the current thread ID
-    const updateStmt = this.db.prepare('UPDATE sessions SET threadId = ? WHERE id = ?');
-    for (const session of sessionsWithoutThreadId) {
-      updateStmt.run(currentThreadId, session.id);
+      // Get sessions that don't have a threadId set
+      const sessionsWithoutThreadId = this.db.prepare("SELECT id FROM sessions WHERE threadId IS NULL OR threadId = ''").all() as { id: string }[];
+      
+      if (sessionsWithoutThreadId.length === 0) {
+        return; // No sessions to update
+      }
+      
+      // Update them with the current thread ID
+      const updateStmt = this.db.prepare('UPDATE sessions SET threadId = ? WHERE id = ?');
+      for (const session of sessionsWithoutThreadId) {
+        updateStmt.run(currentThreadId, session.id);
+        // Also ensure thread record exists
+        this.ensureThreadRecord(session.id, currentThreadId);
+      }
+      
+      console.log(`Synced ${sessionsWithoutThreadId.length} sessions with thread ID: ${currentThreadId}`);
+    } catch (error) {
+      console.error('Error in syncAllSessionThreadIds:', error);
+      // Don't throw the error to prevent app startup issues
     }
-    
-    console.log(`Synced ${sessionsWithoutThreadId.length} sessions with thread ID: ${currentThreadId}`);
   }
 
   updateSessionAutoCommit(id: string, autoCommit: boolean) {

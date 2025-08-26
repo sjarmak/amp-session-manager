@@ -24,7 +24,6 @@ export interface BatchesViewProps {
 export function BatchesView({ onRunSelect, onNewBatch }: BatchesViewProps) {
   const [runs, setRuns] = useState<BatchRun[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cleaning, setCleaning] = useState(false);
 
   useEffect(() => {
     loadRuns();
@@ -56,35 +55,7 @@ export function BatchesView({ onRunSelect, onNewBatch }: BatchesViewProps) {
     }
   };
 
-  const handleCleanEnvironment = async () => {
-    if (cleaning) return;
-    
-    const confirmClean = window.confirm(
-      'This will clean up all orphaned worktrees and sessions across all repositories. This operation is safe but irreversible. Continue?'
-    );
-    
-    if (!confirmClean) return;
-    
-    try {
-      setCleaning(true);
-      const result = await window.electronAPI.batch.cleanEnvironment();
-      
-      const totalDirs = Object.values(result).reduce((sum: number, r: any) => sum + r.removedDirs, 0);
-      const totalSessions = Object.values(result).reduce((sum: number, r: any) => sum + r.removedSessions, 0);
-      
-      if (totalDirs > 0 || totalSessions > 0) {
-        alert(`Environment cleanup complete!\nRemoved ${totalDirs} directories and ${totalSessions} sessions.`);
-        await loadRuns(); // Refresh the runs list
-      } else {
-        alert('Environment is already clean. No orphaned worktrees or sessions found.');
-      }
-    } catch (error) {
-      console.error('Failed to clean environment:', error);
-      alert('Failed to clean environment. Check console for details.');
-    } finally {
-      setCleaning(false);
-    }
-  };
+
 
   if (loading) {
     return (
@@ -98,22 +69,12 @@ export function BatchesView({ onRunSelect, onNewBatch }: BatchesViewProps) {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gruvbox-fg0">Batch Evaluations</h2>
-        <div className="flex gap-3">
-          <button
-            onClick={handleCleanEnvironment}
-            disabled={cleaning}
-            className="bg-gruvbox-bg3 text-gruvbox-fg1 px-4 py-2 rounded-lg hover:bg-gruvbox-bg4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Clean up orphaned worktrees and sessions"
-          >
-            {cleaning ? 'Cleaning...' : 'Clean Environment'}
-          </button>
-          <button
-            onClick={onNewBatch}
-            className="bg-gruvbox-bright-blue text-gruvbox-bg0 px-4 py-2 rounded-lg hover:bg-gruvbox-blue transition-colors"
-          >
-            New Batch
-          </button>
-        </div>
+        <button
+          onClick={onNewBatch}
+          className="bg-gruvbox-bright-blue text-gruvbox-bg0 px-4 py-2 rounded-lg hover:bg-gruvbox-blue transition-colors"
+        >
+          New Batch
+        </button>
       </div>
 
       {runs.length === 0 ? (

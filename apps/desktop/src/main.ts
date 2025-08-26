@@ -1,8 +1,43 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const { join } = require('path');
+const { homedir } = require('os');
+const { readFileSync } = require('fs');
 const { SessionStore, WorktreeManager, BatchController, SweBenchRunner, getCurrentAmpThreadId, getDbPath, Notifier, MetricsAPI, SQLiteMetricsSink, MetricsEventBus, costCalculator, Logger } = require('@ampsm/core');
 
 let mainWindow: any;
+
+// Load amp configuration - same logic as in worktree.ts
+function loadAmpConfig() {
+  try {
+    const configPath = join(homedir(), '.amp-session-manager', 'config.json');
+    const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+    
+    // Merge process env with config, giving priority to process env
+    const env = config.ampEnv ? { ...config.ampEnv } : {};
+    
+    // Always inherit AMP_API_KEY from process environment if available
+    if (process.env.AMP_API_KEY) {
+      env.AMP_API_KEY = process.env.AMP_API_KEY;
+    }
+    
+    return {
+      ampPath: config.ampPath,
+      ampArgs: config.ampArgs ? config.ampArgs.split(' ') : undefined,
+      enableJSONLogs: config.enableJSONLogs !== false,
+      env: Object.keys(env).length > 0 ? env : undefined,
+      extraArgs: config.ampEnv?.AMP_ARGS ? config.ampEnv.AMP_ARGS.split(/\s+/).filter(Boolean) : undefined
+    };
+  } catch {
+    // If no config file, still pass through AMP_API_KEY
+    const env: Record<string, string> = {};
+    if (process.env.AMP_API_KEY) {
+      env.AMP_API_KEY = process.env.AMP_API_KEY;
+    }
+    return {
+      env: Object.keys(env).length > 0 ? env : undefined
+    };
+  }
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -29,7 +64,76 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+async function runStartupCleanup() {
+  console.log('🧹 Running startup cleanup...');
+  const startTime = Date.now();
+  
+  try {
+    // Initialize services first if not already done
+    if (!servicesReady || !store || !worktreeManager) {
+      console.log('⚙️ Services not ready, initializing...');
+      await initializeServices();
+      
+      // Wait a moment for services to be fully ready
+      if (!servicesReady || !store || !worktreeManager) {
+        console.warn('⚠️ Services still not ready after initialization, skipping cleanup');
+        return;
+      }
+    }
+
+    console.log('📊 Checking for orphaned worktrees...');
+    
+    // Get all unique repository roots from sessions
+    const sessions = store.getAllSessions();
+    console.log(`Found ${sessions.length} sessions in database`);
+    
+    const repoRoots = new Set(sessions.map(s => s.repoRoot));
+    console.log(`Scanning ${repoRoots.size} repositories for orphaned worktrees`);
+
+    let totalRemovedDirs = 0;
+    let totalRemovedSessions = 0;
+
+    // Run cleanup for each repository
+    for (const repoRoot of repoRoots) {
+      try {
+        console.log(`🔍 Scanning repository: ${repoRoot}`);
+        const result = await worktreeManager.pruneOrphans(repoRoot);
+        totalRemovedDirs += result.removedDirs;
+        totalRemovedSessions += result.removedSessions;
+        
+        if (result.removedDirs > 0 || result.removedSessions > 0) {
+          console.log(`  - Cleaned up ${result.removedDirs} directories, ${result.removedSessions} sessions`);
+        } else {
+          console.log(`  - No orphans found`);
+        }
+      } catch (error) {
+        console.warn(`⚠️ Failed to cleanup repository ${repoRoot}:`, error.message || error);
+      }
+    }
+
+    const duration = Date.now() - startTime;
+    if (totalRemovedDirs > 0 || totalRemovedSessions > 0) {
+      console.log(`✅ Startup cleanup complete (${duration}ms): removed ${totalRemovedDirs} orphaned directories, ${totalRemovedSessions} orphaned sessions`);
+    } else {
+      console.log(`✅ Startup cleanup complete (${duration}ms): no orphaned worktrees found`);
+    }
+
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error(`❌ Startup cleanup failed after ${duration}ms:`, error);
+    console.error('This is non-fatal - the app will continue to start');
+    // Don't throw error - we want the app to start even if cleanup fails
+  }
+}
+
+app.whenReady().then(async () => {
+  // Setup signal handlers for graceful shutdown
+  setupSignalHandlers();
+  
+  // Run startup cleanup before UI loads
+  await runStartupCleanup();
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -87,6 +191,50 @@ async function initializeServices() {
   } catch (error) {
     console.error('Failed to initialize services:', error);
   }
+}
+
+// Process signal handlers for emergency cleanup
+function setupSignalHandlers() {
+  const emergencyCleanup = async () => {
+    console.log('🚨 Emergency cleanup triggered...');
+    
+    try {
+      // Stop any running interactive sessions
+      for (const [sessionId, handle] of interactiveHandles) {
+        try {
+          console.log(`Stopping interactive session ${sessionId}...`);
+          await handle.stop();
+        } catch (error) {
+          console.warn(`Failed to stop interactive session ${sessionId}:`, error);
+        }
+      }
+      interactiveHandles.clear();
+      
+      console.log('✅ Emergency cleanup completed');
+    } catch (error) {
+      console.error('❌ Emergency cleanup failed:', error);
+    }
+    
+    // Exit gracefully
+    process.exit(0);
+  };
+
+  // Handle process termination signals
+  process.on('SIGINT', () => {
+    console.log('\n🛑 Received SIGINT, initiating graceful shutdown...');
+    emergencyCleanup();
+  });
+
+  process.on('SIGTERM', () => {
+    console.log('\n🛑 Received SIGTERM, initiating graceful shutdown...');
+    emergencyCleanup();
+  });
+
+  // Handle app quit events
+  app.on('before-quit', () => {
+    console.log('🚪 App quitting, cleaning up...');
+    // This is handled by the existing before-quit handler below
+  });
 }
 
 app.whenReady().then(initializeServices);
@@ -548,6 +696,122 @@ ipcMain.handle('sessions:commitStagedChanges', async (_, sessionId: string, mess
   }
 });
 
+// Enhanced Git Actions handlers
+ipcMain.handle('sessions:stageFiles', async (_, sessionId: string, files: string[]) => {
+  try {
+    const session = store.getSession(sessionId);
+    if (!session) {
+      return { success: false, error: 'Session not found' };
+    }
+
+    const { GitOps } = require('@ampsm/core');
+    const git = new GitOps(session.repoRoot);
+    await git.stageFiles(files, session.worktreePath);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to stage files:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to stage files' };
+  }
+});
+
+ipcMain.handle('sessions:unstageFiles', async (_, sessionId: string, files: string[]) => {
+  try {
+    const session = store.getSession(sessionId);
+    if (!session) {
+      return { success: false, error: 'Session not found' };
+    }
+
+    const { GitOps } = require('@ampsm/core');
+    const git = new GitOps(session.repoRoot);
+    await git.unstageFiles(files, session.worktreePath);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to unstage files:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to unstage files' };
+  }
+});
+
+ipcMain.handle('sessions:commitAmend', async (_, sessionId: string, message: string) => {
+  try {
+    const session = store.getSession(sessionId);
+    if (!session) {
+      return { success: false, error: 'Session not found' };
+    }
+
+    const { GitOps } = require('@ampsm/core');
+    const git = new GitOps(session.repoRoot);
+    const commitSha = await git.commitAmend(message, session.worktreePath);
+    return { success: true, result: { commitSha } };
+  } catch (error) {
+    console.error('Failed to amend commit:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to amend commit' };
+  }
+});
+
+ipcMain.handle('sessions:resetToCommit', async (_, sessionId: string, commitRef: string, soft: boolean = false) => {
+  try {
+    const session = store.getSession(sessionId);
+    if (!session) {
+      return { success: false, error: 'Session not found' };
+    }
+
+    const { GitOps } = require('@ampsm/core');
+    const git = new GitOps(session.repoRoot);
+    await git.resetToCommit(session.worktreePath, commitRef, { hard: !soft });
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to reset to commit:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to reset to commit' };
+  }
+});
+
+ipcMain.handle('sessions:cherryPick', async (_, sessionId: string, shas: string[]) => {
+  try {
+    const session = store.getSession(sessionId);
+    if (!session) {
+      return { success: false, error: 'Session not found' };
+    }
+
+    const { GitOps } = require('@ampsm/core');
+    const git = new GitOps(session.repoRoot);
+    await git.cherryPick(shas, session.worktreePath);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to cherry-pick commits:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to cherry-pick commits' };
+  }
+});
+
+ipcMain.handle('sessions:getDiff', async (_, sessionId: string, filePath?: string) => {
+  try {
+    const session = store.getSession(sessionId);
+    if (!session) {
+      return { success: false, error: 'Session not found' };
+    }
+
+    const { GitOps } = require('@ampsm/core');
+    const git = new GitOps(session.repoRoot);
+    
+    let result;
+    if (filePath) {
+      // Get diff for specific file
+      result = await git.exec(['diff', '--', filePath], session.worktreePath);
+      if (result.exitCode !== 0) {
+        // Try staged diff
+        result = await git.exec(['diff', '--cached', '--', filePath], session.worktreePath);
+      }
+    } else {
+      // Get all diffs
+      result = await git.exec(['diff'], session.worktreePath);
+    }
+    
+    return { success: true, result: { diff: result.stdout } };
+  } catch (error) {
+    console.error('Failed to get diff:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to get diff' };
+  }
+});
+
 ipcMain.handle('sessions:rollbackLastCommit', async (_, sessionId: string) => {
   try {
     const session = store.getSession(sessionId);
@@ -782,7 +1046,7 @@ ipcMain.handle('batch:cleanEnvironment', async () => {
 ipcMain.handle('auth:validate', async () => {
   try {
     const { AmpAdapter } = require('@ampsm/core');
-    const ampAdapter = new AmpAdapter({}, store);
+    const ampAdapter = new AmpAdapter(loadAmpConfig(), store);
     return await ampAdapter.validateAuth();
   } catch (error) {
     console.error('Failed to validate auth:', error);
@@ -1115,7 +1379,7 @@ ipcMain.handle('interactive:start', async (_, sessionId: string, threadId?: stri
     }
 
     const { AmpAdapter } = require('@ampsm/core');
-    const ampAdapter = new AmpAdapter({}, store);
+    const ampAdapter = new AmpAdapter(loadAmpConfig(), store);
     
     // Check authentication first
     const isAuthenticated = await ampAdapter.checkAuthentication();

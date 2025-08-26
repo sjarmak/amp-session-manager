@@ -98,7 +98,7 @@ function main() {
         const readmeFile = path.join(process.cwd(), 'README.md');
         writeFileSync(readmeFile, `# Test Project
 
-This is a test project created by the Amp Session Manager.
+This is a test project created by the Amp Session Conductor.
 
 ## Description
 A simple project to demonstrate the batch processing capabilities.
@@ -119,7 +119,7 @@ Generated at: ${new Date().toISOString()}
             "start": "echo \"Starting test project\""
           },
           "keywords": ["test", "amp", "session"],
-          "author": "Amp Session Manager",
+          "author": "Amp Session Conductor",
           "license": "MIT"
         }, null, 2));
       }

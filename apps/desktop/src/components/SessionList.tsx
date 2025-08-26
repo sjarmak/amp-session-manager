@@ -4,11 +4,10 @@ import { MainRepoGitView } from './MainRepoGitView';
 
 interface SessionListProps {
   onSessionSelect: (session: Session) => void;
-  onNewAsyncSession: () => void;
-  onNewInteractiveSession: () => void;
+  onNewSession: () => void;
 }
 
-export function SessionList({ onSessionSelect, onNewAsyncSession, onNewInteractiveSession }: SessionListProps) {
+export function SessionList({ onSessionSelect, onNewSession }: SessionListProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -162,45 +161,12 @@ export function SessionList({ onSessionSelect, onNewAsyncSession, onNewInteracti
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-gruvbox-light1">Sessions</h2>
-        <div className="flex gap-2">
-          {getUniqueRepoPaths().length > 0 && (
-            <div className="relative group">
-              <button
-                onClick={() => openMainRepoGit(getUniqueRepoPaths()[0])}
-                className="px-4 py-2 bg-gruvbox-purple text-gruvbox-light0 rounded-md hover:bg-gruvbox-purple/80 focus:outline-none focus:ring-2 focus:ring-gruvbox-purple/50 shadow-lg shadow-gruvbox-purple/25 transition-all"
-                title="View main repository git status and stage untracked changes"
-              >
-                Main Repo Git
-              </button>
-              {getUniqueRepoPaths().length > 1 && (
-                <div className="absolute right-0 mt-1 w-64 bg-gruvbox-dark1 border border-gruvbox-light2/30 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 p-2">
-                  <div className="text-xs text-gruvbox-light3 mb-2">Multiple repositories found:</div>
-                  {getUniqueRepoPaths().map((path, index) => (
-                    <button
-                      key={path}
-                      onClick={() => openMainRepoGit(path)}
-                      className="block w-full text-left px-2 py-1 text-xs font-mono text-gruvbox-light2 hover:bg-gruvbox-dark2 rounded"
-                    >
-                      {path.split('/').pop()}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          <button
-            onClick={onNewAsyncSession}
-            className="px-4 py-2 bg-gruvbox-blue text-gruvbox-dark0 rounded-md hover:bg-gruvbox-blue-dim focus:outline-none focus:ring-2 focus:ring-gruvbox-blue/50 shadow-lg shadow-gruvbox-blue/25 transition-all"
-          >
-            New Async Session
-          </button>
-          <button
-            onClick={onNewInteractiveSession}
-            className="px-4 py-2 bg-gruvbox-aqua text-gruvbox-dark0 rounded-md hover:bg-gruvbox-aqua-dim focus:outline-none focus:ring-2 focus:ring-gruvbox-aqua/50 shadow-lg shadow-gruvbox-aqua/25 transition-all"
-          >
-            New Interactive Session
-          </button>
-        </div>
+        <button
+          onClick={onNewSession}
+          className="px-4 py-2 bg-gruvbox-aqua text-gruvbox-dark0 rounded-md hover:bg-gruvbox-aqua-dim focus:outline-none focus:ring-2 focus:ring-gruvbox-aqua/50 shadow-lg shadow-gruvbox-aqua/25 transition-all"
+        >
+          New Session
+        </button>
       </div>
 
       {sessions.length > 0 && (
@@ -236,16 +202,10 @@ export function SessionList({ onSessionSelect, onNewAsyncSession, onNewInteracti
           <div className="text-gruvbox-light3 mb-4">No sessions found</div>
           <div className="flex gap-2 justify-center">
             <button
-              onClick={onNewAsyncSession}
-              className="px-4 py-2 bg-gruvbox-blue text-gruvbox-dark0 rounded-md hover:bg-gruvbox-blue-dim shadow-lg shadow-gruvbox-blue/25 transition-all"
-            >
-              Create Async Session
-            </button>
-            <button
-              onClick={onNewInteractiveSession}
+              onClick={onNewSession}
               className="px-4 py-2 bg-gruvbox-aqua text-gruvbox-dark0 rounded-md hover:bg-gruvbox-aqua-dim shadow-lg shadow-gruvbox-aqua/25 transition-all"
             >
-              Create Interactive Session
+              Create Session
             </button>
           </div>
         </div>
@@ -281,12 +241,15 @@ export function SessionList({ onSessionSelect, onNewAsyncSession, onNewInteracti
                   <p className="text-sm text-gruvbox-light2 mt-1 line-clamp-2">
                     {session.ampPrompt}
                   </p>
-                  <div className="flex items-center gap-4 mt-2 text-xs text-gruvbox-light4">
-                    <span>Branch: {session.branchName}</span>
-                    <span>Created: {new Date(session.createdAt).toLocaleDateString()}</span>
-                    {session.lastRun && (
-                      <span>Last Run: {new Date(session.lastRun).toLocaleDateString()}</span>
-                    )}
+                  <div className="space-y-1 mt-2 text-xs text-gruvbox-light4">
+                    <div>Repository: {session.repoRoot}</div>
+                    <div className="flex items-center gap-4">
+                      <span>Branch: {session.branchName}</span>
+                      <span>Created: {new Date(session.createdAt).toLocaleDateString()}</span>
+                      {session.lastRun && (
+                        <span>Last Run: {new Date(session.lastRun).toLocaleDateString()}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

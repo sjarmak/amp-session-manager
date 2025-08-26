@@ -41,6 +41,14 @@ declare global {
         squashCommits: (sessionId: string, options: any) => Promise<{ success: boolean; error?: string }>;
         openInEditor: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
         setAutoCommit: (sessionId: string, autoCommit: boolean) => Promise<{ success: boolean; error?: string }>;
+        
+        // Enhanced Git Actions
+        stageFiles: (sessionId: string, files: string[]) => Promise<{ success: boolean; error?: string }>;
+        unstageFiles: (sessionId: string, files: string[]) => Promise<{ success: boolean; error?: string }>;
+        commitAmend: (sessionId: string, message: string) => Promise<{ success: boolean; result?: { commitSha: string }; error?: string }>;
+        resetToCommit: (sessionId: string, commitRef: string, soft?: boolean) => Promise<{ success: boolean; error?: string }>;
+        cherryPick: (sessionId: string, shas: string[]) => Promise<{ success: boolean; error?: string }>;
+        getDiff: (sessionId: string, filePath?: string) => Promise<{ success: boolean; result?: { diff: string }; error?: string }>;
         };
 
   // Main repository git operations

@@ -1,4 +1,4 @@
-# Amp Session Manager - Enhanced Metrics Usage
+# Amp Session Conductor - Enhanced Metrics Usage
 
 The amp-session-manager now includes comprehensive metrics tracking similar to amp-eval, with detailed tool usage, file edit tracking, and benchmark execution support.
 

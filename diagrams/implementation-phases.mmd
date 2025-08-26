@@ -1,0 +1,32 @@
+gantt
+    title Mobile Implementation Timeline
+    dateFormat YYYY-MM-DD
+    section Phase 1: API Foundation
+    Extract @ampsm/server package           :done, phase1a, 2024-08-26, 5d
+    Implement REST API + WebSocket          :phase1b, after phase1a, 7d
+    Update Electron to use API              :phase1c, after phase1b, 3d
+    Maintain CLI backward compatibility     :phase1d, after phase1c, 2d
+    
+    section Phase 2: Mobile Web UI
+    Create responsive React components      :phase2a, after phase1d, 7d
+    Implement PWA capabilities              :phase2b, after phase2a, 5d
+    Real-time streaming integration         :phase2c, after phase2b, 5d
+    Mobile-optimized UX/UI                  :phase2d, after phase2c, 5d
+    
+    section Phase 3: Auth & Security
+    GitHub OAuth integration                :phase3a, after phase2d, 3d
+    JWT authentication system               :phase3b, after phase3a, 4d
+    Multi-user session management           :phase3c, after phase3b, 3d
+    Rate limiting and security              :phase3d, after phase3c, 4d
+    
+    section Phase 4: Git Integration
+    GitHub API integration                  :phase4a, after phase3d, 7d
+    Remote repository support               :phase4b, after phase4a, 5d
+    PR creation workflows                   :phase4c, after phase4b, 5d
+    Repository provider abstraction         :phase4d, after phase4c, 4d
+    
+    section Phase 5: Native Apps
+    Capacitor wrapper setup                 :phase5a, after phase4d, 3d
+    Native push notifications               :phase5b, after phase5a, 5d
+    App store deployment                    :phase5c, after phase5b, 4d
+    Biometric auth & deep linking           :phase5d, after phase5c, 2d

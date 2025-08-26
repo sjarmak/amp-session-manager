@@ -1,6 +1,6 @@
 # Git Worktrees Strategy
 
-Amp Session Manager uses Git worktrees to provide complete isolation between sessions while maintaining a clean, reviewable history.
+Amp Session Conductor uses Git worktrees to provide complete isolation between sessions while maintaining a clean, reviewable history.
 
 ## Why Git Worktrees?
 

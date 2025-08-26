@@ -1,6 +1,6 @@
 # Architecture
 
-Amp Session Manager is built as a monorepo with clear separation between UI, business logic, and CLI interfaces.
+Amp Session Conductor is built as a monorepo with clear separation between UI, business logic, and CLI interfaces.
 
 ## System Overview
 

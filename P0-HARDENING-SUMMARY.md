@@ -1,6 +1,6 @@
 # P0 Hardening Improvements - Implementation Summary
 
-This document summarizes the production stability improvements implemented for the Amp Session Manager.
+This document summarizes the production stability improvements implemented for the Amp Session Conductor.
 
 ## 1. ✅ SQLite WAL Mode Implementation
 

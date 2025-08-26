@@ -21,7 +21,7 @@ function App() {
   const [selectedBatchRun, setSelectedBatchRun] = useState<string | null>(null);
   const [selectedBenchmarkRun, setSelectedBenchmarkRun] = useState<{ runId: string; type: string } | null>(null);
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
-  const [sessionModalMode, setSessionModalMode] = useState<'async' | 'interactive'>('async');
+
   const [showNewBatchModal, setShowNewBatchModal] = useState(false);
   const [showNewBenchmarkModal, setShowNewBenchmarkModal] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
@@ -41,21 +41,15 @@ function App() {
 
   const handleSessionCreated = (session?: Session) => {
     setRefreshKey(prev => prev + 1);
-    // If an interactive session was created, navigate to it immediately and show interactive tab
-    if (session?.mode === 'interactive') {
+    // Navigate to the session immediately and show interactive tab
+    if (session) {
       setNewInteractiveSessionId(session.id);
       setSelectedSession(session);
       setCurrentView('session');
     }
   };
 
-  const handleNewAsyncSession = () => {
-    setSessionModalMode('async');
-    setShowNewSessionModal(true);
-  };
-
-  const handleNewInteractiveSession = () => {
-    setSessionModalMode('interactive');
+  const handleNewSession = () => {
     setShowNewSessionModal(true);
   };
 
@@ -63,6 +57,12 @@ function App() {
     setRefreshKey(prev => prev + 1);
     // Clear the newInteractiveSessionId flag to prevent forcing tab back to interactive
     setNewInteractiveSessionId(null);
+  };
+
+  const handleMergeCompleted = () => {
+    handleSessionUpdated();
+    // Navigate back to sessions list after merge
+    handleBackToList();
   };
 
   const handleBatchRunSelect = (runId: string) => {
@@ -163,11 +163,11 @@ function App() {
               className="h-12 w-auto"
             />
             <h1 className="text-5xl font-bold text-gruvbox-light0">
-              Amp Session Manager
+              Amp Session Conductor
             </h1>
           </div>
           <p className="text-gruvbox-light3 font-header italic font-thin">
-            Orchestrate parallel Amp sessions and batch experiments in isolated worktrees
+            Orchestrate parallel, multi-thread Amp sessions in isolated worktrees
           </p>
           
           {/* Settings Button */}
@@ -239,8 +239,7 @@ function App() {
             <div key={refreshKey}>
               <SessionList 
                 onSessionSelect={handleSessionSelect}
-                onNewAsyncSession={handleNewAsyncSession}
-                onNewInteractiveSession={handleNewInteractiveSession}
+                onNewSession={handleNewSession}
               />
             </div>
           ) : currentView === 'batches' ? (
@@ -273,12 +272,13 @@ function App() {
               onBack={handleBackToBenchmarks}
               onSessionSelect={handleSessionSelect}
             />
-          ) : selectedSession ? (
+          ) : currentView === 'session' && selectedSession ? (
             <SessionView
               key={`${selectedSession.id}-${refreshKey}`}
               session={selectedSession}
               onBack={handleBackToList}
               onSessionUpdated={handleSessionUpdated}
+              onMergeCompleted={handleMergeCompleted}
               initialTab={newInteractiveSessionId === selectedSession.id ? "interactive" : undefined}
             />
           ) : null}
@@ -291,7 +291,6 @@ function App() {
             setShowNewSessionModal(false);
           }}
           onSessionCreated={handleSessionCreated}
-          mode={sessionModalMode}
         />
 
         <NewBatchModal

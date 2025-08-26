@@ -1,7 +1,13 @@
 import { spawn } from 'child_process';
+import { withGitRetry, cleanupGitLocksWithRetry, GitRetryOptions } from './utils/git-retry.js';
+import { Logger } from './utils/logger.js';
 
 export class GitOps {
-  constructor(private repoRoot: string) {}
+  private logger: Logger;
+  
+  constructor(private repoRoot: string, logger?: Logger) {
+    this.logger = logger || new Logger('GitOps');
+  }
 
   async exec(args: string[], cwd?: string, timeoutMs?: number): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     return new Promise((resolve, reject) => {
@@ -115,32 +121,21 @@ export class GitOps {
   }
 
   async createWorktree(branchName: string, worktreePath: string, baseBranch: string = 'main'): Promise<void> {
-    const maxRetries = 3;
-    let attempt = 0;
-    
-    while (attempt < maxRetries) {
-      try {
-        await this.createWorktreeInternal(branchName, worktreePath, baseBranch);
-        return; // Success
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        
-        // Check if it's a git lock error
-        if (errorMessage.includes('index.lock') || errorMessage.includes('Another git process')) {
-          attempt++;
-          if (attempt < maxRetries) {
-            console.log(`Git lock conflict detected (attempt ${attempt}/${maxRetries}), retrying in ${attempt * 2} seconds...`);
-            await new Promise(resolve => setTimeout(resolve, attempt * 2000));
-            
-            // Try to clean up stale lock files
-            await this.cleanupGitLocks();
-            continue;
-          }
-        }
-        
-        // Not a lock error or max retries reached
-        throw error;
+    const retryResult = await withGitRetry(
+      async () => {
+        // Clean up any stale git locks before attempting operation
+        await cleanupGitLocksWithRetry(this.repoRoot, this.logger);
+        return this.createWorktreeInternal(branchName, worktreePath, baseBranch);
+      },
+      {
+        operation: `create worktree: ${branchName}`,
+        config: { maxRetries: 3, baseDelayMs: 1000, maxDelayMs: 8000, jitterMs: 500 },
+        logger: this.logger
       }
+    );
+    
+    if (retryResult.attempts > 1) {
+      this.logger.info(`Worktree creation succeeded after ${retryResult.attempts} attempts`);
     }
   }
 
@@ -215,8 +210,17 @@ export class GitOps {
   }
 
   async removeWorktree(worktreePath: string, branchName: string): Promise<void> {
-    await this.exec(['worktree', 'remove', worktreePath]);
-    await this.exec(['branch', '-D', branchName]);
+    await withGitRetry(
+      async () => {
+        await this.exec(['worktree', 'remove', worktreePath]);
+        await this.exec(['branch', '-D', branchName]);
+      },
+      {
+        operation: `remove worktree: ${branchName}`,
+        config: { maxRetries: 3, baseDelayMs: 500, maxDelayMs: 4000 },
+        logger: this.logger
+      }
+    );
   }
 
   async getDiff(worktreePath: string): Promise<string> {
@@ -225,20 +229,30 @@ export class GitOps {
   }
 
   async commitChanges(message: string, worktreePath: string): Promise<string | null> {
-    await this.exec(['add', '-A'], worktreePath);
-    
-    const statusResult = await this.exec(['diff', '--cached', '--quiet'], worktreePath);
-    if (statusResult.exitCode === 0) {
-      return null; // No changes to commit
-    }
-    
-    const commitResult = await this.exec(['commit', '-m', message], worktreePath);
-    if (commitResult.exitCode !== 0) {
-      throw new Error(`Failed to commit: ${commitResult.stderr}`);
-    }
-    
-    const shaResult = await this.exec(['rev-parse', 'HEAD'], worktreePath);
-    return shaResult.stdout.trim();
+    const result = await withGitRetry(
+      async () => {
+        await this.exec(['add', '-A'], worktreePath);
+        
+        const statusResult = await this.exec(['diff', '--cached', '--quiet'], worktreePath);
+        if (statusResult.exitCode === 0) {
+          return null; // No changes to commit
+        }
+        
+        const commitResult = await this.exec(['commit', '-m', message], worktreePath);
+        if (commitResult.exitCode !== 0) {
+          throw new Error(`Failed to commit: ${commitResult.stderr}`);
+        }
+        
+        const shaResult = await this.exec(['rev-parse', 'HEAD'], worktreePath);
+        return shaResult.stdout.trim();
+      },
+      {
+        operation: `commit changes: ${message.slice(0, 50)}...`,
+        config: { maxRetries: 3, baseDelayMs: 800, maxDelayMs: 5000 },
+        logger: this.logger
+      }
+    );
+    return result.result;
   }
 
   async hasChanges(worktreePath: string): Promise<boolean> {
@@ -491,6 +505,43 @@ export class GitOps {
     const result = await this.exec(args, worktreePath);
     if (result.exitCode !== 0) {
       throw new Error(`Reset failed: ${result.stderr}`);
+    }
+  }
+
+  async stageFiles(files: string[], worktreePath: string): Promise<void> {
+    if (files.length === 0) return;
+    const result = await this.exec(['add', ...files], worktreePath);
+    if (result.exitCode !== 0) {
+      throw new Error(`Stage files failed: ${result.stderr}`);
+    }
+  }
+
+  async unstageFiles(files: string[], worktreePath: string): Promise<void> {
+    if (files.length === 0) return;
+    const result = await this.exec(['reset', 'HEAD', ...files], worktreePath);
+    if (result.exitCode !== 0) {
+      throw new Error(`Unstage files failed: ${result.stderr}`);
+    }
+  }
+
+  async commitAmend(message: string, worktreePath: string): Promise<string> {
+    const result = await this.exec(['commit', '--amend', '-m', message], worktreePath);
+    if (result.exitCode !== 0) {
+      throw new Error(`Commit amend failed: ${result.stderr}`);
+    }
+    
+    // Get the commit SHA
+    const shaResult = await this.exec(['rev-parse', 'HEAD'], worktreePath);
+    return shaResult.stdout.trim();
+  }
+
+  async cherryPick(shas: string[], worktreePath: string): Promise<void> {
+    if (shas.length === 0) return;
+    for (const sha of shas) {
+      const result = await this.exec(['cherry-pick', '--ff', sha], worktreePath);
+      if (result.exitCode !== 0) {
+        throw new Error(`Cherry-pick failed for ${sha}: ${result.stderr}`);
+      }
     }
   }
 

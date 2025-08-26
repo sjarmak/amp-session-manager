@@ -1,6 +1,6 @@
 # Notification System
 
-The Amp Session Manager includes a comprehensive native notification system that keeps users informed about session status changes, test results, and important events that require attention.
+The Amp Session Conductor includes a comprehensive native notification system that keeps users informed about session status changes, test results, and important events that require attention.
 
 ## Features
 

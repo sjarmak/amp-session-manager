@@ -1,0 +1,70 @@
+graph TB
+    subgraph "Mobile Clients"
+        PWA[Progressive Web App<br/>React + Tailwind + PWA]
+        iOS[iOS App<br/>Capacitor Wrapper]
+        Android[Android App<br/>Capacitor Wrapper]
+    end
+    
+    subgraph "API Gateway Layer"
+        Gateway[API Gateway<br/>tRPC + Express]
+        Auth[Authentication<br/>GitHub OAuth + JWT]
+        WS[WebSocket Server<br/>Real-time Streaming]
+    end
+    
+    subgraph "Existing Clients"
+        Electron[Electron Desktop App<br/>Current UI]
+        CLI[amp-sessions CLI<br/>Direct Access]
+    end
+    
+    subgraph "Core Services"
+        Server[@ampsm/server<br/>New Package]
+        Core[@ampsm/core<br/>Existing Engine]
+        Store[SessionStore<br/>SQLite/Postgres]
+        Git[GitOps<br/>Worktree Management]
+        Amp[AmpAdapter<br/>Streaming Telemetry]
+    end
+    
+    subgraph "Git Providers"
+        Local[Local Filesystem<br/>Current Behavior]
+        GitHub[GitHub Integration<br/>Clone + PR Creation]
+        GitLab[GitLab Support<br/>Future]
+    end
+    
+    subgraph "Execution Environment"
+        Worktrees[Git Worktrees<br/>Session Isolation]
+        AmpCLI[Amp CLI<br/>AI Iterations]
+        Notifier[Cross-platform<br/>Notifications]
+    end
+    
+    PWA --> Gateway
+    iOS --> Gateway  
+    Android --> Gateway
+    Electron --> Gateway
+    CLI --> Core
+    
+    Gateway --> Auth
+    Gateway --> WS
+    Gateway --> Server
+    Server --> Core
+    
+    Core --> Store
+    Core --> Git
+    Core --> Amp
+    Core --> Notifier
+    
+    Git --> Local
+    Git --> GitHub
+    Git --> GitLab
+    
+    Git --> Worktrees
+    Amp --> AmpCLI
+    
+    classDef mobile fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    classDef new fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000
+    classDef existing fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px,color:#000
+    classDef infrastructure fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#000
+    
+    class PWA,iOS,Android mobile
+    class Server,Auth,WS,GitHub,GitLab new
+    class Electron,CLI,Core,Store,Git,Amp,Worktrees,AmpCLI,Local,Notifier existing
+    class Gateway infrastructure

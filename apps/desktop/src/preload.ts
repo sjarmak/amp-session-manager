@@ -40,7 +40,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     rollbackToCommit: (sessionId: string, commitSha: string) => ipcRenderer.invoke('sessions:rollbackToCommit', sessionId, commitSha) as Promise<{ success: boolean; error?: string }>,
     squashCommits: (sessionId: string, options: any) => ipcRenderer.invoke('sessions:squashCommits', sessionId, options) as Promise<{ success: boolean; error?: string }>,
     openInEditor: (sessionId: string) => ipcRenderer.invoke('sessions:openInEditor', sessionId) as Promise<{ success: boolean; error?: string }>,
-    setAutoCommit: (sessionId: string, autoCommit: boolean) => ipcRenderer.invoke('sessions:setAutoCommit', sessionId, autoCommit) as Promise<{ success: boolean; error?: string }>
+    setAutoCommit: (sessionId: string, autoCommit: boolean) => ipcRenderer.invoke('sessions:setAutoCommit', sessionId, autoCommit) as Promise<{ success: boolean; error?: string }>,
+    
+    // Enhanced Git Actions
+    stageFiles: (sessionId: string, files: string[]) => ipcRenderer.invoke('sessions:stageFiles', sessionId, files) as Promise<{ success: boolean; error?: string }>,
+    unstageFiles: (sessionId: string, files: string[]) => ipcRenderer.invoke('sessions:unstageFiles', sessionId, files) as Promise<{ success: boolean; error?: string }>,
+    commitAmend: (sessionId: string, message: string) => ipcRenderer.invoke('sessions:commitAmend', sessionId, message) as Promise<{ success: boolean; result?: { commitSha: string }; error?: string }>,
+    resetToCommit: (sessionId: string, commitRef: string, soft?: boolean) => ipcRenderer.invoke('sessions:resetToCommit', sessionId, commitRef, soft) as Promise<{ success: boolean; error?: string }>,
+    cherryPick: (sessionId: string, shas: string[]) => ipcRenderer.invoke('sessions:cherryPick', sessionId, shas) as Promise<{ success: boolean; error?: string }>,
+    getDiff: (sessionId: string, filePath?: string) => ipcRenderer.invoke('sessions:getDiff', sessionId, filePath) as Promise<{ success: boolean; result?: { diff: string }; error?: string }>
   },
 
   // Main repository git operations

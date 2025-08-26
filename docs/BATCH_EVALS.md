@@ -1,6 +1,6 @@
 # Batch Evaluations
 
-The Amp Session Manager supports batch execution of multiple sessions for evaluation and testing purposes. This allows you to run the same or different prompts across multiple repositories with controlled concurrency and comprehensive reporting.
+The Amp Session Conductor supports batch execution of multiple sessions for evaluation and testing purposes. This allows you to run the same or different prompts across multiple repositories with controlled concurrency and comprehensive reporting.
 
 ## Using the Desktop UI
 
@@ -8,7 +8,7 @@ The desktop app provides a user-friendly interface for creating, monitoring, and
 
 ### Accessing Batches
 
-1. Open the Amp Session Manager desktop app
+1. Open the Amp Session Conductor desktop app
 2. Click on the **Batches** tab in the top navigation
 3. You'll see a list of all batch runs with their status and progress
 
@@ -228,7 +228,7 @@ Reports include:
 
 ## Integration with Existing Features
 
-Batch execution fully integrates with existing Amp Session Manager features:
+Batch execution fully integrates with existing Amp Session Conductor features:
 - All telemetry collection (tokens, tool calls, timing)
 - Git operations (squash, rebase, merge)
 - Test script execution and result tracking

@@ -15,17 +15,19 @@ interface SessionViewProps {
   session: Session;
   onBack: () => void;
   onSessionUpdated: () => void;
-  initialTab?: "overview" | "actions" | "interactive" | "git";
+  onMergeCompleted?: () => void;
+  initialTab?: "overview" | "interactive" | "git";
 }
 
 export function SessionView({
   session,
   onBack,
   onSessionUpdated,
+  onMergeCompleted,
   initialTab,
 }: SessionViewProps) {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "actions" | "interactive" | "git"
+    "overview" | "interactive" | "git"
   >(initialTab || "overview");
   
   // Restore tab from localStorage on mount, unless initialTab is specified
@@ -34,7 +36,7 @@ export function SessionView({
       setActiveTab(initialTab);
     } else {
       const saved = localStorage.getItem(`sessionTab_${session.id}`);
-      const validTabs = ["overview", "actions", "interactive", "git"];
+      const validTabs = ["overview", "interactive", "git"];
       if (saved && validTabs.includes(saved)) {
         setActiveTab(saved as any);
       }
@@ -47,8 +49,7 @@ export function SessionView({
   }, [activeTab, session.id]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [iterationNotes, setIterationNotes] = useState("");
-  const [includeContext, setIncludeContext] = useState(false);
+
   
   const [threads, setThreads] = useState<Array<{
     id: string;
@@ -68,8 +69,7 @@ export function SessionView({
     createdAt: string;
     idx: number;
   }>>>({});
-  const [squashMessage, setSquashMessage] = useState("");
-  const [rebaseTarget, setRebaseTarget] = useState(session.baseBranch);
+
   const [showMergeWizard, setShowMergeWizard] = useState(false);
 
   // Load threads and their messages
@@ -162,87 +162,7 @@ export function SessionView({
     }
   };
 
-  const handleIterate = async () => {
-    setLoading(true);
-    setError(null);
 
-    try {
-      const result = await window.electronAPI.sessions.iterate(
-        session.id,
-        iterationNotes.trim() || undefined,
-        includeContext
-      );
-
-      if (result && result.success) {
-        onSessionUpdated();
-        setIterationNotes("");
-        setIncludeContext(false);
-      } else {
-        setError((result && result.error) || "Failed to continue thread");
-      }
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to continue thread"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSquash = async () => {
-    if (!squashMessage.trim()) {
-      setError("Please provide a commit message for squash");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await window.electronAPI.sessions.squash(
-        session.id,
-        squashMessage
-      );
-
-      if (result && result.success) {
-        onSessionUpdated();
-        setSquashMessage("");
-      } else {
-        setError((result && result.error) || "Failed to squash commits");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to squash commits");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRebase = async () => {
-    if (!rebaseTarget.trim()) {
-      setError("Please provide a target branch for rebase");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await window.electronAPI.sessions.rebase(
-        session.id,
-        rebaseTarget
-      );
-
-      if (result && result.success) {
-        onSessionUpdated();
-      } else {
-        setError((result && result.error) || "Failed to rebase");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to rebase");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getStatusColor = (status: Session["status"]) => {
     switch (status) {
@@ -294,7 +214,7 @@ export function SessionView({
       )}
 
       <div className="flex space-x-1 border-b border-gruvbox-bg4">
-        {["overview", "actions", "interactive", "git"].map((tab) => (
+        {["overview", "interactive", "git"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as any)}
@@ -304,7 +224,7 @@ export function SessionView({
                 : "text-gruvbox-fg2 hover:text-gruvbox-fg1"
             }`}
           >
-            {tab}
+            {tab === "interactive" ? "Amp Chat" : tab}
           </button>
         ))}
       </div>
@@ -397,6 +317,28 @@ export function SessionView({
                   </dd>
                 </div>
               )}
+              {session.threadId && (
+                <div className="sm:col-span-2">
+                  <dt className="text-sm font-medium text-gruvbox-fg2">
+                    Amp Thread
+                  </dt>
+                  <dd className="mt-1 text-sm text-gruvbox-fg1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono bg-gruvbox-bg2 px-2 py-1 rounded">
+                        {session.threadId}
+                      </span>
+                      <a 
+                        href={`https://ampcode.com/threads/${session.threadId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gruvbox-bright-blue hover:text-gruvbox-blue text-sm font-medium transition-colors"
+                      >
+                        View on Amp →
+                      </a>
+                    </div>
+                  </dd>
+                </div>
+              )}
             </dl>
           </div>
 
@@ -417,14 +359,31 @@ export function SessionView({
               
               {threads.map((thread, index) => (
                 <div key={thread.id} className="bg-gruvbox-bg1 p-6 rounded-lg border border-gruvbox-bg3">
-                  <div className="flex items-center mb-4">
+                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center">
                     <ChatBubbleLeftRightIcon className="w-5 h-5 text-gruvbox-bright-blue mr-2" />
-                    <h4 className="text-lg font-semibold text-gruvbox-fg0">
+                  <h4 className="text-lg font-semibold text-gruvbox-fg0">
                       {thread.name}
                     </h4>
-                    <span className="ml-2 text-xs text-gruvbox-fg2 bg-gruvbox-bg2 px-2 py-1 rounded">
+                  <span className="ml-2 text-xs text-gruvbox-fg2 bg-gruvbox-bg2 px-2 py-1 rounded">
                       #{index + 1}
-                    </span>
+                      </span>
+                    </div>
+                    
+                    {/* Extract thread ID from thread name and create amp link */}
+                    {(() => {
+                      const threadIdMatch = thread.name.match(/T-[a-f0-9-]+/i);
+                      return threadIdMatch ? (
+                        <a 
+                          href={`https://ampcode.com/threads/${threadIdMatch[0]}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gruvbox-bright-blue hover:text-gruvbox-blue text-sm font-medium bg-gruvbox-bg2 px-3 py-1 rounded transition-colors"
+                        >
+                          View on Amp →
+                        </a>
+                      ) : null;
+                    })()}
                   </div>
                   
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-4">
@@ -609,113 +568,7 @@ export function SessionView({
         </div>
       )}
 
-      {activeTab === "actions" && (
-        <div className="space-y-6">
-          <div className="bg-gruvbox-bg1 p-6 rounded-lg border border-gruvbox-bg3">
-            <h3 className="text-lg font-semibold mb-4 text-gruvbox-fg0">Continue Thread</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gruvbox-fg2 mb-1">
-                  Send followup message
-                </label>
-                <textarea
-                  value={iterationNotes}
-                  onChange={(e) => setIterationNotes(e.target.value)}
-                  rows={2}
-                  className="w-full px-3 py-2 bg-gruvbox-bg2 border border-gruvbox-bg3 text-gruvbox-fg1 rounded-md focus:outline-none focus:ring-2 focus:ring-gruvbox-bright-blue"
-                  placeholder="Message to continue the thread..."
-                />
-              </div>
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="includeContextFollow"
-                  checked={includeContext}
-                  onChange={(e) => setIncludeContext(e.target.checked)}
-                  className="mr-2 rounded border-gruvbox-bg3 text-gruvbox-bright-blue focus:ring-gruvbox-bright-blue"
-                />
-                <label htmlFor="includeContextFollow" className="text-sm text-gruvbox-fg2">
-                  Include CONTEXT.md file content if it exists
-                </label>
-              </div>
-              <button
-                onClick={handleIterate}
-                disabled={loading || session.status === "running"}
-                className="px-4 py-2 bg-gruvbox-bright-blue text-gruvbox-bg0 rounded-md hover:bg-gruvbox-blue disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? "Running..." : "Continue Thread"}
-              </button>
-            </div>
-          </div>
 
-          <div className="bg-gruvbox-bg1 p-6 rounded-lg border border-gruvbox-bg3">
-            <h3 className="text-lg font-semibold mb-4 text-gruvbox-fg0">Squash Commits</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gruvbox-fg2 mb-1">
-                  Commit Message
-                </label>
-                <input
-                  type="text"
-                  value={squashMessage}
-                  onChange={(e) => setSquashMessage(e.target.value)}
-                  className="w-full px-3 py-2 bg-gruvbox-bg2 border border-gruvbox-bg3 text-gruvbox-fg1 rounded-md focus:outline-none focus:ring-2 focus:ring-gruvbox-bright-blue"
-                  placeholder={`feat: ${session.name}`}
-                />
-              </div>
-              <button
-                onClick={handleSquash}
-                disabled={loading}
-                className="px-4 py-2 bg-gruvbox-bright-blue text-gruvbox-bg0 rounded-md hover:bg-gruvbox-blue disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? "Squashing..." : "Squash Commits"}
-              </button>
-            </div>
-          </div>
-
-          <div className="bg-gruvbox-bg1 p-6 rounded-lg border border-gruvbox-bg3">
-            <h3 className="text-lg font-semibold mb-4 text-gruvbox-fg0">Rebase Session</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gruvbox-fg2 mb-1">
-                  Target Branch
-                </label>
-                <input
-                  type="text"
-                  value={rebaseTarget}
-                  onChange={(e) => setRebaseTarget(e.target.value)}
-                  className="w-full px-3 py-2 bg-gruvbox-bg2 border border-gruvbox-bg3 text-gruvbox-fg1 rounded-md focus:outline-none focus:ring-2 focus:ring-gruvbox-bright-blue"
-                  placeholder={session.baseBranch}
-                />
-              </div>
-              <button
-                onClick={handleRebase}
-                disabled={loading}
-                className="px-4 py-2 bg-gruvbox-bright-blue text-gruvbox-bg0 rounded-md hover:bg-gruvbox-blue disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? "Rebasing..." : "Rebase onto Target"}
-              </button>
-            </div>
-          </div>
-
-          <div className="bg-gruvbox-bg1 p-6 rounded-lg border border-gruvbox-bright-green">
-            <h3 className="text-lg font-semibold mb-4 text-gruvbox-fg0">
-              Merge to Main
-            </h3>
-            <p className="text-gruvbox-fg2 mb-4">
-              Use the merge wizard to squash commits, rebase, and merge to the
-              base branch in one guided flow.
-            </p>
-            <button
-              onClick={() => setShowMergeWizard(true)}
-              disabled={loading}
-              className="px-6 py-3 bg-gruvbox-bright-green text-gruvbox-bg0 rounded-md hover:bg-gruvbox-green disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
-            >
-              Start Merge Wizard
-            </button>
-          </div>
-        </div>
-      )}
 
 
 
@@ -737,7 +590,7 @@ export function SessionView({
         <MergeWizard
           session={session}
           onClose={() => setShowMergeWizard(false)}
-          onComplete={onSessionUpdated}
+          onComplete={onMergeCompleted || onSessionUpdated}
         />
       )}
     </div>

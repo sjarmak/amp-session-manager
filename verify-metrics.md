@@ -1,4 +1,4 @@
-# Amp Session Manager - Metrics Implementation Status
+# Amp Session Conductor - Metrics Implementation Status
 
 ## What Was Implemented ✅
 

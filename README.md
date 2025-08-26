@@ -8,17 +8,20 @@ Amp Session Manager wraps the Amp coding agent in a reproducible Git workflow. E
 
 ## Core Capabilities
 
-- 🔄 **Isolated Git Worktree Sessions**: Each session runs in `<repo>/.worktrees/<session-id>` on branch `amp/<slug>/<timestamp>`
-- 📝 **Deterministic, Atomic Commits**: Every Amp iteration creates a commit with `amp:` prefix  
-- 🔍 **Reviewable History**: Track all changes through desktop UI diff viewer and CLI
-- 🧹 **Safe Merge Workflow**: Squash → rebase → merge with conflict resolution
-- ⚡ **Parallel Execution**: Run multiple sessions simultaneously with file-system locks
-- 🧪 **Test Integration**: Run validation scripts per session with automatic gating
-- 📊 **Batch Processing**: Execute hundreds of prompts across repositories from YAML configs
-- 💰 **Cost & Usage Tracking**: Monitor token usage, tool calls, and costs across all models
-- 📈 **Rich Telemetry**: SQLite storage with NDJSON/CSV export for analytics
-- 🔔 **Smart Notifications**: Desktop, email, and webhook alerts for session events
-- 🎯 **Benchmark Support**: SWE-bench integration for software engineering research
+- **Isolated Git Worktree Sessions**: Each session runs in `<repo>/.worktrees/<session-id>` on branch `amp/<slug>/<timestamp>`
+- **Deterministic, Atomic Commits**: Every Amp iteration creates a commit with `amp:` prefix  
+- **Reviewable History**: Track all changes through desktop UI diff viewer and CLI
+- **Safe Merge Workflow**: Squash → rebase → merge with conflict resolution
+- **Parallel Execution**: Run multiple sessions simultaneously with file-system locks
+- **Test Integration**: Run validation scripts per session with automatic gating
+- **Batch Processing**: Execute hundreds of prompts across repositories from YAML configs
+- **Real-time Streaming**: Live monitoring of Amp iterations with JSON-structured telemetry
+- **Cost & Usage Tracking**: Monitor token usage, tool calls, and costs across all models
+- **Rich Telemetry**: SQLite storage with NDJSON/CSV export for analytics
+- **Smart Notifications**: Desktop, email, and webhook alerts for session events
+- **Interactive Mode**: Threading support for multi-turn conversations with Amp
+- **Timeline View**: Visual diff review with chronological change tracking
+- **Benchmark Support**: SWE-bench integration for software engineering research
 
 ## Architecture
 
@@ -41,9 +44,9 @@ amp-session-manager/
 - **Storage**: SQLite via `better-sqlite3` for session metadata
 - **Git Operations**: System `git` via child processes
 - **Testing**: Vitest + ts-node
-- **CI**: GitHub Actions
+- **CI**: GitHub Actions (lint, typecheck, unit tests)
 
-## Quick Start
+## Installation
 
 ### Prerequisites
 
@@ -52,12 +55,14 @@ amp-session-manager/
 - **Git**: >= 2.38 (for improved worktree support)
 - **Amp CLI**: Installed and authenticated (`npm install -g @amp/cli && amp auth`)
 
-### Installation
+### Setup
 
 ```bash
-# Clone and install dependencies
+# Clone repository
 git clone https://github.com/sjarmak/amp-session-manager.git
 cd amp-session-manager
+
+# Install dependencies
 pnpm install
 
 # Build all packages
@@ -65,6 +70,9 @@ pnpm build
 
 # Verify Amp integration
 pnpm cli verify-amp
+
+# Start desktop application
+pnpm dev
 ```
 
 ### Development
@@ -81,55 +89,104 @@ pnpm test
 
 # Type checking across workspace
 pnpm typecheck
+
+# Code linting
+pnpm lint
 ```
 
-### Desktop UI
+## Desktop Application
 
-The `pnpm dev` command launches an **Electron desktop application** with a React-based interface for managing sessions:
+The desktop application provides a comprehensive GUI for managing Amp sessions:
 
-**Main Features:**
-- **Session Dashboard**: Visual overview of all sessions with status indicators
-- **Live Session Monitoring**: Real-time updates as Amp works on sessions
-- **Diff Viewer**: Side-by-side comparison of changes with syntax highlighting  
+### Main Features
+
+- **Session Dashboard**: Visual overview of all sessions with real-time status indicators
+- **Live Session Monitoring**: Real-time updates as Amp executes iterations with streaming telemetry
+- **Diff Viewer**: Side-by-side comparison of changes with syntax highlighting and timeline view
 - **Merge Wizard**: Guided workflow for squashing, rebasing, and merging sessions
 - **Batch Run Management**: Visual interface for executing and monitoring batch operations
 - **Metrics Dashboard**: Charts showing token usage, costs, and performance across sessions
-- **Notification Center**: Desktop notifications for session completion and errors
+- **Notification Center**: Cross-platform desktop notifications for session events
 - **Thread Integration**: View and manage Amp conversation threads directly
+- **Interactive Mode**: Multi-turn conversations with threading support
 
-**Navigation:**
-- Sessions tab: Create, iterate, and manage individual sessions
-- Batches tab: Configure and monitor multi-session batch runs  
-- Metrics tab: Analyze performance and costs across all sessions
-- Settings: Configure notifications, Amp integration, and preferences
+### Navigation
 
-The desktop app provides a user-friendly alternative to the CLI, especially useful for reviewing diffs, managing multiple sessions, and monitoring long-running batch operations.
+- **Sessions Tab**: Create, iterate, and manage individual sessions
+- **Batches Tab**: Configure and monitor multi-session batch runs  
+- **Metrics Tab**: Analyze performance and costs across all sessions
+- **Settings Tab**: Configure notifications, Amp integration, and preferences
 
-### CLI Usage
+## CLI Interface
+
+### Session Management
 
 ```bash
-# Session Management
+# Create new session
 amp-sessions new --repo ./my-repo --name "feature-x" --prompt "Implement feature X"
-amp-sessions list                                               # List all sessions with status
-amp-sessions iterate <session-id>                              # Run Amp iteration  
-amp-sessions diff <session-id>                                 # View session changes
-amp-sessions logs <session-id> --follow                        # Stream Amp logs
 
-# Git Workflow
+# List all sessions with status
+amp-sessions list
+
+# Run Amp iteration with streaming
+amp-sessions iterate <session-id> --stream
+
+# View session changes and timeline
+amp-sessions diff <session-id>
+
+# Stream Amp logs in real-time
+amp-sessions logs <session-id> --follow
+
+# Interactive mode with threading
+amp-sessions interactive <session-id>
+```
+
+### Git Workflow
+
+```bash
+# Squash all amp: commits into single commit
 amp-sessions squash <session-id> --message "feat: implement feature X"
-amp-sessions rebase <session-id> --onto main                   # Rebase onto target branch
-amp-sessions merge <session-id>                                # Complete merge workflow
-amp-sessions preflight <session-id>                            # Pre-merge validation
 
-# Batch Processing & Benchmarks
-amp-sessions batch start --file ./batch-config.yaml           # Execute batch from config
-amp-sessions batch export <run-id> --format csv --out ./data  # Export results
-amp-sessions bench <benchmark-suite>                          # Run SWE-bench tests
+# Rebase onto target branch with conflict resolution
+amp-sessions rebase <session-id> --onto main
 
-# Analytics & Reporting
-amp-sessions export --format ndjson --out sessions.jsonl      # Export all session data
-amp-sessions report --output report.md                        # Generate comprehensive report
-amp-sessions metrics <session-id>                             # Show session metrics
+# Complete merge workflow
+amp-sessions merge <session-id>
+
+# Pre-merge validation
+amp-sessions preflight <session-id>
+```
+
+### Batch Processing
+
+```bash
+# Execute batch from YAML configuration
+amp-sessions batch start --file ./batch-config.yaml
+
+# Monitor batch execution
+amp-sessions batch status <run-id>
+
+# Export batch results
+amp-sessions batch export <run-id> --format csv --out ./data
+
+# Run SWE-bench benchmarks
+amp-sessions bench <benchmark-suite>
+```
+
+### Analytics & Reporting
+
+```bash
+# Export all session data
+amp-sessions export --format ndjson --out sessions.jsonl
+
+# Generate comprehensive report
+amp-sessions report --output report.md
+
+# Show detailed session metrics
+amp-sessions metrics <session-id>
+
+# Stream JSON telemetry
+amp-sessions iterate <session-id> --stream-json
 ```
 
 ## Session Workflow
@@ -137,40 +194,68 @@ amp-sessions metrics <session-id>                             # Show session met
 1. **Create Session**: `amp-sessions new` creates isolated worktree and branch
 2. **Iterate**: Amp makes changes, commits automatically with `amp:` prefix, runs optional tests
 3. **Manual Edits**: Make changes anytime - they're tracked separately from Amp commits
-4. **Review**: Desktop UI diff viewer or `amp-sessions diff` to examine all changes  
+4. **Review**: Desktop UI diff viewer or `amp-sessions diff` to examine all changes with timeline view
 5. **Squash**: `amp-sessions squash` combines all `amp:` commits into single commit
 6. **Rebase**: `amp-sessions rebase` safely rebases onto target branch with conflict handling
-7. **Merge**: `amp-sessions merge` completes full workflow or create PR
+7. **Merge**: `amp-sessions merge` completes full workflow or creates PR
 
 ## Git Conventions
 
 - **Worktrees**: `<repo>/.worktrees/<session-id>`
 - **Branches**: `amp/<slug>/<timestamp>`
 - **Commit Messages**: Amp commits start with `amp:`, manual commits are free-form
-- **Squashing**: All `amp:` commits combined, manual commits preserved or included
+- **Squashing**: All `amp:` commits combined, manual commits preserved or included based on configuration
+
+## Configuration
+
+Sessions support flexible configuration through:
+
+- **Test Scripts**: Custom validation commands per session
+- **Model Override**: Specify different Amp models per session
+- **Notification Settings**: Configure desktop, email, and webhook alerts
+- **Telemetry Export**: Structured data export in NDJSON and CSV formats
+
+## Telemetry & Metrics
+
+The system captures comprehensive telemetry:
+
+- **Token Usage**: Input/output tokens per model and session
+- **Cost Tracking**: Real-time cost monitoring across all models
+- **Performance Metrics**: Iteration timing and throughput
+- **Git Operations**: Commit frequency, diff sizes, conflict rates
+- **Test Results**: Validation script success rates and timing
+- **Error Analysis**: Categorized failure modes and recovery patterns
 
 ## Troubleshooting
 
 ### Common Issues
 
-**IPC Handler Errors**: If you see "No handler registered" errors, restart the desktop app. Handlers are now registered immediately to prevent race conditions.
+**IPC Handler Errors**: If you see "No handler registered" errors, restart the desktop app. Handlers are registered immediately to prevent race conditions.
 
-**Build Failures**: Ensure all dependencies are installed with `pnpm install` and run `pnpm build` to verify everything compiles.
+**Build Failures**: Ensure all dependencies are installed with `pnpm install` and run `pnpm build` to verify compilation.
 
-**Git Worktree Issues**: If sessions fail to create, check that the target repository is clean and the base branch exists.
+**Git Worktree Issues**: Check that the target repository is clean and the base branch exists before creating sessions.
 
-### Development Commands
+**Streaming Issues**: If `--stream-json` fails, ensure you're using `--execute` mode for JSON streaming.
+
+### Verification Commands
 
 ```bash
-pnpm dev        # Start desktop app in development mode
-pnpm test       # Run all tests
-pnpm typecheck  # TypeScript type checking
-pnpm lint       # Code linting
+# Verify installation
+pnpm cli verify-amp
+
+# Check system dependencies
+pnpm cli doctor
+
+# Test Git operations
+pnpm cli test-git
 ```
 
-## Development
+## Documentation
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed technical documentation and [GIT-WORKTREES.md](./GIT-WORKTREES.md) for Git workflow details.
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - Detailed technical documentation
+- [GIT-WORKTREES.md](./GIT-WORKTREES.md) - Git workflow specifications
+- [AGENT.md](./AGENT.md) - Agent instruction guidelines
 
 ## License
 

@@ -8,7 +8,7 @@ import { GitOps } from '@ampsm/core';
 import { ensureAmpAuth, loadAmpAuthConfig, ampArgsFromEnv, getAmpVersion, hasAuthEnvironment } from '../utils/amp-auth.js';
 
 export async function verifyAmpCommand() {
-  console.log('🔍 Amp Session Manager - Verification Check\n');
+  console.log('🔍 Amp Session Conductor - Verification Check\n');
 
   let tempDir: string | null = null;
   let success = true;
