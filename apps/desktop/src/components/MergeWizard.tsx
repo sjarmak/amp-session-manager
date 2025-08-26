@@ -362,11 +362,22 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
                 Re-run Checks
               </button>
               <button
+                onClick={() => {
+                  markStepCompleted('squash');
+                  setCurrentStep('rebase');
+                  runRebase();
+                }}
+                disabled={!preflightResult || loading || preflightResult.issues.length > 0}
+                className="px-4 py-2 border border-gruvbox-green/30 text-gruvbox-green rounded hover:bg-gruvbox-green/10 hover:border-gruvbox-green/50 disabled:opacity-50 transition-colors"
+              >
+                Skip Squash
+              </button>
+              <button
                 onClick={() => setCurrentStep('squash')}
-                disabled={!preflightResult || loading}
+                disabled={!preflightResult || loading || preflightResult.issues.length > 0}
                 className="px-4 py-2 bg-gruvbox-green text-gruvbox-dark0 rounded hover:bg-gruvbox-green disabled:opacity-50 transition-colors"
               >
-                Continue
+                Continue to Squash
               </button>
             </div>
           </div>

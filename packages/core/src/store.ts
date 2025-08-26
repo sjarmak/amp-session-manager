@@ -21,6 +21,7 @@ export class SessionStore {
       
       this.initTables();
       this.migrateThreadIds();
+      this.migrateAutoCommitDefault();
     } catch (error) {
       console.error('Failed to initialize SQLite database:', error);
       throw new Error(`Database initialization failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -46,7 +47,8 @@ export class SessionStore {
         lastRun TEXT,
         notes TEXT,
         contextIncluded BOOLEAN,
-        mode TEXT DEFAULT 'async'
+        mode TEXT DEFAULT 'async',
+        autoCommit BOOLEAN DEFAULT 0
       );
 
       CREATE TABLE IF NOT EXISTS iterations (
@@ -238,6 +240,13 @@ export class SessionStore {
     } catch (error) {
       // Column already exists, ignore error
     }
+
+    // Migration: Add autoCommit column if it doesn't exist
+    try {
+      this.db.exec(`ALTER TABLE sessions ADD COLUMN autoCommit BOOLEAN DEFAULT 1;`);
+    } catch (error) {
+      // Column already exists, ignore error
+    }
     
     // Migration: Make ampPrompt nullable for interactive sessions
     try {
@@ -351,7 +360,8 @@ export class SessionStore {
     return {
       ...row,
       followUpPrompts: row.followUpPrompts ? JSON.parse(row.followUpPrompts) : undefined,
-      contextIncluded: Boolean(row.contextIncluded)
+      contextIncluded: Boolean(row.contextIncluded),
+      autoCommit: row.autoCommit !== undefined ? Boolean(row.autoCommit) : true
     } as Session;
   }
 
@@ -361,7 +371,8 @@ export class SessionStore {
     return rows.map(row => ({
       ...row,
       followUpPrompts: row.followUpPrompts ? JSON.parse(row.followUpPrompts) : undefined,
-      contextIncluded: Boolean(row.contextIncluded)
+      contextIncluded: Boolean(row.contextIncluded),
+      autoCommit: row.autoCommit !== undefined ? Boolean(row.autoCommit) : true
     })) as Session[];
   }
 
@@ -373,6 +384,31 @@ export class SessionStore {
   updateSessionThreadId(id: string, threadId: string) {
     const stmt = this.db.prepare('UPDATE sessions SET threadId = ? WHERE id = ?');
     stmt.run(threadId, id);
+  }
+
+  async syncAllSessionThreadIds() {
+    const { getCurrentAmpThreadId } = await import('./amp-utils.js');
+    const currentThreadId = await getCurrentAmpThreadId();
+    
+    if (!currentThreadId) {
+      return; // No current thread ID available
+    }
+
+    // Get sessions that don't have a threadId set
+    const sessionsWithoutThreadId = this.db.prepare('SELECT id FROM sessions WHERE threadId IS NULL OR threadId = ""').all() as { id: string }[];
+    
+    // Update them with the current thread ID
+    const updateStmt = this.db.prepare('UPDATE sessions SET threadId = ? WHERE id = ?');
+    for (const session of sessionsWithoutThreadId) {
+      updateStmt.run(currentThreadId, session.id);
+    }
+    
+    console.log(`Synced ${sessionsWithoutThreadId.length} sessions with thread ID: ${currentThreadId}`);
+  }
+
+  updateSessionAutoCommit(id: string, autoCommit: boolean) {
+    const stmt = this.db.prepare('UPDATE sessions SET autoCommit = ? WHERE id = ?');
+    stmt.run(autoCommit ? 1 : 0, id);
   }
 
   addFollowUpPrompt(id: string, followUpPrompt: string, includeContext?: boolean) {
@@ -954,6 +990,29 @@ export class SessionStore {
       console.log(`Successfully migrated ${threadsToMigrate.length} thread IDs`);
     } catch (error) {
       console.error('Failed to migrate thread IDs:', error);
+    }
+  }
+
+  migrateAutoCommitDefault(): void {
+    console.log('Running autoCommit migration...');
+    try {
+      // First check current state
+      const countStmt = this.db.prepare(`SELECT COUNT(*) as count FROM sessions WHERE mode = 'interactive' AND autoCommit = 1`);
+      const beforeCount = countStmt.get() as { count: number };
+      console.log(`Found ${beforeCount.count} interactive sessions with autoCommit=true`);
+      
+      // Update all sessions that have autoCommit = 1 (true) to 0 (false) for interactive sessions
+      // This makes interactive sessions default to staging instead of auto-committing
+      const updateStmt = this.db.prepare(`
+        UPDATE sessions 
+        SET autoCommit = 0 
+        WHERE mode = 'interactive' AND autoCommit = 1
+      `);
+      
+      const result = updateStmt.run();
+      console.log(`Migration result: changed ${result.changes} rows`);
+    } catch (error) {
+      console.error('Failed to migrate autoCommit defaults:', error);
     }
   }
 

@@ -61,6 +61,8 @@ function App() {
 
   const handleSessionUpdated = () => {
     setRefreshKey(prev => prev + 1);
+    // Clear the newInteractiveSessionId flag to prevent forcing tab back to interactive
+    setNewInteractiveSessionId(null);
   };
 
   const handleBatchRunSelect = (runId: string) => {

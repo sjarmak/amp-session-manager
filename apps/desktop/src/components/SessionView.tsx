@@ -5,6 +5,7 @@ import { SessionMetrics } from "./SessionMetrics";
 import { JSONMetrics } from "./JSONMetrics";
 import { InteractiveTab } from "./InteractiveTab";
 import { ToolCallDisplay } from "./ToolCallDisplay";
+import { GitActionsTab } from "./GitActionsTab";
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
 
@@ -14,7 +15,7 @@ interface SessionViewProps {
   session: Session;
   onBack: () => void;
   onSessionUpdated: () => void;
-  initialTab?: "overview" | "actions" | "interactive";
+  initialTab?: "overview" | "actions" | "interactive" | "git";
 }
 
 export function SessionView({
@@ -24,7 +25,7 @@ export function SessionView({
   initialTab,
 }: SessionViewProps) {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "actions" | "interactive"
+    "overview" | "actions" | "interactive" | "git"
   >(initialTab || "overview");
   
   // Temporarily disabled localStorage tab restoration for debugging
@@ -289,7 +290,7 @@ export function SessionView({
       )}
 
       <div className="flex space-x-1 border-b border-gruvbox-bg4">
-        {["overview", "actions", "interactive"].map((tab) => (
+        {["overview", "actions", "interactive", "git"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as any)}
@@ -719,6 +720,12 @@ export function SessionView({
       {activeTab === "interactive" && (
         <div className="bg-gruvbox-bg1 rounded-lg border border-gruvbox-bg3">
           <InteractiveTab session={session} />
+        </div>
+      )}
+
+      {activeTab === "git" && (
+        <div className="bg-gruvbox-bg1 rounded-lg border border-gruvbox-bg3">
+          <GitActionsTab session={session} onSessionUpdate={onSessionUpdated} />
         </div>
       )}
 

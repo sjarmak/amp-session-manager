@@ -247,7 +247,22 @@ export class GitOps {
   }
 
   async stageAllChanges(worktreePath: string): Promise<void> {
-    await this.exec(['add', '-A'], worktreePath);
+    console.log(`Staging all changes in ${worktreePath}`);
+    
+    // Show what files exist before staging
+    const statusResult = await this.exec(['status', '--porcelain'], worktreePath);
+    console.log(`Files before staging: "${statusResult.stdout.trim()}"`);
+    
+    const result = await this.exec(['add', '-A'], worktreePath);
+    if (result.exitCode === 0) {
+      console.log(`Successfully staged all changes in ${worktreePath}`);
+      
+      // Show what got staged
+      const stagedResult = await this.exec(['diff', '--cached', '--name-only'], worktreePath);
+      console.log(`Staged files: "${stagedResult.stdout.trim()}"`);
+    } else {
+      console.error(`Failed to stage changes: ${result.stderr}`);
+    }
   }
 
   async getChangedFiles(worktreePath: string): Promise<string[]> {
@@ -387,6 +402,96 @@ export class GitOps {
     // Check if HEAD is reachable from baseBranch (i.e., the session has been merged)
     const result = await this.exec(['merge-base', '--is-ancestor', 'HEAD', baseBranch], worktreePath);
     return result.exitCode === 0;
+  }
+
+  // New git operations for GitActionsTab
+  async hasUnstagedChanges(worktreePath: string): Promise<boolean> {
+    // Check for modified/deleted files (tracked files with changes)
+    const diffResult = await this.exec(['diff', '--quiet'], worktreePath);
+    const hasModifiedFiles = diffResult.exitCode !== 0;
+    console.log(`hasUnstagedChanges: modified files = ${hasModifiedFiles}`);
+    
+    if (hasModifiedFiles) {
+      return true;
+    }
+    
+    // Check for untracked files (new files)
+    const statusResult = await this.exec(['ls-files', '--others', '--exclude-standard'], worktreePath);
+    const untrackedFiles = statusResult.stdout.trim();
+    console.log(`hasUnstagedChanges: untracked files = "${untrackedFiles}"`);
+    return untrackedFiles.length > 0;
+  }
+
+  async hasStagedChanges(worktreePath: string): Promise<boolean> {
+    const result = await this.exec(['diff', '--cached', '--quiet'], worktreePath);
+    return result.exitCode !== 0; // Non-zero means there are staged changes
+  }
+
+  async getUnstagedFiles(worktreePath: string): Promise<string[]> {
+    const result = await this.exec(['diff', '--name-only'], worktreePath);
+    return result.stdout.trim().split('\n').filter(line => line.length > 0);
+  }
+
+  async getStagedFiles(worktreePath: string): Promise<string[]> {
+    const result = await this.exec(['diff', '--cached', '--name-only'], worktreePath);
+    return result.stdout.trim().split('\n').filter(line => line.length > 0);
+  }
+
+  async isClean(worktreePath: string): Promise<boolean> {
+    const result = await this.exec(['status', '--porcelain'], worktreePath);
+    return result.stdout.trim().length === 0;
+  }
+
+  async getCommitHistory(worktreePath: string, limit: number = 20): Promise<Array<{
+    sha: string;
+    message: string;
+    author: string;
+    date: string;
+  }>> {
+    const result = await this.exec([
+      'log',
+      '--format=%H|%s|%an|%ai',
+      `-${limit}`,
+      'HEAD'
+    ], worktreePath);
+
+    return result.stdout.trim().split('\n')
+      .filter(line => line.length > 0)
+      .map(line => {
+        const [sha, message, author, date] = line.split('|');
+        return { sha, message, author, date };
+      });
+  }
+
+  async unstageAllChanges(worktreePath: string): Promise<void> {
+    await this.exec(['reset', 'HEAD'], worktreePath);
+  }
+
+  async commitStagedChanges(worktreePath: string, message: string): Promise<string> {
+    const result = await this.exec(['commit', '-m', message], worktreePath);
+    if (result.exitCode !== 0) {
+      throw new Error(`Commit failed: ${result.stderr}`);
+    }
+    
+    // Get the commit SHA
+    const shaResult = await this.exec(['rev-parse', 'HEAD'], worktreePath);
+    return shaResult.stdout.trim();
+  }
+
+  async resetToCommit(worktreePath: string, commitRef: string, options: { hard?: boolean } = {}): Promise<void> {
+    const args = ['reset'];
+    if (options.hard === true) {
+      args.push('--hard');
+    } else if (options.hard === false) {
+      args.push('--soft');
+    }
+    // If no hard option specified, use default reset (mixed)
+    args.push(commitRef);
+    
+    const result = await this.exec(args, worktreePath);
+    if (result.exitCode !== 0) {
+      throw new Error(`Reset failed: ${result.stderr}`);
+    }
   }
 
   private async cleanupGitLocks(): Promise<void> {

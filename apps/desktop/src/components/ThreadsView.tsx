@@ -31,6 +31,16 @@ export function ThreadsView({ currentSessionId }: ThreadsViewProps) {
       setLoading(true);
       setError(null);
       
+      // First, sync thread IDs for all sessions with the current Amp thread
+      try {
+        if (window.electronAPI.sessions.syncThreadIds) {
+          await window.electronAPI.sessions.syncThreadIds();
+        }
+      } catch (syncError) {
+        console.warn('Failed to sync thread IDs:', syncError);
+        // Continue with loading sessions even if sync fails
+      }
+      
       // Get sessions that have threads using Electron API
       const allSessions = await window.electronAPI.sessions.list();
       let sessionList = allSessions.filter(session => session.threadId);

@@ -16,6 +16,7 @@ export interface Session {
   lastRun?: string;
   notes?: string;
   mode?: 'async' | 'interactive';
+  autoCommit?: boolean; // If false, stage changes instead of committing them
 }
 
 export interface IterationRecord {

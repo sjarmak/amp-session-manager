@@ -26,9 +26,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     thread: (sessionId: string) => ipcRenderer.invoke('sessions:thread', sessionId) as Promise<{ success: boolean; threadConversation?: string; error?: string }>,
     getThreads: (sessionId: string) => ipcRenderer.invoke('sessions:getThreads', sessionId) as Promise<{ success: boolean; threads?: any[]; error?: string }>,
     getThreadMessages: (threadId: string) => ipcRenderer.invoke('sessions:getThreadMessages', threadId) as Promise<{ success: boolean; messages?: any[]; error?: string }>,
+    syncThreadIds: () => ipcRenderer.invoke('sessions:syncThreadIds') as Promise<{ success: boolean; error?: string }>,
     getIterations: (sessionId: string) => ipcRenderer.invoke('sessions:getIterations', sessionId) as Promise<{ success: boolean; iterations?: any[]; error?: string }>,
     getToolCalls: (sessionId: string) => ipcRenderer.invoke('sessions:getToolCalls', sessionId) as Promise<{ success: boolean; toolCalls?: any[]; error?: string }>,
-    getStreamEvents: (sessionId: string) => ipcRenderer.invoke('sessions:getStreamEvents', sessionId) as Promise<{ success: boolean; streamEvents?: any[]; error?: string }>
+    getStreamEvents: (sessionId: string) => ipcRenderer.invoke('sessions:getStreamEvents', sessionId) as Promise<{ success: boolean; streamEvents?: any[]; error?: string }>,
+    
+    // Git Actions methods
+    getGitStatus: (sessionId: string) => ipcRenderer.invoke('sessions:getGitStatus', sessionId) as Promise<{ success: boolean; result?: any; error?: string }>,
+    stageAllChanges: (sessionId: string) => ipcRenderer.invoke('sessions:stageAllChanges', sessionId) as Promise<{ success: boolean; error?: string }>,
+    unstageAllChanges: (sessionId: string) => ipcRenderer.invoke('sessions:unstageAllChanges', sessionId) as Promise<{ success: boolean; error?: string }>,
+    commitStagedChanges: (sessionId: string, message: string) => ipcRenderer.invoke('sessions:commitStagedChanges', sessionId, message) as Promise<{ success: boolean; result?: { commitSha: string }; error?: string }>,
+    rollbackLastCommit: (sessionId: string) => ipcRenderer.invoke('sessions:rollbackLastCommit', sessionId) as Promise<{ success: boolean; error?: string }>,
+    rollbackToCommit: (sessionId: string, commitSha: string) => ipcRenderer.invoke('sessions:rollbackToCommit', sessionId, commitSha) as Promise<{ success: boolean; error?: string }>,
+    squashCommits: (sessionId: string, options: any) => ipcRenderer.invoke('sessions:squashCommits', sessionId, options) as Promise<{ success: boolean; error?: string }>,
+    openInEditor: (sessionId: string) => ipcRenderer.invoke('sessions:openInEditor', sessionId) as Promise<{ success: boolean; error?: string }>,
+    setAutoCommit: (sessionId: string, autoCommit: boolean) => ipcRenderer.invoke('sessions:setAutoCommit', sessionId, autoCommit) as Promise<{ success: boolean; error?: string }>
   },
 
   interactive: {
@@ -125,6 +137,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   shell: {
     openPath: (path: string) => ipcRenderer.invoke('shell:openPath', path) as Promise<string>
+  },
+
+  // Event listeners for interactive changes
+  onInteractiveChangesStaged: (callback: (event: any, sessionId: string, data: any) => void) => {
+    ipcRenderer.on('interactive:changes-staged', callback);
+  },
+  
+  offInteractiveChangesStaged: (callback: (event: any, sessionId: string, data: any) => void) => {
+    ipcRenderer.removeListener('interactive:changes-staged', callback);
   }
 });
 

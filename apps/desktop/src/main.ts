@@ -239,6 +239,16 @@ ipcMain.handle('sessions:getThreadMessages', async (_, threadId: string) => {
   }
 });
 
+ipcMain.handle('sessions:syncThreadIds', async () => {
+  try {
+    await store.syncAllSessionThreadIds();
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to sync session thread IDs:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to sync thread IDs' };
+  }
+});
+
 ipcMain.handle('sessions:getIterations', async (_, sessionId: string) => {
   try {
     const iterations = store.getIterations(sessionId);
@@ -376,6 +386,193 @@ ipcMain.handle('sessions:export-patch', async (_, sessionId: string, outputPath:
   } catch (error) {
     console.error('Failed to export patch:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Failed to export patch' };
+  }
+});
+
+// New Git Actions handlers
+ipcMain.handle('sessions:getGitStatus', async (_, sessionId: string) => {
+  try {
+    const session = store.getSession(sessionId);
+    if (!session) {
+      return { success: false, error: 'Session not found' };
+    }
+
+    const { GitOps } = require('@ampsm/core');
+    const git = new GitOps(session.repoRoot);
+    
+    const [hasUnstagedChanges, hasStagedChanges, unstagedFiles, stagedFiles, isClean] = await Promise.all([
+      git.hasUnstagedChanges(session.worktreePath),
+      git.hasStagedChanges(session.worktreePath),
+      git.getUnstagedFiles(session.worktreePath),
+      git.getStagedFiles(session.worktreePath),
+      git.isClean(session.worktreePath)
+    ]);
+
+    // Get commit history
+    const commitHistory = await git.getCommitHistory(session.worktreePath, 20);
+
+    const result = {
+      hasUnstagedChanges,
+      hasStagedChanges,
+      unstagedFiles,
+      stagedFiles,
+      commitHistory,
+      isClean
+    };
+
+    return { success: true, result };
+  } catch (error) {
+    console.error('Failed to get git status:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to get git status' };
+  }
+});
+
+ipcMain.handle('sessions:stageAllChanges', async (_, sessionId: string) => {
+  try {
+    const session = store.getSession(sessionId);
+    if (!session) {
+      return { success: false, error: 'Session not found' };
+    }
+
+    const { GitOps } = require('@ampsm/core');
+    const git = new GitOps(session.repoRoot);
+    await git.stageAllChanges(session.worktreePath);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to stage all changes:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to stage all changes' };
+  }
+});
+
+ipcMain.handle('sessions:unstageAllChanges', async (_, sessionId: string) => {
+  try {
+    const session = store.getSession(sessionId);
+    if (!session) {
+      return { success: false, error: 'Session not found' };
+    }
+
+    const { GitOps } = require('@ampsm/core');
+    const git = new GitOps(session.repoRoot);
+    await git.unstageAllChanges(session.worktreePath);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to unstage all changes:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to unstage all changes' };
+  }
+});
+
+ipcMain.handle('sessions:commitStagedChanges', async (_, sessionId: string, message: string) => {
+  try {
+    const session = store.getSession(sessionId);
+    if (!session) {
+      return { success: false, error: 'Session not found' };
+    }
+
+    const { GitOps } = require('@ampsm/core');
+    const git = new GitOps(session.repoRoot);
+    const commitSha = await git.commitStagedChanges(session.worktreePath, message);
+    return { success: true, result: { commitSha } };
+  } catch (error) {
+    console.error('Failed to commit staged changes:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to commit staged changes' };
+  }
+});
+
+ipcMain.handle('sessions:rollbackLastCommit', async (_, sessionId: string) => {
+  try {
+    const session = store.getSession(sessionId);
+    if (!session) {
+      return { success: false, error: 'Session not found' };
+    }
+
+    const { GitOps } = require('@ampsm/core');
+    const git = new GitOps(session.repoRoot);
+    
+    // Check for unstaged changes - staged changes will be preserved with --soft reset
+    const hasUnstagedChanges = await git.hasUnstagedChanges(session.worktreePath);
+    if (hasUnstagedChanges) {
+      return { success: false, error: 'Repository has unstaged changes. Please commit or stash them first.' };
+    }
+    
+    await git.resetToCommit(session.worktreePath, 'HEAD~1', { hard: false });
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to rollback last commit:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to rollback last commit' };
+  }
+});
+
+ipcMain.handle('sessions:rollbackToCommit', async (_, sessionId: string, commitSha: string) => {
+  try {
+    const session = store.getSession(sessionId);
+    if (!session) {
+      return { success: false, error: 'Session not found' };
+    }
+
+    const { GitOps } = require('@ampsm/core');
+    const git = new GitOps(session.repoRoot);
+    
+    // Check for unstaged changes - staged changes will be preserved with --soft reset
+    const hasUnstagedChanges = await git.hasUnstagedChanges(session.worktreePath);
+    if (hasUnstagedChanges) {
+      return { success: false, error: 'Repository has unstaged changes. Please commit or stash them first.' };
+    }
+    
+    await git.resetToCommit(session.worktreePath, commitSha, { hard: false });
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to rollback to commit:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to rollback to commit' };
+  }
+});
+
+ipcMain.handle('sessions:squashCommits', async (_, sessionId: string, options: any) => {
+  try {
+    const session = store.getSession(sessionId);
+    if (!session) {
+      return { success: false, error: 'Session not found' };
+    }
+
+    // Use existing worktree manager squash functionality
+    await worktreeManager.squashSession(sessionId, options);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to squash commits:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to squash commits' };
+  }
+});
+
+ipcMain.handle('sessions:openInEditor', async (_, sessionId: string) => {
+  try {
+    const session = store.getSession(sessionId);
+    if (!session) {
+      return { success: false, error: 'Session not found' };
+    }
+
+    const { spawn } = require('child_process');
+    // Try to open in VS Code, fallback to system default
+    try {
+      spawn('code', [session.worktreePath], { detached: true, stdio: 'ignore' });
+    } catch {
+      // Fallback to system open command
+      const openCmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+      spawn(openCmd, [session.worktreePath], { detached: true, stdio: 'ignore' });
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to open in editor:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to open in editor' };
+  }
+});
+
+ipcMain.handle('sessions:setAutoCommit', async (_, sessionId: string, autoCommit: boolean) => {
+  try {
+    store.updateSessionAutoCommit(sessionId, autoCommit);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update session autoCommit:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to update autoCommit setting' };
   }
 });
 
@@ -863,7 +1060,8 @@ ipcMain.handle('interactive:start', async (_, sessionId: string, threadId?: stri
       sessionId,
       session.worktreePath,
       session.modelOverride,
-      threadId
+      threadId,
+      session.autoCommit
     );
 
     // Forward events to renderer
@@ -877,6 +1075,11 @@ ipcMain.handle('interactive:start', async (_, sessionId: string, threadId?: stri
 
     handle.on('error', (error) => {
       mainWindow?.webContents.send('interactive:error', sessionId, error.message || String(error));
+    });
+
+    handle.on('changes-staged', (data) => {
+      // Notify renderer that changes have been staged
+      mainWindow?.webContents.send('interactive:changes-staged', sessionId, data);
     });
 
     interactiveHandles.set(sessionId, handle);

@@ -50,8 +50,8 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
   };
 
   const getStatusColor = (passed: boolean | null) => {
-    if (passed === null) return 'text-gray-600 bg-gray-100';
-    return passed ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100';
+    if (passed === null) return 'text-gruvbox-fg2 bg-gruvbox-bg3';
+    return passed ? 'text-gruvbox-bright-green bg-gruvbox-green/20' : 'text-gruvbox-bright-red bg-gruvbox-red/20';
   };
 
   const getStatusText = (passed: boolean | null) => {
@@ -69,7 +69,7 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="text-gray-500">Loading benchmark run details...</div>
+        <div className="text-gruvbox-fg2">Loading benchmark run details...</div>
       </div>
     );
   }
@@ -77,10 +77,10 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
   if (!run) {
     return (
       <div className="text-center py-12">
-        <div className="text-red-500 mb-4">Benchmark run not found</div>
+        <div className="text-gruvbox-bright-red mb-4">Benchmark run not found</div>
         <button
           onClick={onBack}
-          className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+          className="bg-gruvbox-bright-blue text-gruvbox-bg0 px-4 py-2 rounded-lg hover:bg-gruvbox-blue transition-colors"
         >
           Back to Benchmark Runs
         </button>
@@ -93,32 +93,32 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
       <div className="flex items-center mb-6">
         <button
           onClick={onBack}
-          className="mr-4 text-gray-500 hover:text-gray-700"
+          className="mr-4 text-gruvbox-fg2 hover:text-gruvbox-fg0"
         >
           ← Back
         </button>
-        <h2 className="text-2xl font-bold text-gray-800">
+        <h2 className="text-2xl font-bold text-gruvbox-fg0">
           {type === 'swebench' ? 'SWE-bench' : 'Benchmark'} Run {run.id.slice(0, 8)}
         </h2>
       </div>
 
       {/* Run Summary */}
-      <div className="bg-gray-50 rounded-lg p-6 mb-6">
+      <div className="bg-gruvbox-bg1 rounded-lg p-6 mb-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <div className="text-sm text-gray-500">Created</div>
-            <div className="font-medium">{formatDate(run.createdAt)}</div>
+            <div className="text-sm text-gruvbox-fg2">Created</div>
+            <div className="font-medium text-gruvbox-fg1">{formatDate(run.createdAt)}</div>
           </div>
           <div>
-            <div className="text-sm text-gray-500">Source</div>
-            <div className="font-medium text-sm truncate">{run.casesDir || 'Custom'}</div>
+            <div className="text-sm text-gruvbox-fg2">Source</div>
+            <div className="font-medium text-sm truncate text-gruvbox-fg1">{run.casesDir || 'Custom'}</div>
           </div>
           <div>
-            <div className="text-sm text-gray-500">Total Cases</div>
-            <div className="font-medium">{run.total}</div>
+            <div className="text-sm text-gruvbox-fg2">Total Cases</div>
+            <div className="font-medium text-gruvbox-fg1">{run.total}</div>
           </div>
           <div>
-            <div className="text-sm text-gray-500">Status</div>
+            <div className="text-sm text-gruvbox-fg2">Status</div>
             <div className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(null)}`}>
               {run.status}
             </div>
@@ -126,19 +126,19 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
         </div>
 
         {run.completed > 0 && (
-          <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="mt-4 pt-4 border-t border-gruvbox-bg3">
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <div className="text-sm text-gray-500">Completed</div>
-                <div className="font-medium">{run.completed}/{run.total}</div>
+                <div className="text-sm text-gruvbox-fg2">Completed</div>
+                <div className="font-medium text-gruvbox-fg1">{run.completed}/{run.total}</div>
               </div>
               <div>
-                <div className="text-sm text-gray-500">Passed</div>
-                <div className="font-medium text-green-600">{run.passed}</div>
+                <div className="text-sm text-gruvbox-fg2">Passed</div>
+                <div className="font-medium text-gruvbox-bright-green">{run.passed}</div>
               </div>
               <div>
-                <div className="text-sm text-gray-500">Failed</div>
-                <div className="font-medium text-red-600">{run.failed}</div>
+                <div className="text-sm text-gruvbox-fg2">Failed</div>
+                <div className="font-medium text-gruvbox-bright-red">{run.failed}</div>
               </div>
             </div>
           </div>
@@ -147,13 +147,13 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
 
       {/* Filter Tabs */}
       <div className="mb-4">
-        <nav className="flex space-x-1 bg-gray-200 p-1 rounded-lg w-fit">
+        <nav className="flex space-x-1 bg-gruvbox-bg2 p-1 rounded-lg w-fit">
           <button
             onClick={() => setSelectedFilter('all')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               selectedFilter === 'all' 
-                ? 'bg-purple-500 text-white shadow-sm' 
-                : 'text-gray-600 hover:text-gray-900 hover:bg-purple-100'
+                ? 'bg-gruvbox-bright-purple text-gruvbox-bg0 shadow-sm' 
+                : 'text-gruvbox-fg2 hover:text-gruvbox-fg0 hover:bg-gruvbox-purple/20'
             }`}
           >
             All ({results.length})
@@ -162,8 +162,8 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
             onClick={() => setSelectedFilter('passed')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               selectedFilter === 'passed' 
-                ? 'bg-purple-500 text-white shadow-sm' 
-                : 'text-gray-600 hover:text-gray-900 hover:bg-purple-100'
+                ? 'bg-gruvbox-bright-purple text-gruvbox-bg0 shadow-sm' 
+                : 'text-gruvbox-fg2 hover:text-gruvbox-fg0 hover:bg-gruvbox-purple/20'
             }`}
           >
             Passed ({results.filter(r => r.passed === true).length})
@@ -172,8 +172,8 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
             onClick={() => setSelectedFilter('failed')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               selectedFilter === 'failed' 
-                ? 'bg-purple-500 text-white shadow-sm' 
-                : 'text-gray-600 hover:text-gray-900 hover:bg-purple-100'
+                ? 'bg-gruvbox-bright-purple text-gruvbox-bg0 shadow-sm' 
+                : 'text-gruvbox-fg2 hover:text-gruvbox-fg0 hover:bg-gruvbox-purple/20'
             }`}
           >
             Failed ({results.filter(r => r.passed === false).length})
@@ -184,35 +184,35 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
       {/* Results Table */}
       {filteredResults.length === 0 ? (
         <div className="text-center py-12">
-          <div className="text-gray-500">No results found for the selected filter</div>
+          <div className="text-gruvbox-fg2">No results found for the selected filter</div>
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full bg-white border border-gray-200 rounded-lg">
-            <thead className="bg-gray-50">
+          <table className="min-w-full bg-gruvbox-bg1 border border-gruvbox-bg3 rounded-lg">
+            <thead className="bg-gruvbox-bg2">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                   Instance ID
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                   Session
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                   Completed At
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                   Error
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-gruvbox-bg1 divide-y divide-gruvbox-bg3">
               {filteredResults.map((result) => (
-                <tr key={result.instanceId} className="hover:bg-gray-50">
+                <tr key={result.instanceId} className="hover:bg-gruvbox-bg2">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{result.instanceId}</div>
+                    <div className="text-sm font-medium text-gruvbox-fg1">{result.instanceId}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {result.sessionId ? (
@@ -222,12 +222,12 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
                             onSessionSelect(session);
                           }
                         })}
-                        className="text-blue-600 hover:text-blue-800 font-mono text-sm"
+                        className="text-gruvbox-bright-blue hover:text-gruvbox-blue font-mono text-sm"
                       >
                         {result.sessionId.slice(0, 8)}
                       </button>
                     ) : (
-                      <span className="text-gray-400 text-sm">No session</span>
+                      <span className="text-gruvbox-fg2 text-sm">No session</span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -235,10 +235,10 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
                       {getStatusText(result.passed)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
                     {result.completedAt ? formatDate(result.completedAt) : '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 max-w-xs truncate">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-bright-red max-w-xs truncate">
                     {result.error || '-'}
                   </td>
                 </tr>

@@ -26,9 +26,21 @@ declare global {
         thread: (sessionId: string) => Promise<{ success: boolean; threadConversation?: string; error?: string }>;
         getThreads: (sessionId: string) => Promise<{ success: boolean; threads?: any[]; error?: string }>;
         getThreadMessages: (threadId: string) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
+        syncThreadIds: () => Promise<{ success: boolean; error?: string }>;
         getIterations: (sessionId: string) => Promise<{ success: boolean; iterations?: any[]; error?: string }>;
         getToolCalls: (sessionId: string) => Promise<{ success: boolean; toolCalls?: any[]; error?: string }>;
         getStreamEvents: (sessionId: string) => Promise<{ success: boolean; streamEvents?: any[]; error?: string }>;
+        
+        // Git Actions API methods
+        getGitStatus: (sessionId: string) => Promise<{ success: boolean; result?: any; error?: string }>;
+        stageAllChanges: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+        unstageAllChanges: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+        commitStagedChanges: (sessionId: string, message: string) => Promise<{ success: boolean; result?: { commitSha: string }; error?: string }>;
+        rollbackLastCommit: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+        rollbackToCommit: (sessionId: string, commitSha: string) => Promise<{ success: boolean; error?: string }>;
+        squashCommits: (sessionId: string, options: any) => Promise<{ success: boolean; error?: string }>;
+        openInEditor: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+        setAutoCommit: (sessionId: string, autoCommit: boolean) => Promise<{ success: boolean; error?: string }>;
       };
       interactive: {
         start: (sessionId: string, threadId?: string) => Promise<{ success: boolean; error?: string }>;
@@ -94,6 +106,10 @@ declare global {
       shell: {
         openPath: (path: string) => Promise<string>;
       };
+
+      // Event listeners for interactive changes
+      onInteractiveChangesStaged?: (callback: (event: any, sessionId: string, data: any) => void) => void;
+      offInteractiveChangesStaged?: (callback: (event: any, sessionId: string, data: any) => void) => void;
     };
   }
 }

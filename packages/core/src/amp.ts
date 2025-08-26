@@ -5,6 +5,7 @@ import { tmpdir } from 'os';
 import { EventEmitter } from 'events';
 import type { AmpTelemetry } from '@ampsm/types';
 import { TelemetryParser } from './telemetry-parser.js';
+import { GitOps } from './git.js';
 
 
 /**
@@ -1343,7 +1344,8 @@ Please provide a thorough analysis and actionable recommendations.`;
     sessionId: string,
     workingDir: string,
     modelOverride?: string,
-    threadId?: string
+    threadId?: string,
+    autoCommit?: boolean
   ): InteractiveHandle {
     const interactiveHandle = new InteractiveHandleImpl(
       sessionId,
@@ -1352,7 +1354,8 @@ Please provide a thorough analysis and actionable recommendations.`;
       threadId,
       this.config,
       this.store,
-      this.telemetryParser
+      this.telemetryParser,
+      autoCommit
     );
 
     return interactiveHandle;
@@ -1384,6 +1387,9 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
   private store?: any;
   private jsonBuffer: string = '';
   private realtimeTelemetry: AmpTelemetry = { exitCode: 0, toolCalls: [] };
+  private workingDir: string = '';
+  private autoCommit?: boolean;
+  private isInteractive: boolean = true;
 
   constructor(
     sessionId: string,
@@ -1392,13 +1398,16 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
     threadId: string | undefined,
     config: AmpAdapterConfig,
     store: any,
-    telemetryParser: any
+    telemetryParser: any,
+    autoCommit?: boolean
   ) {
     super();
     this.sessionId = sessionId;
     this.threadId = threadId;
     this.store = store;
-    this.initializeConnection(workingDir, modelOverride, threadId, config, store, telemetryParser);
+    this.workingDir = workingDir;
+    this.autoCommit = autoCommit;
+    this.initializeConnection(workingDir, modelOverride, threadId, config, store, telemetryParser, autoCommit);
   }
 
   private async initializeConnection(
@@ -1407,7 +1416,8 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
     threadId: string | undefined,
     config: AmpAdapterConfig,
     store: any,
-    telemetryParser: any
+    telemetryParser: any,
+    autoCommit?: boolean
   ) {
     try {
       // Build args for streaming interactive mode - use the same as Go implementation
@@ -1550,10 +1560,19 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
         this.emit('error', new Error('Amp CLI authentication required. Please run "amp login" to authenticate.'));
       } else {
         this.state = exitCode === 0 ? 'closed' : 'error';
+        console.log(`Amp process exited with code ${exitCode}, autoCommit=${this.autoCommit}`);
         if (exitCode !== 0) {
           const errorMsg = stderrBuffer.trim() || 'Amp process failed with unknown error';
           console.error('Amp process failed with exit code', exitCode, ':', errorMsg);
           this.emit('error', new Error(`Amp process failed: ${errorMsg}`));
+        } else if (this.autoCommit === false) {
+          // If autoCommit is disabled, stage any changes made during the interactive session
+          console.log(`Attempting to stage interactive changes for session ${this.sessionId}`);
+          this.handlePostInteractiveStaging().catch(err => {
+            console.error('Failed to stage interactive changes:', err);
+          });
+        } else {
+          console.log(`Skipping staging: autoCommit=${this.autoCommit} (should be false to trigger staging)`);
         }
       }
       
@@ -1591,6 +1610,7 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
         if (store) {
           const type = parsedObject.type || 'unknown';
           const timestamp = new Date().toISOString();
+          console.log(`[DEBUG] Interactive message type: ${type}, subtype: ${parsedObject.subtype || 'none'}`);
           store.addStreamEvent(this.sessionId, type, timestamp, parsedObject);
           
           // Store assistant messages in thread_messages table
@@ -1600,6 +1620,14 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
               ? parsedObject.message.content 
               : JSON.stringify(parsedObject.message.content);
             store.addThreadMessage(this.threadId, 'assistant', content);
+          }
+
+          // For interactive sessions, trigger staging when assistant message completes
+          if (parsedObject.type === 'assistant' && this.sessionId && this.isInteractive && parsedObject.message?.content) {
+            console.log(`[DEBUG] Interactive assistant message received, triggering post-interactive staging for session ${this.sessionId}`);
+            this.handlePostInteractiveStaging().catch(err => {
+              console.error('Post-interactive staging failed:', err);
+            });
           }
         }
 
@@ -1791,5 +1819,37 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
         }
       }, 5000);
     });
+  }
+
+  private async handlePostInteractiveStaging() {
+    if (!this.workingDir || !this.store) return;
+    
+    try {
+      const session = this.store.getSession(this.sessionId);
+      if (!session) return;
+      
+      const git = new GitOps(session.repoRoot);
+      
+      // Check if there are any unstaged changes
+      const hasUnstagedChanges = await git.hasUnstagedChanges(this.workingDir);
+      console.log(`Post-interactive check: hasUnstagedChanges=${hasUnstagedChanges} for session ${this.sessionId}`);
+      
+      if (hasUnstagedChanges) {
+        console.log(`Staging interactive changes for session ${this.sessionId}`);
+        await git.stageAllChanges(this.workingDir);
+        console.log(`Successfully staged changes for session ${this.sessionId}`);
+        
+        // Emit an event so the UI can refresh
+        this.emit('changes-staged', {
+          sessionId: this.sessionId,
+          message: 'Interactive changes staged for manual commit'
+        });
+      } else {
+        console.log(`No unstaged changes found for session ${this.sessionId}`);
+      }
+    } catch (error) {
+      console.error('Post-interactive staging failed:', error);
+      throw error;
+    }
   }
 }

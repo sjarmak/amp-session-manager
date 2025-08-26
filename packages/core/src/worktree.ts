@@ -141,6 +141,16 @@ export class WorktreeManager {
       // Handle initial execution based on mode
       if (options.mode === 'interactive') {
         console.log('Interactive mode selected - session ready for interactive chat');
+        console.log(`Current session autoCommit before update: ${session.autoCommit}`);
+        
+        // For interactive mode, disable autoCommit so changes get staged instead of committed
+        this.store.updateSessionAutoCommit(session.id, false);
+        
+        // Verify the change was applied
+        const updatedSession = this.store.getSession(session.id);
+        console.log(`Session autoCommit after update: ${updatedSession?.autoCommit}`);
+        console.log('✓ AutoCommit disabled for interactive session - changes will be staged');
+        
         // For interactive mode, just set session to idle - user will start chat manually
         this.store.updateSessionStatus(session.id, 'idle');
       } else {
@@ -181,7 +191,7 @@ export class WorktreeManager {
     }
   }
 
-  async iterate(sessionId: string, notes?: string, includeContext?: boolean): Promise<void> {
+  async iterate(sessionId: string, notes?: string, includeContext?: boolean, stageOnly?: boolean): Promise<void> {
     const session = this.store.getSession(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -331,18 +341,24 @@ export class WorktreeManager {
         const changedFilesList = await git.getChangedFiles(session.worktreePath);
         changedFiles = changedFilesList.length;
         
-        // Use instrumented git operations for metrics tracking (skip addAll since already staged)
-        const commitResult = await gitInstrumentation.commit(
-          'amp: iteration changes',
-          sessionId,
-          iterationId,
-          false  // Don't add all since we already staged
-        );
-        commitSha = commitResult.shaAfter;
-        
-        console.log(`✓ Committed ${changedFiles} changed files: ${commitSha?.slice(0, 8)}`);
+        // Only commit if not in stage-only mode or if session has autoCommit disabled
+        const shouldCommit = !stageOnly && (session.autoCommit !== false);
+        if (shouldCommit) {
+          // Use instrumented git operations for metrics tracking (skip addAll since already staged)
+          const commitResult = await gitInstrumentation.commit(
+            'amp: iteration changes',
+            sessionId,
+            iterationId,
+            false  // Don't add all since we already staged
+          );
+          commitSha = commitResult.shaAfter;
+          
+          console.log(`✓ Committed ${changedFiles} changed files: ${commitSha?.slice(0, 8)}`);
+        } else {
+          console.log(`✓ Staged ${changedFiles} changed files for manual commit`);
+        }
       } else {
-        console.log('No changes to commit');
+        console.log('No changes to stage or commit');
       }
 
       // Run script if configured
@@ -673,10 +689,16 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
     const git = new GitOps(session.repoRoot);
     const issues: string[] = [];
 
-    // Check if repo is clean
-    const repoClean = await git.isRepoClean(session.worktreePath);
+    // Check if repo has uncommitted changes (staged changes are OK for merge wizard)
+    const [hasStagedChanges, hasUnstagedChanges] = await Promise.all([
+      git.hasStagedChanges(session.worktreePath),
+      git.hasUnstagedChanges(session.worktreePath)
+    ]);
+    
+    // For merge wizard, we only care about unstaged changes - staged changes are fine
+    const repoClean = !hasUnstagedChanges;
     if (!repoClean) {
-      issues.push('Repository has uncommitted changes');
+      issues.push('Repository has uncommitted changes (only staged changes are allowed)');
     }
 
     // Check if base is up to date
