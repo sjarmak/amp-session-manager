@@ -121,7 +121,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     suggestion?: string;
     hasCredits?: boolean;
   }>,
-  openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url) as Promise<void>
+  openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url) as Promise<void>,
+  
+  shell: {
+    openPath: (path: string) => ipcRenderer.invoke('shell:openPath', path) as Promise<string>
+  }
 });
 
 export {};

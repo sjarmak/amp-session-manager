@@ -377,6 +377,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                 if (event.message.content && Array.isArray(event.message.content)) {
                   event.message.content.forEach((item: any) => {
                     if (item.type === 'tool_use') {
+                      console.log('[DEBUG] Found tool_use in message content (source 1):', item.name);
                       parsedMetrics.toolUsage.push({
                         toolName: item.name,
                         timestamp: event.timestamp || new Date().toISOString(),
@@ -392,17 +393,9 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                 messageModel = event.model || getModelDisplayName(session?.modelOverride);
                 messageUsage = event.usage;
                 
-                // Extract tools from direct event tools array
-                if (event.tools && Array.isArray(event.tools)) {
-                  event.tools.forEach((toolName: string) => {
-                    parsedMetrics.toolUsage.push({
-                      toolName: toolName,
-                      timestamp: event.timestamp || new Date().toISOString(),
-                      args: {},
-                      threadId: event.threadId
-                    });
-                  });
-                }
+                // Skip extracting tools from the direct tools array since these are artificially
+                // added for UI display and not actual tool invocations
+                // Tool usage should only come from actual tool_use message content
               }
               
               // Only add messages that have actual text content (ignore tool-only messages)
@@ -427,6 +420,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               
               // Track models
               if (messageModel && !parsedMetrics.models.includes(messageModel)) {
+                console.log('[DEBUG] Adding model from assistant_message:', messageModel);
                 parsedMetrics.models.push(messageModel);
               }
               break;
@@ -441,6 +435,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               }
               const tokenModel = event.model || event.data?.model;
               if (tokenModel && !parsedMetrics.models.includes(tokenModel)) {
+                console.log('[DEBUG] Adding model from token_usage:', tokenModel);
                 parsedMetrics.models.push(tokenModel);
               }
               break;
@@ -457,6 +452,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
             case 'streaming_tool_start':
             case 'streaming_tool_finish':
               // Handle real tool usage events
+              console.log('[DEBUG] Found tool event:', event.event_type, event.toolName || event.tool || event.data?.tool || event.data?.toolName);
               parsedMetrics.toolUsage.push({
                 toolName: event.toolName || event.tool || event.data?.tool || event.data?.toolName,
                 timestamp: event.timestamp || new Date().toISOString(),
@@ -509,20 +505,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                   parsedMetrics.models.push(event.message.model);
                 }
                 
-                // Extract tool usage from message content
-                if (event.message.content && Array.isArray(event.message.content)) {
-                  event.message.content.forEach((item: any) => {
-                    if (item.type === 'tool_use') {
-                      console.log('[DEBUG] Found tool_use in assistant message:', item.name);
-                      parsedMetrics.toolUsage.push({
-                        toolName: item.name,
-                        timestamp: event.timestamp || new Date().toISOString(),
-                        args: item.input,
-                        threadId: event.threadId
-                      });
-                    }
-                  });
-                }
+                // Skip duplicate tool usage extraction - already handled above in the main event loop
               }
               break;
               
@@ -547,17 +530,19 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               
             case 'file_edit':
               // Handle file edit events and track lines changed
-              if (event.data?.linesAdded !== undefined) {
-                const linesAdded = event.data.linesAdded || 0;
-                const linesDeleted = event.data.linesDeleted || 0;
+              // Check both event.data and direct event properties for line counts
+              const linesAdded = event.data?.linesAdded ?? event.linesAdded ?? 0;
+              const linesDeleted = event.data?.linesDeleted ?? event.linesDeleted ?? 0;
+              
+              if (linesAdded !== undefined || linesDeleted !== undefined) {
                 
                 parsedMetrics.linesChanged.added += linesAdded;
                 parsedMetrics.linesChanged.deleted += linesDeleted;
                 parsedMetrics.linesChanged.total += linesAdded + linesDeleted;
                 
                 // Track files created/modified
-                const filePath = event.data.path;
-                const operation = event.data.operation;
+                const filePath = event.data?.path ?? event.path;
+                const operation = event.data?.operation ?? event.operation;
                 
                 if (filePath) {
                   if (operation === 'create' && !parsedMetrics.filesCreated.includes(filePath)) {
@@ -574,6 +559,8 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
         // Extract files from assistant messages (markdown links) with action detection
         const filesCreatedFromMessages: string[] = [];
         const filesModifiedFromMessages: string[] = [];
+        
+        console.log('[DEBUG] Starting file extraction from messages...');
         
         for (const msg of parsedMetrics.assistantMessages) {
           const linkRegex = /\[([^\]]+)\]\((file:\/\/\/[^\)]+)\)/g;
@@ -599,20 +586,63 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
             
             if (isCreation && !isModification) {
               filesCreatedFromMessages.push(displayPath);
+              console.log('[DEBUG] File classified as CREATED from message:', displayPath);
             } else if (isModification) {
               filesModifiedFromMessages.push(displayPath);
+              console.log('[DEBUG] File classified as MODIFIED from message:', displayPath);
             } else {
               // If unclear, default to modified (safer assumption)
               filesModifiedFromMessages.push(displayPath);
+              console.log('[DEBUG] File classified as MODIFIED (default) from message:', displayPath);
             }
           }
         }
         
+        // Deduplicate tool usage before processing
+        console.log('[DEBUG] Raw tool usage before dedup:', parsedMetrics.toolUsage.length);
+        console.log('[DEBUG] create_file tools before dedup:', 
+          parsedMetrics.toolUsage.filter(t => t.toolName === 'create_file').map(t => ({
+            toolName: t.toolName,
+            timestamp: t.timestamp,
+            args: t.args,
+            threadId: t.threadId
+          }))
+        );
+        
+        const uniqueToolUsage = parsedMetrics.toolUsage.reduce((unique: any[], tool: any) => {
+          // More robust deduplication - use toolName and args only, ignore timestamp differences
+          const argsKey = JSON.stringify(tool.args || {});
+          const key = `${tool.toolName}-${argsKey}`;
+          const exists = unique.some(existing => {
+            const existingArgsKey = JSON.stringify(existing.args || {});
+            return existing.toolName === tool.toolName && existingArgsKey === argsKey;
+          });
+          
+          if (!exists) {
+            unique.push(tool);
+          } else {
+            console.log('[DEBUG] Filtering duplicate tool:', tool.toolName, argsKey);
+          }
+          return unique;
+        }, []);
+        
+        console.log('[DEBUG] Unique tool usage after dedup:', uniqueToolUsage.length);
+        console.log('[DEBUG] create_file tools after dedup:', 
+          uniqueToolUsage.filter(t => t.toolName === 'create_file').map(t => ({
+            toolName: t.toolName,
+            args: t.args
+          }))
+        );
+        
+        parsedMetrics.toolUsage = uniqueToolUsage;
+        
         // Extract files from tool usage
         const filesCreatedFromTools = parsedMetrics.toolUsage
-          .filter(tool => tool.toolName === 'create_file')
-          .map(tool => tool.args?.path)
-          .filter(Boolean);
+        .filter(tool => tool.toolName === 'create_file')
+        .map(tool => tool.args?.path)
+        .filter(Boolean);
+          
+        console.log('[DEBUG] Raw files from tools:', filesCreatedFromTools);
           
         const filesModifiedFromTools = parsedMetrics.toolUsage
           .filter(tool => tool.toolName === 'edit_file')
@@ -631,21 +661,52 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
           return true;
         };
 
-        // Debug file deduplication
-        console.log('Files from messages:', filesCreatedFromMessages);
-        console.log('Files from tools:', filesCreatedFromTools);
+        // Helper function to normalize file paths for better deduplication
+        const normalizePath = (path: string): string => {
+          if (!path) return path;
+          // Remove file:// prefix if present
+          let normalized = path.replace(/^file:\/\/\//, '');
+          // Remove surrounding quotes if present (handle 'file.txt' vs file.txt)
+          normalized = normalized.replace(/^['"`]|['"`]$/g, '');
+          // Get just the filename if it's a full path
+          const filename = normalized.split('/').pop() || '';
+          // If filename looks reasonable, use it, otherwise keep full path
+          return filename.length > 0 && filename.length < 100 ? filename : normalized;
+        };
         
-        // Combine and dedupe files by category, filtering out invalid paths
-        const allCreatedFiles = [...filesCreatedFromMessages, ...filesCreatedFromTools];
-        console.log('All created files before dedup:', allCreatedFiles);
-        
-        parsedMetrics.filesCreated = Array.from(
-          new Set(allCreatedFiles)
-        ).filter(isValidFilePath);
+        // Normalize paths before deduplication
+         const normalizedFromMessages = filesCreatedFromMessages.map(normalizePath);
+         const normalizedFromTools = filesCreatedFromTools.map(normalizePath);
+         
+         console.log('[DEBUG] Files from messages (normalized):', normalizedFromMessages);
+         console.log('[DEBUG] Files from tools (normalized):', normalizedFromTools);
+         
+         // Combine and dedupe files by category, filtering out invalid paths
+         const allCreatedFiles = [...normalizedFromMessages, ...normalizedFromTools];
+         console.log('[DEBUG] All created files before dedup:', allCreatedFiles);
+         
+         const deduplicatedFiles = Array.from(new Set(allCreatedFiles)).filter(isValidFilePath);
+         console.log('[DEBUG] Files after dedup and filtering:', deduplicatedFiles);
+         
+         parsedMetrics.filesCreated = deduplicatedFiles;
         
         parsedMetrics.filesModified = Array.from(
-          new Set([...filesModifiedFromMessages, ...filesModifiedFromTools])
+        new Set([...filesModifiedFromMessages, ...filesModifiedFromTools])
         ).filter(isValidFilePath);
+         
+         // Debug and deduplicate models - normalize unknown/empty models first
+         console.log('[DEBUG] Raw models before dedup:', parsedMetrics.models);
+         
+         // Normalize models: treat 'unknown', empty strings, null/undefined as the same
+         const normalizedModels = parsedMetrics.models.map(model => {
+           if (!model || model === 'unknown' || model === '') {
+             return 'Claude Sonnet 4'; // Default model
+           }
+           return model;
+         });
+         
+         parsedMetrics.models = Array.from(new Set(normalizedModels));
+         console.log('[DEBUG] Models after normalization and dedup:', parsedMetrics.models);
         
         // Build threads structure for conversation flow
         const threadMap = new Map<string, {
@@ -701,18 +762,9 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
             const parsed = parseMessageContent(assistantMsg.content);
             const toolsFromMessage = parsed.toolCalls.map(tc => tc.name);
             
-            // Also find tools used in this message's timeframe (within 10 seconds)
-            const msgTime = new Date(assistantMsg.timestamp).getTime();
-            const relatedTools = parsedMetrics.toolUsage
-              .filter(tool => {
-                const toolTime = new Date(tool.timestamp).getTime();
-                return Math.abs(toolTime - msgTime) < 10000 && // 10 seconds
-                       (tool.threadId === threadId || !tool.threadId);
-              })
-              .map(tool => tool.toolName);
-
-            // Combine tools from message content and usage events
-            const allTools = Array.from(new Set([...toolsFromMessage, ...relatedTools]));
+            // Only use tools that are actually in the message content - don't add related tools
+            // based on timing as this causes text messages to incorrectly show tool usage
+            const allTools = toolsFromMessage;
 
             thread.messages.push({
               type: 'assistant',
@@ -725,6 +777,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
             
             // Add extracted tool calls to the global tool usage tracking
             for (const toolCall of parsed.toolCalls) {
+              console.log('[DEBUG] Found parsed tool call (source 3):', toolCall.name);
               parsedMetrics.toolUsage.push({
                 toolName: toolCall.name,
                 timestamp: assistantMsg.timestamp,

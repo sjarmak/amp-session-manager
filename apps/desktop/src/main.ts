@@ -531,6 +531,11 @@ ipcMain.handle('shell:openExternal', async (_, url: string) => {
   return await shell.openExternal(url);
 });
 
+ipcMain.handle('shell:openPath', async (_, path: string) => {
+  const { shell } = require('electron');
+  return await shell.openPath(path);
+});
+
 ipcMain.handle('get-amp-thread-id', async () => {
   try {
     return getCurrentAmpThreadId();

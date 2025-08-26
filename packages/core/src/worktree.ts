@@ -1026,6 +1026,8 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
       // Publish file edit events
       for (const change of fileChanges) {
         this.logger.debug(`[TRACK] Publishing file_edit event for ${change.path}: +${change.linesAdded}/-${change.linesDeleted}`);
+        
+        // Publish to metrics event bus
         await this.metricsEventBus.publishFileEdit(
           sessionId,
           iterationId,
@@ -1037,6 +1039,20 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
             operation: change.operation
           }
         );
+        
+        // Also store as stream event for UI consumption
+        if (this.store) {
+          try {
+            this.store.addStreamEvent(sessionId, 'file_edit', new Date().toISOString(), {
+              path: change.path,
+              linesAdded: change.linesAdded,
+              linesDeleted: change.linesDeleted,
+              operation: change.operation
+            });
+          } catch (error) {
+            this.logger.error('Failed to store file_edit as stream event:', error);
+          }
+        }
       }
       
       this.logger.debug(`[TRACK] Tracked ${fileChanges.length} file changes after Amp execution`);

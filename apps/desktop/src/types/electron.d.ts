@@ -90,6 +90,10 @@ declare global {
         hasCredits?: boolean;
       }>;
       openExternal: (url: string) => Promise<void>;
+      
+      shell: {
+        openPath: (path: string) => Promise<string>;
+      };
     };
   }
 }

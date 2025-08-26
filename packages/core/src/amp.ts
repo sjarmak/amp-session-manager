@@ -867,12 +867,6 @@ Please provide a thorough analysis and actionable recommendations.`;
             try {
               console.log(`[DEBUG] Persisting stream event to store:`, { sessionId, type: streamEvent.type });
               this.store.addStreamEvent(sessionId, streamEvent.type, streamEvent.timestamp, streamEvent);
-              
-              // Store assistant messages in thread_messages table
-              if (streamEvent.type === 'assistant_message' && threadId && streamEvent.content) {
-                console.log(`[DEBUG] Storing assistant message in thread ${threadId}`);
-                this.store.addThreadMessage(threadId, 'assistant', streamEvent.content);
-              }
             } catch (error) {
               console.warn('Failed to persist stream event:', error);
             }
