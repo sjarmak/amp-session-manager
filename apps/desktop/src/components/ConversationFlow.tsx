@@ -242,10 +242,39 @@ export function ConversationFlow({ session }: ConversationFlowProps) {
               </div>
               <div className="text-sm text-gray-800 min-w-0">
                 <div className="whitespace-pre-wrap break-words">
-                  {msg.content.length > 500 
-                    ? `${msg.content.slice(0, 500)}...` 
-                    : msg.content
-                  }
+                  {(() => {
+                    // Parse JSON content for assistant messages
+                    if (msg.type === 'assistant' && typeof msg.content === 'string' && msg.content.startsWith('[')) {
+                      try {
+                        const parsed = JSON.parse(msg.content);
+                        if (Array.isArray(parsed)) {
+                          const textItems = parsed.filter((item: any) => item.type === 'text');
+                          const toolItems = parsed.filter((item: any) => item.type === 'tool_use');
+                          
+                          const textContent = textItems.map((item: any) => item.text).join(' ');
+                          const toolsUsed = toolItems.map((item: any) => item.name).join(', ');
+                          
+                          return (
+                            <div>
+                              {textContent && <div>{textContent}</div>}
+                              {toolsUsed && (
+                                <div className="mt-2 text-xs text-gray-600">
+                                  Tools used: {toolsUsed}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+                      } catch (err) {
+                        // If parsing fails, show raw content
+                      }
+                    }
+                    
+                    const content = msg.content;
+                    return content.length > 500 
+                      ? `${content.slice(0, 500)}...` 
+                      : content;
+                  })()}
                 </div>
                 {msg.content.length > 500 && (
                   <button 

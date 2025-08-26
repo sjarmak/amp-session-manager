@@ -1021,8 +1021,24 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
         <div className="bg-gruvbox-bg1 border border-gruvbox-bg3 rounded-lg p-4">
           <h4 className="font-semibold mb-3 text-gruvbox-purple">Conversation Flow</h4>
           {metrics.threads.map((thread, threadIndex) => (
-            <div key={thread.id} className="mb-4 last:mb-0">
-              <div className="font-medium text-gruvbox-fg0 mb-2">{thread.name}</div>
+          <div key={thread.id} className="mb-4 last:mb-0">
+          <div className="flex justify-between items-start mb-2">
+            <div className="font-medium text-gruvbox-fg0">{thread.name}</div>
+                <div className="text-xs text-gruvbox-fg2">
+                  {thread.messages.length} messages
+                </div>
+              </div>
+              
+              {/* Thread Metrics */}
+              <div className="grid grid-cols-2 gap-4 mb-3 p-3 bg-gruvbox-bg2 rounded border border-gruvbox-bg3">
+                <div className="text-xs">
+                  <div className="text-gruvbox-fg2">Messages</div>
+                  <div className="text-gruvbox-fg0">
+                    {thread.messages?.length || 0} total
+                  </div>
+                </div>
+              </div>
+              
               <div className="space-y-2">
                 {thread.messages.map((message, msgIndex) => (
                   <div key={msgIndex} className={`p-3 rounded ${
@@ -1042,9 +1058,28 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                       </span>
                     </div>
                     <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap">
-                      {message.content.length > 500 
-                        ? `${message.content.substring(0, 500)}...` 
-                        : message.content}
+                      {(() => {
+                        // Parse JSON content for assistant messages
+                        if (message.type === 'assistant' && typeof message.content === 'string' && message.content.startsWith('[')) {
+                          try {
+                            const parsed = JSON.parse(message.content);
+                            if (Array.isArray(parsed)) {
+                              const textContent = parsed
+                                .filter((item: any) => item.type === 'text')
+                                .map((item: any) => item.text)
+                                .join(' ');
+                              return textContent || message.content;
+                            }
+                          } catch (err) {
+                            // If parsing fails, use raw content
+                          }
+                        }
+                        
+                        const content = message.content;
+                        return content.length > 500 
+                          ? `${content.substring(0, 500)}...` 
+                          : content;
+                      })()}
                     </div>
                     {message.tools && message.tools.length > 0 && (
                       <div className="mt-2 pt-2 border-t border-gruvbox-bg2">

@@ -83,6 +83,31 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
     const unsubEvent = window.electronAPI.interactive.onEvent((sessionId, event) => {
       if (sessionId !== session.id) return;
       
+      // First, check if event is a JSON array string (the common case shown in the screenshot)
+      if (typeof event === 'string' && event.startsWith('[')) {
+        try {
+          const parsedArray = JSON.parse(event);
+          if (Array.isArray(parsedArray)) {
+            // Process each item in the array
+            for (const item of parsedArray) {
+              if (item.type === 'tool_use') {
+                addToolMessage({
+                  id: item.id || `tool_${Date.now()}`,
+                  name: item.name || 'unknown_tool',
+                  input: item.input || {},
+                  status: 'success'
+                });
+              } else if (item.type === 'text' && item.text?.trim()) {
+                addMessage('assistant', item.text);
+              }
+            }
+            return;
+          }
+        } catch (err) {
+          // If parsing fails, continue with other handlers
+        }
+      }
+      
       // Handle tool_use events with proper formatting
       if (event.type === 'tool_use' || (event.data?.type === 'tool_use')) {
         const toolData = event.data || event;
@@ -141,8 +166,8 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
             return;
           }
         } catch (err) {
-          // If parsing fails, show the raw content but mention it's a tool interaction
-          addMessage('assistant', `Tool interaction: ${event}`);
+          // If parsing fails, skip displaying raw JSON
+          return;
         }
       } else {
         // Fallback: try to parse any string event as JSON for tool_use only
@@ -167,21 +192,10 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
           }
         }
         
-        // If we get here, it might be a message that should be displayed
-        // But skip obvious system events and don't display raw JSON for tool_use
-        if (typeof event === 'string') {
-          // Don't show raw tool_use JSON
-          if (event.includes('"type":"tool_use"')) {
-            return;
-          }
-          // Don't show obvious system messages
-          if (event.includes('"type":"output"') || event.includes('"chunk"') || event.includes('"subtype"')) {
-            return;
-          }
+        // Don't display raw JSON strings in the UI
+        if (typeof event === 'string' && (event.includes('"type":') || event.startsWith('['))) {
+          return;
         }
-        
-        // For anything else, display as assistant message (but this should be rare)
-        // addMessage('assistant', typeof event === 'string' ? event : JSON.stringify(event));
       }
     });
 

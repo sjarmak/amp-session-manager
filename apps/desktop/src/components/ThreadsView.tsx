@@ -130,6 +130,10 @@ export function ThreadsView({ currentSessionId }: ThreadsViewProps) {
                 Thread: {threadInfo.id}
               </div>
               
+              <div className="text-xs text-gruvbox-fg2 mb-2">
+                Session: {session.id}
+              </div>
+              
               {session.ampPrompt && (
                 <div className="text-xs text-gruvbox-fg2 line-clamp-2 mb-2">
                   {session.ampPrompt.slice(0, 150)}...
