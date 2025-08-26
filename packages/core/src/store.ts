@@ -273,14 +273,16 @@ export class SessionStore {
           lastRun TEXT,
           notes TEXT,
           contextIncluded BOOLEAN,
-          mode TEXT DEFAULT 'async'
+          mode TEXT DEFAULT 'async',
+          autoCommit BOOLEAN DEFAULT 0
         );
         
         -- Copy existing data
         INSERT INTO sessions_new SELECT 
           id, name, ampPrompt, followUpPrompts, repoRoot, baseBranch, branchName, 
           worktreePath, status, scriptCommand, modelOverride, threadId, createdAt, 
-          lastRun, notes, contextIncluded, mode 
+          lastRun, notes, contextIncluded, mode,
+          COALESCE(autoCommit, 0) as autoCommit
         FROM sessions;
         
         -- Drop old table and rename new one

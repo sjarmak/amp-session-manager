@@ -41,7 +41,15 @@ declare global {
         squashCommits: (sessionId: string, options: any) => Promise<{ success: boolean; error?: string }>;
         openInEditor: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
         setAutoCommit: (sessionId: string, autoCommit: boolean) => Promise<{ success: boolean; error?: string }>;
-      };
+        };
+
+  // Main repository git operations
+  main: {
+    getGitStatus: (repoPath: string) => Promise<{ success: boolean; result?: any; error?: string }>;
+    stageAllChanges: (repoPath: string) => Promise<{ success: boolean; error?: string }>;
+    unstageAllChanges: (repoPath: string) => Promise<{ success: boolean; error?: string }>;
+    commitStagedChanges: (repoPath: string, message: string) => Promise<{ success: boolean; result?: { commitSha: string }; error?: string }>;
+  };
       interactive: {
         start: (sessionId: string, threadId?: string) => Promise<{ success: boolean; error?: string }>;
         send: (sessionId: string, message: string) => Promise<{ success: boolean; error?: string }>;

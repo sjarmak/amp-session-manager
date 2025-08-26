@@ -3,7 +3,8 @@ import { spawn } from 'child_process';
 import { randomUUID } from 'crypto';
 
 interface MergeOptions {
-  message: string;
+  message?: string;
+  skipSquash?: boolean;
   includeManual?: 'include' | 'exclude';
   onto?: string;
   noFf?: boolean;
@@ -56,16 +57,29 @@ export async function mergeCommand(sessionId: string, options: MergeOptions) {
       console.log('Continuing anyway...\n');
     }
 
-    // Step 2: Squash
-    if (!options.json) console.log('2️⃣  Squashing commits...');
-    await manager.squashSession(sessionId, {
-      message: options.message,
-      includeManual: options.includeManual || 'include'
-    });
+    let rebaseResult = null;
 
-    // Step 3: Rebase
-    if (!options.json) console.log('3️⃣  Rebasing onto base branch...');
-    const rebaseResult = await manager.rebaseOntoBase(sessionId);
+    if (!options.skipSquash) {
+      // Validate that message is provided when not skipping squash
+      if (!options.message) {
+        console.error('Error: --message is required when not using --skip-squash');
+        process.exit(1);
+      }
+
+      // Step 2: Squash
+      if (!options.json) console.log('2️⃣  Squashing commits...');
+      await manager.squashSession(sessionId, {
+        message: options.message,
+        includeManual: options.includeManual || 'include'
+      });
+
+      // Step 3: Rebase
+      if (!options.json) console.log('3️⃣  Rebasing onto base branch...');
+      rebaseResult = await manager.rebaseOntoBase(sessionId);
+    } else {
+      if (!options.json) console.log('2️⃣  Skipping squash and rebase...');
+      rebaseResult = { status: 'success' };
+    }
     
     if (rebaseResult.status === 'conflict') {
       store.updateMergeHistory(mergeId, {

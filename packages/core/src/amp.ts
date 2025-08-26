@@ -1824,11 +1824,31 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
   private async handlePostInteractiveStaging() {
     if (!this.workingDir || !this.store) return;
     
+    // Only stage changes if autoCommit is disabled
+    if (this.autoCommit !== false) {
+      console.log(`Skipping staging: autoCommit=${this.autoCommit} (staging only when autoCommit=false)`);
+      return;
+    }
+    
     try {
       const session = this.store.getSession(this.sessionId);
       if (!session) return;
       
       const git = new GitOps(session.repoRoot);
+      
+      // Debug: check what files exist in the working directory
+      console.log(`DEBUG: Checking working directory: ${this.workingDir}`);
+      try {
+        const fs = await import('fs').then(m => m.promises);
+        const files = await fs.readdir(this.workingDir, { withFileTypes: true });
+        console.log(`DEBUG: Files in working directory:`, files.map(f => `${f.name}${f.isDirectory() ? '/' : ''}`));
+        
+        // Also check git status directly
+        const statusResult = await git.exec(['status', '--porcelain'], this.workingDir);
+        console.log(`DEBUG: Git status output: "${statusResult.stdout}"`);
+      } catch (err) {
+        console.log(`DEBUG: Error checking directory:`, err);
+      }
       
       // Check if there are any unstaged changes
       const hasUnstagedChanges = await git.hasUnstagedChanges(this.workingDir);

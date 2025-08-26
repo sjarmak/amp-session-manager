@@ -28,19 +28,23 @@ export function SessionView({
     "overview" | "actions" | "interactive" | "git"
   >(initialTab || "overview");
   
-  // Temporarily disabled localStorage tab restoration for debugging
-  // React.useEffect(() => {
-  //   const saved = localStorage.getItem(`sessionTab_${session.id}`);
-  //   const validTabs = ["overview", "actions"];
-  //   if (saved && validTabs.includes(saved)) {
-  //     setActiveTab(saved as any);
-  //   }
-  // }, [session.id]);
+  // Restore tab from localStorage on mount, unless initialTab is specified
+  React.useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    } else {
+      const saved = localStorage.getItem(`sessionTab_${session.id}`);
+      const validTabs = ["overview", "actions", "interactive", "git"];
+      if (saved && validTabs.includes(saved)) {
+        setActiveTab(saved as any);
+      }
+    }
+  }, [session.id, initialTab]);
   
-  // Temporarily disabled localStorage saving
-  // React.useEffect(() => {
-  //   localStorage.setItem(`sessionTab_${session.id}`, activeTab);
-  // }, [activeTab, session.id]);
+  // Save active tab to localStorage whenever it changes
+  React.useEffect(() => {
+    localStorage.setItem(`sessionTab_${session.id}`, activeTab);
+  }, [activeTab, session.id]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [iterationNotes, setIterationNotes] = useState("");

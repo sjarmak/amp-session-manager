@@ -43,6 +43,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setAutoCommit: (sessionId: string, autoCommit: boolean) => ipcRenderer.invoke('sessions:setAutoCommit', sessionId, autoCommit) as Promise<{ success: boolean; error?: string }>
   },
 
+  // Main repository git operations
+  main: {
+    getGitStatus: (repoPath: string) => ipcRenderer.invoke('main:getGitStatus', repoPath) as Promise<{ success: boolean; result?: any; error?: string }>,
+    stageAllChanges: (repoPath: string) => ipcRenderer.invoke('main:stageAllChanges', repoPath) as Promise<{ success: boolean; error?: string }>,
+    unstageAllChanges: (repoPath: string) => ipcRenderer.invoke('main:unstageAllChanges', repoPath) as Promise<{ success: boolean; error?: string }>,
+    commitStagedChanges: (repoPath: string, message: string) => ipcRenderer.invoke('main:commitStagedChanges', repoPath, message) as Promise<{ success: boolean; result?: { commitSha: string }; error?: string }>
+  },
+
   interactive: {
     start: (sessionId: string, threadId?: string) => ipcRenderer.invoke('interactive:start', sessionId, threadId) as Promise<{ success: boolean; error?: string }>,
     send: (sessionId: string, message: string) => ipcRenderer.invoke('interactive:send', sessionId, message) as Promise<{ success: boolean; error?: string }>,

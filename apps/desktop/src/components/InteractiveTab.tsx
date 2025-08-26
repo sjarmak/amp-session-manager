@@ -500,7 +500,7 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       sendMessage();
@@ -735,7 +735,7 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyDown}
             placeholder={
               connectionState === 'ready' 
                 ? "Type a message..."

@@ -421,9 +421,79 @@ ipcMain.handle('sessions:getGitStatus', async (_, sessionId: string) => {
     };
 
     return { success: true, result };
+  } catch (error: any) {
+    console.error('Failed to get git status:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Main repository git status handler
+ipcMain.handle('main:getGitStatus', async (_, repoPath: string) => {
+  try {
+    const { GitOps } = require('@ampsm/core');
+    const git = new GitOps(repoPath);
+    
+    const [hasUnstagedChanges, hasStagedChanges, unstagedFiles, stagedFiles, isClean] = await Promise.all([
+      git.hasUnstagedChanges(),
+      git.hasStagedChanges(),
+      git.getUnstagedFiles(),
+      git.getStagedFiles(),
+      git.isClean()
+    ]);
+
+    // Get commit history for main branch
+    const commitHistory = await git.getCommitHistory(repoPath, 20);
+
+    const result = {
+      hasUnstagedChanges,
+      hasStagedChanges,
+      unstagedFiles,
+      stagedFiles,
+      commitHistory,
+      isClean
+    };
+
+    return { success: true, result };
   } catch (error) {
     console.error('Failed to get git status:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Failed to get git status' };
+  }
+});
+
+// Main repository staging operations
+ipcMain.handle('main:stageAllChanges', async (_, repoPath: string) => {
+  try {
+    const { GitOps } = require('@ampsm/core');
+    const git = new GitOps(repoPath);
+    await git.stageAllChanges();
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to stage all changes in main repo:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to stage all changes' };
+  }
+});
+
+ipcMain.handle('main:unstageAllChanges', async (_, repoPath: string) => {
+  try {
+    const { GitOps } = require('@ampsm/core');
+    const git = new GitOps(repoPath);
+    await git.unstageAllChanges();
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to unstage all changes in main repo:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to unstage all changes' };
+  }
+});
+
+ipcMain.handle('main:commitStagedChanges', async (_, repoPath: string, message: string) => {
+  try {
+    const { GitOps } = require('@ampsm/core');
+    const git = new GitOps(repoPath);
+    const commitSha = await git.commitStagedChanges(repoPath, message);
+    return { success: true, result: { commitSha } };
+  } catch (error) {
+    console.error('Failed to commit staged changes in main repo:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to commit staged changes' };
   }
 });
 

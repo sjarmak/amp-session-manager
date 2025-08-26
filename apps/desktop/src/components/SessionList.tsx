@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Session } from '@ampsm/types';
+import { MainRepoGitView } from './MainRepoGitView';
 
 interface SessionListProps {
   onSessionSelect: (session: Session) => void;
@@ -13,6 +14,8 @@ export function SessionList({ onSessionSelect, onNewAsyncSession, onNewInteracti
   const [error, setError] = useState<string | null>(null);
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [showMainRepoGit, setShowMainRepoGit] = useState(false);
+  const [currentRepoPath, setCurrentRepoPath] = useState<string | null>(null);
 
   const loadSessions = async () => {
     try {
@@ -47,6 +50,21 @@ export function SessionList({ onSessionSelect, onNewAsyncSession, onNewInteracti
     } else {
       setSelectedSessions(new Set());
     }
+  };
+
+  const openMainRepoGit = (repoPath: string) => {
+    setCurrentRepoPath(repoPath);
+    setShowMainRepoGit(true);
+  };
+
+  const getUniqueRepoPaths = (): string[] => {
+    const repoPaths = new Set<string>();
+    sessions.forEach(session => {
+      if (session.repoRoot) {
+        repoPaths.add(session.repoRoot);
+      }
+    });
+    return Array.from(repoPaths);
   };
 
   const handleBulkDelete = async () => {
@@ -145,6 +163,31 @@ export function SessionList({ onSessionSelect, onNewAsyncSession, onNewInteracti
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-gruvbox-light1">Sessions</h2>
         <div className="flex gap-2">
+          {getUniqueRepoPaths().length > 0 && (
+            <div className="relative group">
+              <button
+                onClick={() => openMainRepoGit(getUniqueRepoPaths()[0])}
+                className="px-4 py-2 bg-gruvbox-purple text-gruvbox-light0 rounded-md hover:bg-gruvbox-purple/80 focus:outline-none focus:ring-2 focus:ring-gruvbox-purple/50 shadow-lg shadow-gruvbox-purple/25 transition-all"
+                title="View main repository git status and stage untracked changes"
+              >
+                Main Repo Git
+              </button>
+              {getUniqueRepoPaths().length > 1 && (
+                <div className="absolute right-0 mt-1 w-64 bg-gruvbox-dark1 border border-gruvbox-light2/30 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 p-2">
+                  <div className="text-xs text-gruvbox-light3 mb-2">Multiple repositories found:</div>
+                  {getUniqueRepoPaths().map((path, index) => (
+                    <button
+                      key={path}
+                      onClick={() => openMainRepoGit(path)}
+                      className="block w-full text-left px-2 py-1 text-xs font-mono text-gruvbox-light2 hover:bg-gruvbox-dark2 rounded"
+                    >
+                      {path.split('/').pop()}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <button
             onClick={onNewAsyncSession}
             className="px-4 py-2 bg-gruvbox-blue text-gruvbox-dark0 rounded-md hover:bg-gruvbox-blue-dim focus:outline-none focus:ring-2 focus:ring-gruvbox-blue/50 shadow-lg shadow-gruvbox-blue/25 transition-all"
@@ -260,6 +303,13 @@ export function SessionList({ onSessionSelect, onNewAsyncSession, onNewInteracti
           Refresh
         </button>
       </div>
+
+      {showMainRepoGit && currentRepoPath && (
+        <MainRepoGitView
+          repoPath={currentRepoPath}
+          onClose={() => setShowMainRepoGit(false)}
+        />
+      )}
     </div>
   );
 }

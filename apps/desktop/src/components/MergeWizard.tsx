@@ -13,6 +13,7 @@ interface StepperProps {
   currentStep: WizardStep;
   completedSteps: WizardStep[];
   hasError?: boolean;
+  skipSquash?: boolean;
 }
 
 const STEPS: { key: WizardStep; label: string }[] = [
@@ -24,12 +25,14 @@ const STEPS: { key: WizardStep; label: string }[] = [
   { key: 'complete', label: 'Complete' },
 ];
 
-function Stepper({ currentStep, completedSteps, hasError }: StepperProps) {
-  const currentIndex = STEPS.findIndex(s => s.key === currentStep);
+function Stepper({ currentStep, completedSteps, hasError, skipSquash }: StepperProps) {
+  // Filter out squash step if it's being skipped
+  const activeSteps = skipSquash ? STEPS.filter(s => s.key !== 'squash') : STEPS;
+  const currentIndex = activeSteps.findIndex(s => s.key === currentStep);
   
   return (
     <div className="flex items-center justify-between w-full mb-8">
-      {STEPS.map((step, index) => {
+      {activeSteps.map((step, index) => {
         const isCompleted = completedSteps.includes(step.key);
         const isCurrent = step.key === currentStep;
         const isError = isCurrent && hasError;
@@ -54,7 +57,7 @@ function Stepper({ currentStep, completedSteps, hasError }: StepperProps) {
                 {step.label}
               </span>
             </div>
-            {index < STEPS.length - 1 && (
+            {index < activeSteps.length - 1 && (
               <div className={`flex-1 h-0.5 mx-2 ${
                 index < currentIndex ? 'bg-gruvbox-green' :
                 index === currentIndex && hasError ? 'bg-gruvbox-red' :
@@ -78,6 +81,7 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
   const [exportPatch, setExportPatch] = useState(false);
   const [patchPath, setPatchPath] = useState('');
   const [cleanupAfterMerge, setCleanupAfterMerge] = useState(true);
+  const [skippedSquash, setSkippedSquash] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,10 +98,7 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
       const result = await window.electronAPI.sessions.preflight(session.id);
       if (result && result.success && result.result) {
         setPreflightResult(result.result);
-        if (result.result.issues.length === 0) {
-          markStepCompleted('preflight');
-          setCurrentStep('squash');
-        }
+        // Don't auto-advance - let user choose whether to squash or skip
       } else {
         setError((result && result.error) || 'Preflight check failed');
       }
@@ -292,6 +293,7 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
           currentStep={currentStep}
           completedSteps={completedSteps}
           hasError={!!error}
+          skipSquash={skippedSquash}
         />
 
         {error && (
@@ -363,21 +365,13 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
               </button>
               <button
                 onClick={() => {
-                  markStepCompleted('squash');
-                  setCurrentStep('rebase');
-                  runRebase();
+                  markStepCompleted('preflight');
+                  setCurrentStep('squash');
                 }}
-                disabled={!preflightResult || loading || preflightResult.issues.length > 0}
-                className="px-4 py-2 border border-gruvbox-green/30 text-gruvbox-green rounded hover:bg-gruvbox-green/10 hover:border-gruvbox-green/50 disabled:opacity-50 transition-colors"
-              >
-                Skip Squash
-              </button>
-              <button
-                onClick={() => setCurrentStep('squash')}
                 disabled={!preflightResult || loading || preflightResult.issues.length > 0}
                 className="px-4 py-2 bg-gruvbox-green text-gruvbox-dark0 rounded hover:bg-gruvbox-green disabled:opacity-50 transition-colors"
               >
-                Continue to Squash
+                Continue
               </button>
             </div>
           </div>
@@ -423,6 +417,18 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
                 className="px-4 py-2 border border-gruvbox-light2/30 text-gruvbox-light2 rounded hover:bg-gruvbox-dark2/20 hover:border-gruvbox-light3/40 disabled:opacity-50 transition-colors"
               >
                 Back
+              </button>
+              <button
+                onClick={() => {
+                  setSkippedSquash(true);
+                  markStepCompleted('squash');
+                  setCurrentStep('rebase');
+                  runRebase();
+                }}
+                disabled={loading}
+                className="px-4 py-2 border border-gruvbox-green/30 text-gruvbox-green rounded hover:bg-gruvbox-green/10 hover:border-gruvbox-green/50 disabled:opacity-50 transition-colors"
+              >
+                Skip Squash
               </button>
               <button
                 onClick={runSquash}
@@ -531,7 +537,14 @@ export function MergeWizard({ session, onClose, onComplete }: MergeWizardProps) 
 
             <div className="flex justify-end space-x-3">
               <button
-                onClick={() => setCurrentStep('squash')}
+                onClick={() => {
+                  // Go back to appropriate step - if squash was skipped, go to preflight
+                  if (skippedSquash) {
+                    setCurrentStep('preflight');
+                  } else {
+                    setCurrentStep('squash');
+                  }
+                }}
                 disabled={loading}
                 className="px-4 py-2 border border-gruvbox-light2/30 text-gruvbox-light2 rounded hover:bg-gruvbox-dark2/20 hover:border-gruvbox-light3/40 disabled:opacity-50 transition-colors"
               >

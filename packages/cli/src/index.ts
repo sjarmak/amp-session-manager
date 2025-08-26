@@ -154,7 +154,8 @@ program
 program
   .command('merge <sessionId>')
   .description('Merge session to main (squash + rebase + merge)')
-  .requiredOption('--message <message>', 'Squash commit message')
+  .option('--message <message>', 'Squash commit message (required if not skipping squash)')
+  .option('--skip-squash', 'Skip squashing and rebase, merge commits as-is')
   .option('--include-manual <mode>', 'Include manual commits: include|exclude', 'include')
   .option('--onto <branch>', 'Target branch to merge onto')
   .option('--no-ff', 'Use --no-ff merge instead of --ff-only')
