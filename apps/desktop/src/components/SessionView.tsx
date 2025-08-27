@@ -7,6 +7,7 @@ import { InteractiveTab } from "./InteractiveTab";
 import { ToolCallDisplay } from "./ToolCallDisplay";
 import { GitActionsTab } from "./GitActionsTab";
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { RenderMarkdownContent } from "../utils/renderMarkdown";
 
 
 
@@ -503,23 +504,29 @@ export function SessionView({
                                     // Add text content if any
                                     if (textContent.trim()) {
                                       elements.unshift(
-                                        <div key="text" className="text-sm text-gruvbox-fg1 whitespace-pre-wrap mb-2">
-                                          {textContent}
-                                        </div>
+                                        <RenderMarkdownContent 
+                                          key="text" 
+                                          content={textContent}
+                                          className="text-sm text-gruvbox-fg1 mb-2"
+                                        />
                                       );
                                     }
                                   } else if (textContent.trim()) {
                                     // Only text content, no tool calls - display as normal conversation text
                                     return (
-                                      <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap">
-                                        {textContent}
-                                      </div>
+                                      <RenderMarkdownContent 
+                                        content={textContent}
+                                        className="text-sm text-gruvbox-fg1"
+                                      />
                                     );
                                   }
                                   
                                   return elements.length > 0 ? <div>{elements}</div> : (
-                                    <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap bg-gruvbox-bg3/50 p-2 rounded">
-                                      {message.content}
+                                    <div className="bg-gruvbox-bg3/50 p-2 rounded">
+                                      <RenderMarkdownContent 
+                                        content={message.content}
+                                        className="text-sm text-gruvbox-fg1"
+                                      />
                                     </div>
                                   );
                                 }
@@ -527,29 +534,41 @@ export function SessionView({
                                 // Extract text content from single objects
                                 if (parsed.text) {
                                   return (
-                                    <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap bg-gruvbox-bg3/50 p-2 rounded">
-                                      {parsed.text}
+                                    <div className="bg-gruvbox-bg3/50 p-2 rounded">
+                                      <RenderMarkdownContent 
+                                        content={parsed.text}
+                                        className="text-sm text-gruvbox-fg1"
+                                      />
                                     </div>
                                   );
                                 } else if (parsed.content) {
                                   return (
-                                    <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap bg-gruvbox-bg3/50 p-2 rounded">
-                                      {parsed.content}
+                                    <div className="bg-gruvbox-bg3/50 p-2 rounded">
+                                      <RenderMarkdownContent 
+                                        content={parsed.content}
+                                        className="text-sm text-gruvbox-fg1"
+                                      />
                                     </div>
                                   );
                                 }
                                 
                                 // Fallback for other JSON structures
                                 return (
-                                  <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap bg-gruvbox-bg3/50 p-2 rounded">
-                                    {message.content}
+                                  <div className="bg-gruvbox-bg3/50 p-2 rounded">
+                                    <RenderMarkdownContent 
+                                      content={message.content}
+                                      className="text-sm text-gruvbox-fg1"
+                                    />
                                   </div>
                                 );
                               } catch {
                                 // If not JSON, return content as-is
                                 return (
-                                  <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap bg-gruvbox-bg3/50 p-2 rounded">
-                                    {message.content}
+                                  <div className="bg-gruvbox-bg3/50 p-2 rounded">
+                                    <RenderMarkdownContent 
+                                      content={message.content}
+                                      className="text-sm text-gruvbox-fg1"
+                                    />
                                   </div>
                                 );
                               }

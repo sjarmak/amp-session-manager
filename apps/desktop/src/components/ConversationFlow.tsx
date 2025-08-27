@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Session } from "@ampsm/types";
+import { RenderMarkdownContent } from '../utils/renderMarkdown';
 
 interface ConversationFlowProps {
   session: Session;
@@ -236,7 +237,7 @@ export function ConversationFlow({ session }: ConversationFlowProps) {
                 </div>
               </div>
               <div className="text-sm text-gray-800 min-w-0">
-                <div className="whitespace-pre-wrap break-words">
+                <div className="break-words">
                   {(() => {
                     // Parse JSON content for assistant messages
                     if (msg.type === 'assistant' && typeof msg.content === 'string' && msg.content.startsWith('[')) {
@@ -251,7 +252,7 @@ export function ConversationFlow({ session }: ConversationFlowProps) {
                           
                           return (
                             <div>
-                              {textContent && <div>{textContent}</div>}
+                              {textContent && <RenderMarkdownContent content={textContent} />}
                               {toolsUsed && (
                                 <div className="mt-2 text-xs text-gray-600">
                                   Tools used: {toolsUsed}
@@ -266,9 +267,10 @@ export function ConversationFlow({ session }: ConversationFlowProps) {
                     }
                     
                     const content = msg.content;
-                    return content.length > 500 
+                    const displayContent = content.length > 500 
                       ? `${content.slice(0, 500)}...` 
                       : content;
+                    return <RenderMarkdownContent content={displayContent} />;
                   })()}
                 </div>
                 {msg.content.length > 500 && (
