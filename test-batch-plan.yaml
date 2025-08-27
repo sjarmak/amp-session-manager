@@ -12,5 +12,5 @@ matrix:
     scriptCommand: "ls -la && echo 'Package.json created successfully'"
     model: gpt-5      # Use GPT-5 model
   - repo: /Users/sjarmak/test-project
-    prompt: "Add a simple .gitignore file for Node.js projects"
+    prompt: "Add a python script that says hello world"
     model: alloy      # Use --blend alloy-random mode

@@ -263,7 +263,7 @@ export function ToolCallDisplay({ toolCall, className = '' }: ToolCallDisplayPro
             {toolCall.result && (
               <>
                 <div className="font-semibold text-gruvbox-fg0 mb-2 mt-3">Result:</div>
-                <pre className="bg-gruvbox-bg2 text-gruvbox-fg1 p-2 rounded overflow-x-auto text-xs max-h-32 overflow-y-auto">
+                <pre className="bg-gruvbox-bg2 text-gruvbox-fg1 p-2 rounded overflow-auto text-xs max-h-32">
                   {typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result, null, 2)}
                 </pre>
               </>

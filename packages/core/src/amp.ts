@@ -1963,10 +1963,10 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
             
             // If no iteration exists, create one for interactive changes
             if (!iterationId) {
-              iterationId = this.store.addIteration(this.sessionId, {
-                startedAt: new Date().toISOString(),
-                endedAt: new Date().toISOString(),
-                status: 'completed',
+              const iteration = this.store.createIteration(this.sessionId);
+              iterationId = iteration.id;
+              this.store.updateIteration(iterationId, {
+                endTime: new Date().toISOString(),
                 exitCode: 0
               });
               console.log(`[INTERACTIVE] Created iteration ${iterationId} for tracking`);

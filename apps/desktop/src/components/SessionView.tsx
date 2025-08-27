@@ -75,44 +75,51 @@ export function SessionView({
   const [showMergeWizard, setShowMergeWizard] = useState(false);
 
   // Load threads and their messages
-  useEffect(() => {
-    const loadThreads = async () => {
-      try {
-        const threadsResult = await window.electronAPI.sessions.getThreads(session.id);
-        if (threadsResult.success && threadsResult.threads) {
-          // Filter out invalid threads - be more permissive to avoid hiding threads completely
-          const validThreads = threadsResult.threads.filter(thread => {
-            const isValidId = thread.id.startsWith('T-');
-            const isNotChatName = !thread.name.startsWith('Chat ');
-            const hasMessages = thread.messageCount > 0;
-            
-            // Include threads with proper IDs OR threads that have messages (even if legacy format)
-            return isValidId && (isNotChatName || hasMessages);
-          });
-          console.log('SessionView - Raw threads:', threadsResult.threads.length, 'Valid threads:', validThreads.length, validThreads);
+  const loadThreads = async () => {
+    try {
+      const threadsResult = await window.electronAPI.sessions.getThreads(session.id);
+      if (threadsResult.success && threadsResult.threads) {
+        // Filter out invalid threads - be more permissive to avoid hiding threads completely
+        const validThreads = threadsResult.threads.filter(thread => {
+          const isValidId = thread.id.startsWith('T-');
+          const isNotChatName = !thread.name.startsWith('Chat ');
+          const hasMessages = thread.messageCount > 0;
           
-          const sortedThreads = validThreads.sort((a, b) => 
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-          );
-          setThreads(sortedThreads);
-          
-          // Load messages for each thread
-          const messagesMap: Record<string, any[]> = {};
-          for (const thread of sortedThreads) {
-            const messagesResult = await window.electronAPI.sessions.getThreadMessages(thread.id);
-            if (messagesResult.success && messagesResult.messages) {
-              messagesMap[thread.id] = messagesResult.messages;
-            }
+          // Include threads with proper IDs OR threads that have messages (even if legacy format)
+          return isValidId && (isNotChatName || hasMessages);
+        });
+        console.log('SessionView - Raw threads:', threadsResult.threads.length, 'Valid threads:', validThreads.length, validThreads);
+        
+        const sortedThreads = validThreads.sort((a, b) => 
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+        setThreads(sortedThreads);
+        
+        // Load messages for each thread
+        const messagesMap: Record<string, any[]> = {};
+        for (const thread of sortedThreads) {
+          const messagesResult = await window.electronAPI.sessions.getThreadMessages(thread.id);
+          if (messagesResult.success && messagesResult.messages) {
+            messagesMap[thread.id] = messagesResult.messages;
           }
-          setThreadMessages(messagesMap);
         }
-      } catch (error) {
-        console.error('Failed to load threads:', error);
+        setThreadMessages(messagesMap);
       }
-    };
+    } catch (error) {
+      console.error('Failed to load threads:', error);
+    }
+  };
 
+  useEffect(() => {
     loadThreads();
   }, [session.id]);
+
+  // Reload threads when switching to overview tab
+  useEffect(() => {
+    if (activeTab === 'overview') {
+      loadThreads();
+    }
+  }, [activeTab]);
 
 
 
@@ -621,7 +628,8 @@ export function SessionView({
           <InteractiveTab 
               session={session} 
               initialThreadId={selectedThreadId}
-              onThreadSelected={setSelectedThreadId} 
+              onThreadSelected={setSelectedThreadId}
+              onThreadsUpdated={loadThreads}
             />
         </div>
       )}

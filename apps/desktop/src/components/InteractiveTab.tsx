@@ -32,11 +32,12 @@ interface InteractiveTabProps {
   session: Session;
   initialThreadId?: string | null;
   onThreadSelected?: (threadId: string | null) => void;
+  onThreadsUpdated?: () => void;
 }
 
 type ConnectionState = 'connecting' | 'ready' | 'closed' | 'error';
 
-export function InteractiveTab({ session, initialThreadId, onThreadSelected }: InteractiveTabProps) {
+export function InteractiveTab({ session, initialThreadId, onThreadSelected, onThreadsUpdated }: InteractiveTabProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [connectionState, setConnectionState] = useState<ConnectionState>('closed');
@@ -153,6 +154,8 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
           setMessages([]);
           // Reload threads to include the new one
           loadAvailableThreads(true);
+          // Notify parent that threads have been updated
+          onThreadsUpdated?.();
           
           // If thread validation failed, notify user
           if (selectedThreadId && event.session_id !== selectedThreadId) {

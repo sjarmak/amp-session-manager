@@ -114,7 +114,7 @@ export function StreamMessageDisplay({ message, className = '' }: StreamMessageD
         )}
         
         {message.data.output && (
-          <pre className="text-xs bg-gruvbox-bg2 text-gruvbox-fg1 p-2 rounded overflow-x-auto max-h-32 overflow-y-auto">
+          <pre className="text-xs bg-gruvbox-bg2 text-gruvbox-fg1 p-2 rounded overflow-auto max-h-32">
             {typeof message.data.output === 'string' ? message.data.output : JSON.stringify(message.data.output, null, 2)}
           </pre>
         )}
