@@ -1382,6 +1382,12 @@ ipcMain.handle('interactive:start', async (_, sessionId: string, threadId?: stri
       return { success: false, error: 'Session not found' };
     }
 
+    // Reset session status if it's in error state - allow recovery via interactive chat
+    if (session.status === 'error') {
+      console.log(`[DEBUG] Session ${sessionId} is in error state, resetting to idle for interactive recovery`);
+      store.updateSessionStatus(sessionId, 'idle');
+    }
+
     // Stop existing interactive session if any
     if (interactiveHandles.has(sessionId)) {
       const existing = interactiveHandles.get(sessionId);

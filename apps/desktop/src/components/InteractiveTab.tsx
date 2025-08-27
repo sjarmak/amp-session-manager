@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { Session } from '@ampsm/types';
 import { StreamMessageDisplay } from './StreamMessageDisplay';
 import { ToolCallDisplay } from './ToolCallDisplay';
+import { RenderMarkdownContent } from '../utils/renderMarkdown';
 
 interface ChatMessage {
   id: string;
@@ -878,31 +879,10 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
                           : 'bg-gruvbox-bg2 text-gruvbox-fg1 border border-gruvbox-bg3'
                       }`}
                     >
-                      <div className="whitespace-pre-wrap">
-                        {(() => {
-                          // Check for file creation messages and add filename highlighting
-                          const fileCreatedMatch = message.content.match(/Created (\S+\.\w+) with/);
-                          if (fileCreatedMatch) {
-                            const filename = fileCreatedMatch[1];
-                            const beforeMatch = message.content.substring(0, fileCreatedMatch.index);
-                            const afterMatch = message.content.substring(fileCreatedMatch.index + fileCreatedMatch[0].length);
-                            
-                            return (
-                              <span>
-                                {beforeMatch}Created{' '}
-                                <span 
-                                  className="bg-gruvbox-blue/20 text-gruvbox-blue px-1 py-0.5 rounded border border-gruvbox-blue/40 hover:bg-gruvbox-blue/30 cursor-help transition-colors font-semibold text-xs"
-                                  title="Full path not available from this message"
-                                >
-                                  {filename}
-                                </span>
-                                {' '}with{afterMatch}
-                              </span>
-                            );
-                          }
-                          return message.content;
-                        })()}
-                      </div>
+                      <RenderMarkdownContent 
+                        content={message.content} 
+                        className="break-words"
+                      />
                       <div
                         className={`text-xs mt-1 opacity-70 ${
                           message.sender === 'user' ? 'text-gruvbox-bg0' : 'text-gruvbox-fg2'

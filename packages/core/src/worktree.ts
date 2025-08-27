@@ -588,11 +588,11 @@ Raw Telemetry: ${JSON.stringify(result.telemetry, null, 2)}
         
         // Create or update thread record in threads table
         const existingThreads = this.store.getSessionThreads(sessionId);
-        const threadExists = existingThreads.some(t => t.name.includes(currentThreadId));
+        const threadExists = existingThreads.some(t => t.id === currentThreadId);
         
         if (!threadExists) {
           const threadName = `Amp Thread ${currentThreadId}`;
-          this.store.createThread(sessionId, threadName);
+          this.store.createThread(sessionId, threadName, currentThreadId);
           console.log(`  Created thread record: ${threadName}`);
         }
         

@@ -196,6 +196,13 @@ export class SessionStore {
       // Column already exists, ignore error
     }
     
+    // Migration: Add threadId column to batch_items if it doesn't exist
+    try {
+      this.db.exec(`ALTER TABLE batch_items ADD COLUMN threadId TEXT;`);
+    } catch (error) {
+      // Column already exists, ignore error
+    }
+    
     // Migration: Add ampArgs column if it doesn't exist
     try {
       this.db.exec(`ALTER TABLE iterations ADD COLUMN ampArgs TEXT;`);
@@ -397,10 +404,10 @@ export class SessionStore {
 
   // Ensure a thread record exists for a session's threadId
   private ensureThreadRecord(sessionId: string, threadId: string) {
-    const existingThreads = this.getSessionThreads(sessionId);
-    const threadExists = existingThreads.some(t => t.id === threadId);
+    // Check if thread exists globally, not just for this session
+    const existingThread = this.db.prepare('SELECT id, sessionId FROM threads WHERE id = ?').get(threadId) as { id: string; sessionId: string } | undefined;
     
-    if (!threadExists) {
+    if (!existingThread) {
       // Create thread with the exact ID (this will be for migration of existing threadIds)
       const now = new Date().toISOString();
       const stmt = this.db.prepare(`
@@ -408,7 +415,11 @@ export class SessionStore {
         VALUES (?, ?, ?, ?, ?, 'active')
       `);
       stmt.run(threadId, sessionId, `Thread ${threadId}`, now, now);
+    } else if (existingThread.sessionId !== sessionId) {
+      // Thread exists but belongs to different session - this is a data inconsistency
+      console.warn(`Thread ${threadId} exists but belongs to session ${existingThread.sessionId}, not ${sessionId}. Skipping migration.`);
     }
+    // If thread exists for this session, nothing to do
   }
 
   // Migrate existing sessions with threadIds to have proper thread records

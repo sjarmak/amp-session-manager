@@ -153,6 +153,7 @@ export interface BatchItem {
   id: string;
   runId: string;
   sessionId?: string;
+  threadId?: string;
   repo: string;
   prompt: string;
   status: 'queued' | 'running' | 'success' | 'fail' | 'timeout' | 'error';

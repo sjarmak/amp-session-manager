@@ -1,5 +1,6 @@
 import React from 'react';
 import { ToolCallDisplay } from './ToolCallDisplay';
+import { RenderMarkdownContent } from '../utils/renderMarkdown';
 
 interface StreamMessage {
   type: 'user_message' | 'assistant_message' | 'tool_use' | 'tool_result' | 'text';
@@ -65,9 +66,10 @@ export function StreamMessageDisplay({ message, className = '' }: StreamMessageD
         </div>
         
         {message.content && (
-          <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap break-words">
-            {message.content}
-          </div>
+          <RenderMarkdownContent 
+            content={message.content} 
+            className="text-sm text-gruvbox-fg1 break-words"
+          />
         )}
       </div>
     );
@@ -84,9 +86,10 @@ export function StreamMessageDisplay({ message, className = '' }: StreamMessageD
           </div>
         </div>
         
-        <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap break-words">
-          {message.content || message.data?.message || ''}
-        </div>
+        <RenderMarkdownContent 
+          content={message.content || message.data?.message || ''} 
+          className="text-sm text-gruvbox-fg1 break-words"
+        />
       </div>
     );
   }
@@ -132,9 +135,10 @@ export function StreamMessageDisplay({ message, className = '' }: StreamMessageD
       </div>
       
       {message.content && (
-        <div className="text-sm text-gruvbox-fg1 whitespace-pre-wrap break-words">
-          {message.content}
-        </div>
+        <RenderMarkdownContent 
+          content={message.content} 
+          className="text-sm text-gruvbox-fg1 break-words"
+        />
       )}
       
       {message.data && (

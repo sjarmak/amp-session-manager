@@ -195,6 +195,15 @@ export class BatchRunner {
         const sessionRecord = this.store.getSession(session.id);
         const iterFailed = lastIteration.exitCode !== 0 || sessionRecord?.status === 'error';
         
+        // Capture the thread ID that was created/used during iteration
+        if (sessionRecord?.threadId) {
+          console.log(`Batch item ${item.id} created/used thread: ${sessionRecord.threadId}`);
+          // Store thread ID in batch item for easy reference
+          this.store.updateBatchItem(item.id, { 
+            threadId: sessionRecord.threadId
+          });
+        }
+        
         this.store.updateBatchItem(item.id, {
           status: iterFailed 
             ? (lastIteration.exitCode === -1 ? 'error' : 'fail')
