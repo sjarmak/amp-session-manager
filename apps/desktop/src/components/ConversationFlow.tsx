@@ -218,7 +218,7 @@ export function ConversationFlow({ session }: ConversationFlowProps) {
                   <span className={`text-sm font-semibold ${
                     msg.type === 'user' ? 'text-purple-700' : 'text-blue-700'
                   }`}>
-                    {msg.type === 'user' ? 'User' : 'Assistant'}
+                    {msg.type === 'user' ? 'User' : 'Amp'}
                   </span>
                   {msg.type === 'assistant' && msg.model && (
                     <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">

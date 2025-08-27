@@ -10,13 +10,13 @@ import { NewBatchModal } from './components/NewBatchModal';
 import { BenchmarksView } from './components/BenchmarksView';
 import { BenchmarkRunDetail } from './components/BenchmarkRunDetail';
 import { NewBenchmarkModal } from './components/NewBenchmarkModal';
-import { ThreadsView } from './components/ThreadsView';
+
 import NotificationSettingsModal from './components/NotificationSettingsModal';
 import { AuthStatus } from './components/AuthStatus';
 import './App.css';
 
 function App() {
-  const [currentView, setCurrentView] = useState<'sessions' | 'batches' | 'benchmarks' | 'threads' | 'session' | 'batch-detail' | 'benchmark-detail'>('sessions');
+  const [currentView, setCurrentView] = useState<'sessions' | 'batches' | 'benchmarks' | 'session' | 'batch-detail' | 'benchmark-detail'>('sessions');
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [selectedBatchRun, setSelectedBatchRun] = useState<string | null>(null);
   const [selectedBenchmarkRun, setSelectedBenchmarkRun] = useState<{ runId: string; type: string } | null>(null);
@@ -221,16 +221,7 @@ function App() {
             >
               Benchmarks
             </button>
-            <button
-              onClick={() => setCurrentView('threads')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                currentView === 'threads' 
-                  ? 'bg-gruvbox-aqua text-gruvbox-dark0 shadow-lg shadow-gruvbox-aqua/25' 
-                  : 'text-gruvbox-light3 hover:text-gruvbox-light1 hover:bg-gruvbox-aqua-dim/20'
-              }`}
-            >
-              Threads
-            </button>
+
           </nav>
         </div>
 
@@ -256,10 +247,7 @@ function App() {
                 onNewRun={() => setShowNewBenchmarkModal(true)}
               />
             </div>
-          ) : currentView === 'threads' ? (
-            <div key={refreshKey}>
-              <ThreadsView />
-            </div>
+
           ) : currentView === 'batch-detail' && selectedBatchRun ? (
             <BatchRunDetail
               runId={selectedBatchRun}

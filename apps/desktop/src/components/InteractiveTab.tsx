@@ -49,12 +49,13 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
   const [isCreatingNewThread, setIsCreatingNewThread] = useState(false);
   const [isStartingNewThread, setIsStartingNewThread] = useState(false);
   const [handleId, setHandleId] = useState<string | null>(null);
+  const [userScrolledUp, setUserScrolledUp] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const isCreatingNewThreadRef = useRef(isCreatingNewThread);
   const selectedThreadIdRef = useRef(selectedThreadId);
   const startInFlight = useRef<Promise<void> | null>(null);
-  const latestStartToken = useRef<number>(0);
 
   // Keep refs in sync with state
   useEffect(() => { 
@@ -65,10 +66,27 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
     selectedThreadIdRef.current = selectedThreadId; 
   }, [selectedThreadId]);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Track scroll position to detect if user scrolled up manually
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 50;
+      setUserScrolledUp(!isAtBottom);
+    };
+
+    scrollContainer.addEventListener('scroll', handleScroll);
+    return () => scrollContainer.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Auto-scroll to bottom when new messages arrive, but only if user hasn't scrolled up
+  useEffect(() => {
+    if (!userScrolledUp && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, userScrolledUp]);
 
   // Load message history and threads when component mounts
   useEffect(() => {
@@ -579,8 +597,8 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
         const threadArg = shouldCreateNew ? 'new' : (selectedThreadIdRef.current || null);
         console.log(`=== FRONTEND DEBUG ${callId}: shouldCreateNew = ${shouldCreateNew}, threadArg = "${threadArg}" ===`);
         
-        // Clear messages before starting if creating new thread
-        if (shouldCreateNew) {
+        // Clear messages before starting if creating new thread (not during thread switches)
+        if (shouldCreateNew && !isThreadSwitch) {
           setMessages([]);
           console.log(`=== FRONTEND DEBUG ${callId}: Cleared messages for new thread ===`);
         }
@@ -679,7 +697,7 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
   };
 
   return (
-    <div className="flex flex-col h-full max-h-[600px]">
+    <div className="flex flex-col h-full">
       {/* Header with connection status */}
       <div className="flex items-center justify-between p-4 border-b border-gruvbox-bg3">
         <div className="flex items-center gap-3">
@@ -799,7 +817,7 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
       )}
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
         {messages.length === 0 ? (
           <div className="text-center text-gruvbox-fg2 py-8">
             {!isStarted ? (
