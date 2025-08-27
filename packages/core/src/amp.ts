@@ -1308,6 +1308,38 @@ Please provide a thorough analysis and actionable recommendations.`;
     });
   }
 
+  async validateThreadExists(threadId: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      const child = spawn(this.config.ampPath!, ['threads', 'list'], {
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      
+      let stdout = '';
+      let stderr = '';
+      
+      child.stdout?.on('data', (data: Buffer) => {
+        stdout += data.toString();
+      });
+      
+      child.stderr?.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+      
+      child.on('close', (exitCode: number) => {
+        if (exitCode === 0 && !stderr.includes('Not logged in')) {
+          // Check if threadId appears in the output
+          resolve(stdout.includes(threadId));
+        } else {
+          resolve(false);
+        }
+      });
+      
+      child.on('error', () => {
+        resolve(false);
+      });
+    });
+  }
+
   /**
    * Start an interactive streaming session with Amp CLI
    */
@@ -1356,6 +1388,7 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
   private sessionId: string;
   private threadId?: string;
   private store?: any;
+  private config: AmpAdapterConfig;
   private jsonBuffer: string = '';
   private realtimeTelemetry: AmpTelemetry = { exitCode: 0, toolCalls: [] };
   private workingDir: string = '';
@@ -1374,8 +1407,10 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
   ) {
     super();
     this.sessionId = sessionId;
-    this.threadId = threadId;
+    // Don't set threadId to 'new' - wait for amp CLI to provide the real thread ID
+    this.threadId = (threadId === 'new') ? undefined : threadId;
     this.store = store;
+    this.config = config;
     this.workingDir = workingDir;
     this.autoCommit = autoCommit;
     this.initializeConnection(workingDir, modelOverride, threadId, config, store, telemetryParser, autoCommit);
@@ -1400,17 +1435,25 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
 
       // Add thread continuation if threadId provided or session has existing threads
       if (threadId && threadId !== 'new') {
-        // Continue specific existing thread
-        args.unshift('threads', 'continue', threadId);
-        console.log(`Attempting to continue thread ${threadId} for interactive session`);
-        
-        // Store the threadId for potential fallback use
-        this.threadId = threadId;
+        // Validate thread exists before attempting to continue
+        const threadExists = await this.validateThreadExists(threadId);
+        if (threadExists) {
+          // Continue specific existing thread
+          args.unshift('threads', 'continue', threadId);
+          console.log(`Attempting to continue thread ${threadId} for interactive session`);
+          
+          // Store the threadId for potential fallback use
+          this.threadId = threadId;
+        } else {
+          console.log(`Thread ${threadId} doesn't exist on Amp server - will create new thread instead`);
+          // Don't add continue args, let amp CLI create new thread
+        }
       } else if (threadId === 'new' || !threadId) {
         // Force new thread creation or handle case with no threadId
         if (threadId === 'new') {
-          // Explicitly requested new thread - let amp CLI create it naturally
-          console.log(`Explicitly requested new thread, will let amp CLI create it for interactive session`);
+        // Explicitly requested new thread - let amp CLI create it naturally
+        // Don't set this.threadId or add continue args - this forces amp CLI to create a fresh thread
+           console.log(`Explicitly requested new thread, will let amp CLI create it for interactive session`);
         } else if (store) {
           try {
             // First try to use current amp thread if it exists and belongs to this session
@@ -1804,6 +1847,39 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
     const jsonLine = JSON.stringify(messageObj) + '\n';
     console.log(`[DEBUG] Sending message to Amp CLI:`, messageObj);
     this.child.stdin.write(jsonLine);
+  }
+
+  async validateThreadExists(threadId: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      const { spawn } = require('child_process');
+      const child = spawn(this.config.ampPath!, ['threads', 'list'], {
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      
+      let stdout = '';
+      let stderr = '';
+      
+      child.stdout?.on('data', (data: Buffer) => {
+        stdout += data.toString();
+      });
+      
+      child.stderr?.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+      
+      child.on('close', (exitCode: number) => {
+        if (exitCode === 0 && !stderr.includes('Not logged in')) {
+          // Check if threadId appears in the output
+          resolve(stdout.includes(threadId));
+        } else {
+          resolve(false);
+        }
+      });
+      
+      child.on('error', () => {
+        resolve(false);
+      });
+    });
   }
 
   async stop(): Promise<void> {

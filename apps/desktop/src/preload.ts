@@ -60,25 +60,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   interactive: {
-    start: (sessionId: string, threadId?: string) => ipcRenderer.invoke('interactive:start', sessionId, threadId) as Promise<{ success: boolean; error?: string }>,
-    send: (sessionId: string, message: string) => ipcRenderer.invoke('interactive:send', sessionId, message) as Promise<{ success: boolean; error?: string }>,
-    stop: (sessionId: string) => ipcRenderer.invoke('interactive:stop', sessionId) as Promise<{ success: boolean; error?: string }>,
+    start: (sessionId: string, threadId?: string) => ipcRenderer.invoke('interactive:start', sessionId, threadId) as Promise<{ success: boolean; handleId?: string; error?: string }>,
+    send: (sessionId: string, handleId: string, message: string) => ipcRenderer.invoke('interactive:send', sessionId, handleId, message) as Promise<{ success: boolean; error?: string }>,
+    stop: (sessionId: string, handleId: string) => ipcRenderer.invoke('interactive:stop', sessionId, handleId) as Promise<{ success: boolean; error?: string }>,
     getHistory: (sessionId: string) => ipcRenderer.invoke('interactive:getHistory', sessionId) as Promise<{ success: boolean; events?: any[]; error?: string }>,
     
-    onEvent: (callback: (sessionId: string, event: any) => void) => {
-      const handler = (_: any, sessionId: string, event: any) => callback(sessionId, event);
+    onEvent: (callback: (sessionId: string, handleId: string, event: any) => void) => {
+      const handler = (_: any, sessionId: string, handleId: string, event: any) => callback(sessionId, handleId, event);
       ipcRenderer.on('interactive:event', handler);
       return () => ipcRenderer.removeListener('interactive:event', handler);
     },
     
-    onState: (callback: (sessionId: string, state: string) => void) => {
-      const handler = (_: any, sessionId: string, state: string) => callback(sessionId, state);
+    onState: (callback: (sessionId: string, handleId: string, state: string) => void) => {
+      const handler = (_: any, sessionId: string, handleId: string, state: string) => callback(sessionId, handleId, state);
       ipcRenderer.on('interactive:state', handler);
       return () => ipcRenderer.removeListener('interactive:state', handler);
     },
     
-    onError: (callback: (sessionId: string, error: string) => void) => {
-      const handler = (_: any, sessionId: string, error: string) => callback(sessionId, error);
+    onError: (callback: (sessionId: string, handleId: string, error: string) => void) => {
+      const handler = (_: any, sessionId: string, handleId: string, error: string) => callback(sessionId, handleId, error);
       ipcRenderer.on('interactive:error', handler);
       return () => ipcRenderer.removeListener('interactive:error', handler);
     }

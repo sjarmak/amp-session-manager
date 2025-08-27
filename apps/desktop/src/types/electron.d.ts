@@ -59,13 +59,13 @@ declare global {
     commitStagedChanges: (repoPath: string, message: string) => Promise<{ success: boolean; result?: { commitSha: string }; error?: string }>;
   };
       interactive: {
-        start: (sessionId: string, threadId?: string) => Promise<{ success: boolean; error?: string }>;
-        send: (sessionId: string, message: string) => Promise<{ success: boolean; error?: string }>;
-        stop: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+        start: (sessionId: string, threadId?: string) => Promise<{ success: boolean; handleId?: string; error?: string }>;
+        send: (sessionId: string, handleId: string, message: string) => Promise<{ success: boolean; error?: string }>;
+        stop: (sessionId: string, handleId: string) => Promise<{ success: boolean; error?: string }>;
         getHistory: (sessionId: string) => Promise<{ success: boolean; events?: any[]; error?: string }>;
-        onEvent: (callback: (sessionId: string, event: any) => void) => () => void;
-        onState: (callback: (sessionId: string, state: string) => void) => () => void;
-        onError: (callback: (sessionId: string, error: string) => void) => () => void;
+        onEvent: (callback: (sessionId: string, handleId: string, event: any) => void) => () => void;
+        onState: (callback: (sessionId: string, handleId: string, state: string) => void) => () => void;
+        onError: (callback: (sessionId: string, handleId: string, error: string) => void) => () => void;
       };
       dialog: {
         selectDirectory: () => Promise<Electron.OpenDialogReturnValue>;

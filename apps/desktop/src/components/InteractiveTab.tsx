@@ -47,8 +47,23 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isCreatingNewThread, setIsCreatingNewThread] = useState(false);
+  const [isStartingNewThread, setIsStartingNewThread] = useState(false);
+  const [handleId, setHandleId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const isCreatingNewThreadRef = useRef(isCreatingNewThread);
+  const selectedThreadIdRef = useRef(selectedThreadId);
+  const startInFlight = useRef<Promise<void> | null>(null);
+  const latestStartToken = useRef<number>(0);
+
+  // Keep refs in sync with state
+  useEffect(() => { 
+    isCreatingNewThreadRef.current = isCreatingNewThread; 
+  }, [isCreatingNewThread]);
+  
+  useEffect(() => { 
+    selectedThreadIdRef.current = selectedThreadId; 
+  }, [selectedThreadId]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -63,14 +78,14 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
 
   // Reload messages when selectedThreadId changes
   useEffect(() => {
-    if (selectedThreadId && !isCreatingNewThread && !isLoadingMessages) {
+    if (selectedThreadId && !isCreatingNewThread && !isLoadingMessages && !isStartingNewThread) {
       console.log('useEffect: selectedThreadId changed, loading messages for:', selectedThreadId);
       loadThreadMessages(selectedThreadId);
-    } else if (!selectedThreadId && !isCreatingNewThread) {
+    } else if (!selectedThreadId && !isCreatingNewThread && !isStartingNewThread) {
       console.log('useEffect: no selectedThreadId, clearing messages');
       setMessages([]);
     }
-  }, [selectedThreadId, isCreatingNewThread, isLoadingMessages]);
+  }, [selectedThreadId, isCreatingNewThread, isLoadingMessages, isStartingNewThread]);
 
   // Handle initialThreadId from parent component
   useEffect(() => {
@@ -98,8 +113,34 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
 
   // Set up event listeners
   useEffect(() => {
-    const unsubEvent = window.electronAPI.interactive.onEvent((sessionId, event) => {
-      if (sessionId !== session.id) return;
+    const unsubEvent = window.electronAPI.interactive.onEvent((sessionId, evtHandleId, event) => {
+      if (sessionId !== session.id || evtHandleId !== handleId) return;
+      
+      console.log('[DEBUG] Frontend: Received event:', { type: event?.type, subtype: event?.subtype, session_id: event?.session_id, isCreatingNewThread });
+      
+      // Handle system:init events to capture new thread IDs
+      if (event?.type === 'system' && event?.subtype === 'init' && event?.session_id) {
+        console.log('[DEBUG] Frontend: Received system:init, capturing thread ID:', event.session_id);
+        
+        // If we're creating a new thread OR if thread validation failed and a new thread was created
+        if (isCreatingNewThread || (selectedThreadId && event.session_id !== selectedThreadId)) {
+          console.log('=== FRONTEND DEBUG: New thread created with ID:', event.session_id, '===');
+          setThreadId(event.session_id);
+          setSelectedThreadId(event.session_id);
+          setIsCreatingNewThread(false);
+          // Don't call onThreadSelected here - it would trigger switchToThread and cause a double startInteractiveSession call
+          // Clear messages to ensure fresh start for new thread
+          setMessages([]);
+          // Reload threads to include the new one
+          loadAvailableThreads(true);
+          
+          // If thread validation failed, notify user
+          if (selectedThreadId && event.session_id !== selectedThreadId) {
+            console.log(`Thread validation failed for ${selectedThreadId}, created new thread ${event.session_id}`);
+          }
+        }
+        return;
+      }
       
       // First, check if event is a JSON array string (the common case shown in the screenshot)
       if (typeof event === 'string' && event.startsWith('[')) {
@@ -158,7 +199,7 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
         
         // Then add text content if available
         if (textContent.trim()) {
-          addMessage('assistant', textContent);
+          addMessage('assistant', textContent, event.data?.session_id || (event as any).session_id);
         }
       } else if (event.type === 'output' && event.data?.content) {
         // Handle user messages that come back from stdout (like Go implementation)
@@ -168,7 +209,7 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
           .join(' ');
           
         if (textContent.trim()) {
-          addMessage('user', textContent);
+          addMessage('user', textContent, event.data?.session_id || (event as any).session_id);
         }
       } else if (typeof event === 'string' && event.includes('tool_use')) {
         // Handle raw JSON strings that might contain tool_use
@@ -217,14 +258,14 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
       }
     });
 
-    const unsubState = window.electronAPI.interactive.onState((sessionId, state) => {
-      if (sessionId !== session.id) return;
+    const unsubState = window.electronAPI.interactive.onState((sessionId, stateHandleId, state) => {
+      if (sessionId !== session.id || stateHandleId !== handleId) return;
       setConnectionState(state as ConnectionState);
       setError(null);
     });
 
-    const unsubError = window.electronAPI.interactive.onError((sessionId, errorMsg) => {
-      if (sessionId !== session.id) return;
+    const unsubError = window.electronAPI.interactive.onError((sessionId, errorHandleId, errorMsg) => {
+      if (sessionId !== session.id || errorHandleId !== handleId) return;
       setError(errorMsg);
       setConnectionState('error');
     });
@@ -234,7 +275,7 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
       unsubState();
       unsubError();
     };
-  }, [session.id]);
+  }, [session.id, isCreatingNewThread, handleId]);
 
   const loadAvailableThreads = async (skipAutoSelection = false) => {
     try {
@@ -454,7 +495,13 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
     }
   };
 
-  const addMessage = (sender: 'user' | 'assistant', content: string) => {
+  const addMessage = (sender: 'user' | 'assistant', content: string, messageThreadId?: string) => {
+    // Only add message if it belongs to the current thread (or no thread filtering needed)
+    if (messageThreadId && selectedThreadId && messageThreadId !== selectedThreadId) {
+      console.log(`[DEBUG] Ignoring message from thread ${messageThreadId}, current thread is ${selectedThreadId}`);
+      return;
+    }
+    
     const newMessage: ChatMessage = {
       id: `${sender}-${Date.now()}-${Math.random()}`,
       sender,
@@ -482,18 +529,20 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
 
   const startNewThread = async () => {
     console.log('Starting new thread...');
-    setIsCreatingNewThread(true);
     
     // Stop any existing session first
     if (isStarted) {
+      console.log('Stopping existing session before starting new thread');
       await stopInteractiveSession();
     }
     
     // Reset all state for a fresh start
+    console.log('Setting isCreatingNewThread to true');
+    setIsCreatingNewThread(true);
     setSelectedThreadId(null);
-    setThreadId('new'); // Special marker to force new thread creation
+    setThreadId(''); // Clear thread ID completely
     onThreadSelected?.(null);
-    setMessages([]);
+    setMessages([]); // Clear messages immediately
     setError(null);
     setConnectionState('closed');
     setIsStarted(false);
@@ -502,57 +551,95 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
     // Reload available threads to get updated list, but skip auto-selection
     await loadAvailableThreads(true);
     
-    // Allow thread creation to complete
-    setTimeout(() => {
-      setIsCreatingNewThread(false);
-      console.log('New thread creation completed');
-    }, 100);
+    console.log('New thread setup completed, isCreatingNewThread:', true, 'ready to start fresh session');
   };
 
-  const startInteractiveSession = async () => {
-    setError(null);
-    setConnectionState('connecting');
-    setIsStarted(true);
-    
-    try {
-      // Use the currently-selected thread if there is one, otherwise pass null to let backend decide
-      const threadArg = selectedThreadId || null;
-      const result = await window.electronAPI.interactive.start(session.id, threadArg);
-      
-      if (!result.success) {
-        setError(result.error || 'Failed to start interactive session');
-        setConnectionState('error');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start session');
-      setConnectionState('error');
+  const startInteractiveSession = async (forceNewThread = false, isThreadSwitch = false): Promise<void> => {
+    // Simple mutex: if already starting, return early
+    if (startInFlight.current) {
+      console.log('Start already in flight, skipping');
+      return;
     }
+    
+    const callId = Math.random().toString(36).substring(7);
+    console.log(`=== FRONTEND DEBUG ${callId}: startInteractiveSession called ===`);
+    console.log(`=== FRONTEND DEBUG ${callId}: forceNewThread = ${forceNewThread}, isCreatingNewThread = ${isCreatingNewThread}, isCreatingNewThreadRef.current = ${isCreatingNewThreadRef.current} ===`);
+    
+    startInFlight.current = (async () => {
+      try {
+        setError(null);
+        if (!isThreadSwitch) {
+          setConnectionState('connecting');
+        }
+        setIsStarted(true);
+        
+        // If forceNewThread or we're creating a new thread, pass 'new' to force backend to create one
+        // Otherwise use the currently-selected thread, or null to let backend decide
+        const shouldCreateNew = forceNewThread || isCreatingNewThreadRef.current;
+        const threadArg = shouldCreateNew ? 'new' : (selectedThreadIdRef.current || null);
+        console.log(`=== FRONTEND DEBUG ${callId}: shouldCreateNew = ${shouldCreateNew}, threadArg = "${threadArg}" ===`);
+        
+        // Clear messages before starting if creating new thread
+        if (shouldCreateNew) {
+          setMessages([]);
+          console.log(`=== FRONTEND DEBUG ${callId}: Cleared messages for new thread ===`);
+        }
+        
+        const result = await window.electronAPI.interactive.start(session.id, threadArg);
+        
+        if (result.success && result.handleId) {
+          setHandleId(result.handleId);
+          setConnectionState('ready');
+          console.log(`=== FRONTEND DEBUG ${callId}: Session started with handleId = ${result.handleId} ===`);
+        } else {
+          setError(result.error || 'Failed to start interactive session');
+          setConnectionState('error');
+          setIsStarted(false);
+        }
+      } catch (error) {
+        console.error(`=== FRONTEND DEBUG ${callId}: Exception during start:`, error);
+        setError(error instanceof Error ? error.message : String(error));
+        setConnectionState('error');
+        setIsStarted(false);
+      }
+    })();
+    
+    await startInFlight.current;
+    startInFlight.current = null;
   };
 
   const stopInteractiveSession = async () => {
+    if (!handleId) return;
+    
     try {
-      await window.electronAPI.interactive.stop(session.id);
+      await window.electronAPI.interactive.stop(session.id, handleId);
       setConnectionState('closed');
       setIsStarted(false);
+      setHandleId(null);
     } catch (err) {
       console.error('Failed to stop interactive session:', err);
     }
   };
 
   const switchToThread = async (id: string) => {
+    console.log('switchToThread called with:', id);
+    
     // update UI state first
     setSelectedThreadId(id);
     setThreadId(id);
+    
+    // refresh thread list to ensure dropdown stays current
+    await loadAvailableThreads(true);
 
     // if a session is live, restart it with the new thread
     if (isStarted) {
-      await stopInteractiveSession();
-      await startInteractiveSession(); // will now use new selectedThreadId
+      console.log('Session is started, restarting with new thread:', id);
+      await startInteractiveSession(false, true); // isThreadSwitch = true, mutex handles ordering
     }
   };
 
   const sendMessage = async () => {
-    if (!input.trim() || connectionState !== 'ready') return;
+    if (!input.trim() || connectionState !== 'ready' || !handleId) return;
     
     const messageText = input.trim();
     setInput('');
@@ -560,7 +647,7 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
     // Don't add user message to UI immediately - it will come back from stdout
     
     try {
-      const result = await window.electronAPI.interactive.send(session.id, messageText);
+      const result = await window.electronAPI.interactive.send(session.id, handleId, messageText);
       if (!result.success) {
         setError(result.error || 'Failed to send message');
       }
@@ -623,13 +710,36 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
               <div className="absolute right-0 top-full mt-1 bg-gruvbox-bg1 border border-gruvbox-bg3 rounded-md shadow-lg z-10 min-w-48">
                 <div className="py-1">
                   <button
-                    onClick={() => {
-                      startNewThread();
-                      setShowThreadDropdown(false);
+                    onClick={async () => {
+                      if (isStartingNewThread) {
+                        console.log('Already starting new thread, ignoring click');
+                        return; // Prevent multiple clicks
+                      }
+                      
+                      const clickId = Math.random().toString(36).substring(7);
+                      console.log(`[DEBUG] Frontend: User clicked Start New Thread (${clickId}) - beginning flow`);
+                      
+                      setIsStartingNewThread(true); // Set this immediately to prevent double clicks
+                      
+                      try {
+                        await startNewThread();
+                        setShowThreadDropdown(false);
+                        // Auto-start the interactive session immediately since state is already set
+                        console.log(`[DEBUG] Frontend: (${clickId}) Auto-starting interactive session for new thread, isCreatingNewThread should be true`);
+                        await startInteractiveSession(true); // Pass true to force new thread creation
+                      } finally {
+                        // Reset the button state only after everything completes
+                        setIsStartingNewThread(false);
+                      }
                     }}
-                    className="w-full text-left px-3 py-2 text-sm text-gruvbox-bright-green hover:bg-gruvbox-bg2 border-b border-gruvbox-bg3 font-medium"
+                    disabled={isStartingNewThread}
+                    className={`w-full text-left px-3 py-2 text-sm border-b border-gruvbox-bg3 font-medium ${
+                      isStartingNewThread 
+                        ? 'text-gruvbox-fg2 cursor-not-allowed opacity-50' 
+                        : 'text-gruvbox-bright-green hover:bg-gruvbox-bg2'
+                    }`}
                   >
-                    + Start New Thread
+                    {isStartingNewThread ? 'Starting...' : '+ Start New Thread'}
                   </button>
                   {availableThreads.length > 0 && availableThreads.map((thread) => (
                     <button
@@ -659,7 +769,7 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
           
           {!isStarted ? (
             <button
-              onClick={startInteractiveSession}
+              onClick={() => startInteractiveSession()}
               className="px-3 py-1 bg-gruvbox-bright-green text-gruvbox-bg0 rounded text-sm hover:bg-gruvbox-green"
             >
               Start Chat

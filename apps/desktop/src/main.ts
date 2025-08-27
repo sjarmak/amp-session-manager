@@ -1371,10 +1371,12 @@ ipcMain.handle('benchmarks:delete', async (_, runId: string) => {
 });
 
 // Interactive streaming handlers
-const interactiveHandles = new Map(); // sessionId -> InteractiveHandle
+const { randomUUID } = require('crypto');
+const interactiveHandles = new Map(); // sessionId -> { handleId, threadId, ampHandle }
 
 ipcMain.handle('interactive:start', async (_, sessionId: string, threadId?: string) => {
   try {
+    console.log(`[DEBUG] IPC interactive:start called with sessionId: ${sessionId}, threadId: ${threadId}`);
     const session = store.getSession(sessionId);
     if (!session) {
       return { success: false, error: 'Session not found' };
@@ -1382,7 +1384,8 @@ ipcMain.handle('interactive:start', async (_, sessionId: string, threadId?: stri
 
     // Stop existing interactive session if any
     if (interactiveHandles.has(sessionId)) {
-      await interactiveHandles.get(sessionId).stop();
+      const existing = interactiveHandles.get(sessionId);
+      await existing.ampHandle.stop();
       interactiveHandles.delete(sessionId);
     }
 
@@ -1398,7 +1401,7 @@ ipcMain.handle('interactive:start', async (_, sessionId: string, threadId?: stri
       };
     }
     
-    const handle = ampAdapter.startInteractive(
+    const ampHandle = ampAdapter.startInteractive(
       sessionId,
       session.worktreePath,
       session.modelOverride,
@@ -1406,26 +1409,29 @@ ipcMain.handle('interactive:start', async (_, sessionId: string, threadId?: stri
       session.autoCommit
     );
 
-    // Forward events to renderer
-    handle.on('streaming-event', (event) => {
-      mainWindow?.webContents.send('interactive:event', sessionId, event);
+    // Generate unique handleId for this session
+    const handleId = randomUUID();
+    
+    // Forward events to renderer with handleId
+    ampHandle.on('streaming-event', (event) => {
+      mainWindow?.webContents.send('interactive:event', sessionId, handleId, event);
     });
 
-    handle.on('state', (state) => {
-      mainWindow?.webContents.send('interactive:state', sessionId, state);
+    ampHandle.on('state', (state) => {
+      mainWindow?.webContents.send('interactive:state', sessionId, handleId, state);
     });
 
-    handle.on('error', (error) => {
-      mainWindow?.webContents.send('interactive:error', sessionId, error.message || String(error));
+    ampHandle.on('error', (error) => {
+      mainWindow?.webContents.send('interactive:error', sessionId, handleId, error.message || String(error));
     });
 
-    handle.on('changes-staged', (data) => {
+    ampHandle.on('changes-staged', (data) => {
       // Notify renderer that changes have been staged
-      mainWindow?.webContents.send('interactive:changes-staged', sessionId, data);
+      mainWindow?.webContents.send('interactive:changes-staged', sessionId, handleId, data);
     });
 
-    interactiveHandles.set(sessionId, handle);
-    return { success: true };
+    interactiveHandles.set(sessionId, { handleId, threadId, ampHandle });
+    return { success: true, handleId };
 
   } catch (error) {
     console.error('Failed to start interactive session:', error);
@@ -1433,14 +1439,14 @@ ipcMain.handle('interactive:start', async (_, sessionId: string, threadId?: stri
   }
 });
 
-ipcMain.handle('interactive:send', async (_, sessionId: string, message: string) => {
+ipcMain.handle('interactive:send', async (_, sessionId: string, handleId: string, message: string) => {
   try {
-    const handle = interactiveHandles.get(sessionId);
-    if (!handle) {
-      return { success: false, error: 'Interactive session not found' };
+    const entry = interactiveHandles.get(sessionId);
+    if (!entry || entry.handleId !== handleId) {
+      return { success: false, error: 'Interactive session not found or handleId mismatch' };
     }
 
-    handle.send(message);
+    entry.ampHandle.send(message);
     return { success: true };
 
   } catch (error) {
@@ -1449,14 +1455,19 @@ ipcMain.handle('interactive:send', async (_, sessionId: string, message: string)
   }
 });
 
-ipcMain.handle('interactive:stop', async (_, sessionId: string) => {
+ipcMain.handle('interactive:stop', async (_, sessionId: string, handleId: string) => {
   try {
-    const handle = interactiveHandles.get(sessionId);
-    if (!handle) {
+    const entry = interactiveHandles.get(sessionId);
+    if (!entry) {
       return { success: true }; // Already stopped
     }
+    
+    // Verify handleId matches to prevent stopping wrong session
+    if (entry.handleId !== handleId) {
+      return { success: false, error: 'HandleId mismatch - session may have already changed' };
+    }
 
-    await handle.stop();
+    await entry.ampHandle.stop();
     interactiveHandles.delete(sessionId);
     return { success: true };
 
@@ -1479,9 +1490,9 @@ ipcMain.handle('interactive:getHistory', async (_, sessionId: string) => {
 // Clean up interactive handles when app is closing
 app.on('before-quit', async () => {
   console.log('Cleaning up interactive sessions...');
-  for (const [sessionId, handle] of interactiveHandles) {
+  for (const [sessionId, entry] of interactiveHandles) {
     try {
-      await handle.stop();
+      await entry.ampHandle.stop();
     } catch (error) {
       console.error(`Failed to stop interactive session ${sessionId}:`, error);
     }
