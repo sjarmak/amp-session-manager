@@ -116,22 +116,7 @@ export class BatchController extends EventEmitter {
         status = 'error';
       }
 
-      // Collect all unique models used across items
-      const modelsUsed = new Set<string>();
-      for (const item of items) {
-        if (item.model) {
-          modelsUsed.add(item.model);
-        }
-      }
-      if (defaults.model && modelsUsed.size === 0) {
-        modelsUsed.add(defaults.model);
-      }
-      
-      const modelDisplay = modelsUsed.size > 1 
-        ? `${modelsUsed.size} models` 
-        : modelsUsed.size === 1 
-          ? Array.from(modelsUsed)[0] 
-          : 'claude sonnet 4';
+      const modelDisplay = defaults.model || 'claude sonnet 4';
 
       return {
         runId: batch.runId,

@@ -58,7 +58,6 @@ interface ParsedStreamMetrics {
     cacheRead: number;
     total: number;
   };
-  models: string[];
   filesCreated: string[];
   filesModified: string[];
   userMessages: Array<{
@@ -348,7 +347,6 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
           sessionResults: [],
           toolUsage: [],
           totalTokens: { input: 0, output: 0, cacheCreation: 0, cacheRead: 0, total: 0 },
-          models: [],
           filesCreated: [],
           filesModified: [],
           userMessages: [],
@@ -418,11 +416,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                 parsedMetrics.totalTokens.total = parsedMetrics.totalTokens.input + parsedMetrics.totalTokens.output;
               }
               
-              // Track models
-              if (messageModel && !parsedMetrics.models.includes(messageModel)) {
-                console.log('[DEBUG] Adding model from assistant_message:', messageModel);
-                parsedMetrics.models.push(messageModel);
-              }
+
               break;
               
             case 'token_usage':
@@ -433,18 +427,11 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                 parsedMetrics.totalTokens.output += event.completionTokens || event.data?.completionTokens || 0;
                 parsedMetrics.totalTokens.total += event.totalTokens || event.data?.totalTokens || 0;
               }
-              const tokenModel = event.model || event.data?.model;
-              if (tokenModel && !parsedMetrics.models.includes(tokenModel)) {
-                console.log('[DEBUG] Adding model from token_usage:', tokenModel);
-                parsedMetrics.models.push(tokenModel);
-              }
+
               break;
               
             case 'model_change':
-              // Handle model change events
-              if (event.model && !parsedMetrics.models.includes(event.model)) {
-                parsedMetrics.models.push(event.model);
-              }
+              // Model change events - no longer tracking models
               break;
               
             case 'tool_start':
@@ -500,10 +487,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
                   parsedMetrics.totalTokens.total = parsedMetrics.totalTokens.input + parsedMetrics.totalTokens.output;
                 }
                 
-                // Track models
-                if (event.message.model && !parsedMetrics.models.includes(event.message.model)) {
-                  parsedMetrics.models.push(event.message.model);
-                }
+
                 
                 // Skip duplicate tool usage extraction - already handled above in the main event loop
               }
@@ -694,19 +678,9 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
         new Set([...filesModifiedFromMessages, ...filesModifiedFromTools])
         ).filter(isValidFilePath);
          
-         // Debug and deduplicate models - normalize unknown/empty models first
-         console.log('[DEBUG] Raw models before dedup:', parsedMetrics.models);
          
-         // Normalize models: treat 'unknown', empty strings, null/undefined as the same
-         const normalizedModels = parsedMetrics.models.map(model => {
-           if (!model || model === 'unknown' || model === '') {
-             return 'Claude Sonnet 4'; // Default model
-           }
-           return model;
-         });
          
-         parsedMetrics.models = Array.from(new Set(normalizedModels));
-         console.log('[DEBUG] Models after normalization and dedup:', parsedMetrics.models);
+         
         
         // Build threads structure for conversation flow
         const threadMap = new Map<string, {
@@ -918,10 +892,7 @@ export function JSONMetrics({ sessionId, className = '', session }: JSONMetricsP
               <span>Files Modified:</span>
               <span className="font-mono">{metrics.filesModified.length}</span>
             </div>
-            <div className="flex justify-between">
-              <span>Models Used:</span>
-              <span className="font-mono">{metrics.models.length}</span>
-            </div>
+
             <div className="flex justify-between">
               <span>User Messages:</span>
               <span className="font-mono">{metrics.userMessages.length}</span>

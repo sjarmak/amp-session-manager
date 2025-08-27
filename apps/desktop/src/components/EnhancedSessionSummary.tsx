@@ -13,6 +13,7 @@ interface SummaryMetrics {
     total: number;
   };
   toolUsage: Record<string, number>;
+  models: string[];
   filesCreated: string[];
   filesModified: string[];
   linesChanged: {
@@ -22,7 +23,7 @@ interface SummaryMetrics {
   };
   assistantMessages: number;
   userMessages: number;
-  models: string[];
+
   duration: number;
 }
 
@@ -48,12 +49,13 @@ export function EnhancedSessionSummary({ session, className = '' }: EnhancedSess
         const summaryMetrics: SummaryMetrics = {
           totalTokens: { input: 0, output: 0, total: 0 },
           toolUsage: {},
+          models: [],
           filesCreated: [],
           filesModified: [],
           linesChanged: { added: 0, deleted: 0, total: 0 },
           assistantMessages: 0,
           userMessages: 0,
-          models: [],
+
           duration: 0
         };
 
@@ -71,9 +73,7 @@ export function EnhancedSessionSummary({ session, className = '' }: EnhancedSess
             summaryMetrics.totalTokens.output += iteration.completionTokens || 0;
             summaryMetrics.totalTokens.total += iteration.totalTokens || 0;
             
-            if (iteration.model && !summaryMetrics.models.includes(iteration.model)) {
-              summaryMetrics.models.push(iteration.model);
-            }
+            
 
             if (iteration.output && iteration.output.trim()) {
               summaryMetrics.assistantMessages++;
@@ -244,10 +244,7 @@ export function EnhancedSessionSummary({ session, className = '' }: EnhancedSess
               <span>Messages:</span>
               <span className="font-mono">{metrics.assistantMessages + metrics.userMessages}</span>
             </div>
-            <div className="flex justify-between">
-              <span>Models:</span>
-              <span className="font-mono">{metrics.models.length}</span>
-            </div>
+
             <div className="flex justify-between">
               <span>Duration:</span>
               <span className="font-mono">{formatDuration(metrics.duration)}</span>

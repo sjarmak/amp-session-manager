@@ -380,6 +380,11 @@ export class SessionStore {
   }
 
   getAllSessions(): Session[] {
+    // Sync thread IDs for sessions that don't have them
+    this.syncAllSessionThreadIds().catch(err => 
+      console.error('Error syncing thread IDs:', err)
+    );
+    
     const stmt = this.db.prepare('SELECT * FROM sessions ORDER BY createdAt DESC');
     const rows = stmt.all() as any[];
     return rows.map(row => ({

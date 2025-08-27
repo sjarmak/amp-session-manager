@@ -113,7 +113,7 @@ export class NDJSONMetricsSink implements MetricsSink {
         totalTokens: 0,
         promptTokens: 0,
         completionTokens: 0,
-        models: new Set(),
+
         lastUpdate: event.timestamp
       });
     }
@@ -124,7 +124,7 @@ export class NDJSONMetricsSink implements MetricsSink {
     if (data.totalTokens) aggregate.totalTokens += data.totalTokens;
     if (data.promptTokens) aggregate.promptTokens += data.promptTokens;
     if (data.completionTokens) aggregate.completionTokens += data.completionTokens;
-    if (data.model) aggregate.models.add(data.model);
+
     aggregate.lastUpdate = event.timestamp;
   }
 
@@ -249,7 +249,7 @@ export class NDJSONMetricsSink implements MetricsSink {
         totalTokens: aggregate.totalTokens || 0,
         promptTokens: aggregate.promptTokens || 0,
         completionTokens: aggregate.completionTokens || 0,
-        models: Array.from(aggregate.models || []),
+
         lastUpdate: aggregate.lastUpdate
       },
       activeTools: Array.from(aggregate.activeTools?.keys() || []),

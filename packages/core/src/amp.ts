@@ -1944,6 +1944,60 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
         await git.stageAllChanges(this.workingDir);
         console.log(`Successfully staged changes for session ${this.sessionId}`);
         
+        // Track file changes for interactive sessions too
+        try {
+          console.log(`[INTERACTIVE] About to track file changes for ${this.workingDir}`);
+          const { FileDiffTracker } = await import('./metrics/file-diff-tracker.js');
+          const { Logger } = await import('./utils/logger.js');
+          const logger = new Logger('interactive-diff', 'debug');
+          const fileDiffTracker = new FileDiffTracker(logger);
+          const fileChanges = await fileDiffTracker.getFileChanges(this.workingDir);
+          
+          console.log(`[INTERACTIVE] Found ${fileChanges.length} file changes:`, fileChanges.map(c => `${c.path}: +${c.linesAdded}/-${c.linesDeleted}`));
+          
+          // Store as stream events for UI consumption AND create metric records
+          if (this.store) {
+            // Create or get current iteration for tracking
+            const iterations = this.store.getIterations(this.sessionId);
+            let iterationId = iterations.length > 0 ? iterations[iterations.length - 1].id : null;
+            
+            // If no iteration exists, create one for interactive changes
+            if (!iterationId) {
+              iterationId = this.store.addIteration(this.sessionId, {
+                startedAt: new Date().toISOString(),
+                endedAt: new Date().toISOString(),
+                status: 'completed',
+                exitCode: 0
+              });
+              console.log(`[INTERACTIVE] Created iteration ${iterationId} for tracking`);
+            }
+            
+            for (const change of fileChanges) {
+              try {
+                // Store as stream event for UI
+                this.store.addStreamEvent(this.sessionId, 'file_edit', new Date().toISOString(), {
+                  path: change.path,
+                  linesAdded: change.linesAdded,
+                  linesDeleted: change.linesDeleted,
+                  operation: change.operation
+                });
+                
+                // Also store as metric event for aggregation
+                this.store.db.prepare(`
+                  INSERT INTO metric_file_edits (iteration_id, file_path, operation_type, lines_added, lines_deleted, timestamp)
+                  VALUES (?, ?, ?, ?, ?, ?)
+                `).run(iterationId, change.path, change.operation, change.linesAdded, change.linesDeleted, new Date().toISOString());
+                
+                console.log(`[INTERACTIVE] Stored file_edit metrics for ${change.path}: +${change.linesAdded}/-${change.linesDeleted}`);
+              } catch (error) {
+                console.error('Failed to store interactive file_edit events:', error);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Failed to track file changes for interactive session:', error);
+        }
+        
         // Emit an event so the UI can refresh
         this.emit('changes-staged', {
           sessionId: this.sessionId,

@@ -40,11 +40,12 @@ export class FileDiffTracker {
       
       const stagedDiffOutput = this.executeGitCommand('git diff --cached --unified=0 --no-color', workingDir);
       const stagedDiffStatOutput = this.executeGitCommand('git diff --cached --numstat', workingDir);
+      const stagedStatusOutput = this.executeGitCommand('git diff --cached --name-status', workingDir);
       this.logger.debug(`[DIFF] Staged diff stat output: "${stagedDiffStatOutput}"`);
 
       // Parse both unstaged and staged changes
       const unstagedChanges = this.parseDiffOutput(diffOutput, diffStatOutput, statusOutput);
-      const stagedChanges = this.parseDiffOutput(stagedDiffOutput, stagedDiffStatOutput, '');
+      const stagedChanges = this.parseDiffOutput(stagedDiffOutput, stagedDiffStatOutput, stagedStatusOutput);
       
       // Combine and deduplicate by path
       const allChanges = [...unstagedChanges];
@@ -104,10 +105,17 @@ export class FileDiffTracker {
         stdio: 'pipe'
       });
     } catch (error: any) {
+      // git diff exits with 1 when it finds changes – that is expected behavior
+      if (error.stdout !== undefined) {
+        return error.stdout.toString();
+      }
+
+      // Keep the old "not a repo" guard
       if (error.status === 128 || error.stderr?.includes('not a git repository')) {
         this.logger.debug('Not a git repository or no changes:', workingDir);
         return '';
       }
+      
       throw error;
     }
   }
