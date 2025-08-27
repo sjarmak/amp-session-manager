@@ -108,12 +108,13 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
   // Handle initialThreadId from parent component
   useEffect(() => {
     if (initialThreadId && initialThreadId !== selectedThreadId) {
+      console.log('Setting thread from initialThreadId:', initialThreadId);
       setSelectedThreadId(initialThreadId);
       setThreadId(initialThreadId);
       onThreadSelected?.(initialThreadId);
       loadThreadMessages(initialThreadId);
     }
-  }, [initialThreadId]);
+  }, [initialThreadId, availableThreads]);
 
   // Click outside to close dropdown
   useEffect(() => {
@@ -325,7 +326,8 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected }: I
             console.log('Using explicitly set session threadId:', session.threadId);
             setSelectedThreadId(session.threadId);
             setThreadId(session.threadId);
-          } else {
+          } else if (!initialThreadId) {
+            // Only clear selection if there's no initialThreadId pending
             // No pre-selection - let backend handle thread selection
             console.log('No thread pre-selected - backend will handle thread selection');
             setSelectedThreadId(null);

@@ -389,6 +389,7 @@ export function SessionView({
                     <div className="flex gap-2">
                       <button
                         onClick={() => {
+                          console.log('Continue thread clicked:', thread.id);
                           // Navigate to interactive tab with this thread selected
                           setSelectedThreadId(thread.id);
                           setActiveTab('interactive');
