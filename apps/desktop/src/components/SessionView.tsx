@@ -445,7 +445,7 @@ export function SessionView({
                                 ? 'text-gruvbox-bright-blue'
                                 : 'text-gruvbox-fg2'
                             }`}>
-                              {message.role === 'user' ? 'User' : message.role === 'assistant' ? 'Assistant' : 'System'}
+                              {message.role === 'user' ? 'User' : message.role === 'assistant' ? 'Amp' : 'System'}
                               <span className="ml-2 text-gruvbox-fg2">
                                 {new Date(message.createdAt).toLocaleTimeString()}
                               </span>
