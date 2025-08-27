@@ -617,7 +617,7 @@ export function SessionView({
 
 
       {activeTab === "interactive" && (
-        <div className="bg-gruvbox-bg1 rounded-lg border border-gruvbox-bg3">
+        <div className="bg-gruvbox-bg1 rounded-lg border border-gruvbox-bg3 h-[600px] flex flex-col">
           <InteractiveTab 
               session={session} 
               initialThreadId={selectedThreadId}
