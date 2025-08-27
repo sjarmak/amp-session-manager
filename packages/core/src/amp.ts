@@ -117,13 +117,12 @@ export class AmpAdapter extends EventEmitter {
     prompt: string, 
     workingDir: string, 
     modelOverride?: string,
-    sessionId?: string,
-    includeContext?: boolean
+    sessionId?: string
   ): Promise<AmpIterationResult> {
     // If no sessionId provided, fallback to legacy behavior (direct amp command)
     if (!sessionId) {
       console.warn('No sessionId provided - using legacy mode without thread management');
-      const finalPrompt = await this.buildIterationPrompt(prompt, workingDir, sessionId, includeContext);
+      const finalPrompt = await this.buildIterationPrompt(prompt, workingDir, sessionId);
       return this.runAmpCommandWithArgs(['-x'], finalPrompt, workingDir, modelOverride, sessionId);
     }
 
@@ -136,7 +135,7 @@ export class AmpAdapter extends EventEmitter {
         this.store.addThreadMessage(threadId, 'user', prompt);
       }
       
-      const finalPrompt = await this.buildIterationPrompt(prompt, workingDir, sessionId, includeContext);
+      const finalPrompt = await this.buildIterationPrompt(prompt, workingDir, sessionId);
       return this.runAmpCommand(finalPrompt, workingDir, modelOverride, sessionId, threadId);
     } else {
       // Get existing thread and continue it
@@ -153,7 +152,7 @@ export class AmpAdapter extends EventEmitter {
       
       // Use proper thread continuation command
       const alternatingModel = useGpt5 ? 'gpt-5' : undefined; // undefined = default model
-      return this.runThreadContinue(threadId, prompt, workingDir, alternatingModel, sessionId, includeContext);
+      return this.runThreadContinue(threadId, prompt, workingDir, alternatingModel, sessionId);
     }
   }
 
@@ -161,10 +160,9 @@ export class AmpAdapter extends EventEmitter {
     prompt: string, 
     workingDir: string, 
     modelOverride?: string,
-    sessionId?: string,
-    includeContext?: boolean
+    sessionId?: string
   ): Promise<AmpIterationResult> {
-    return this.continueThread(prompt, workingDir, modelOverride, sessionId, includeContext);
+    return this.continueThread(prompt, workingDir, modelOverride, sessionId);
   }
 
   async runThreadContinue(
@@ -172,17 +170,10 @@ export class AmpAdapter extends EventEmitter {
     prompt: string, 
     workingDir: string, 
     modelOverride?: string,
-    sessionId?: string,
-    includeContext?: boolean
+    sessionId?: string
   ): Promise<AmpIterationResult> {
-    // Prepare final prompt with context if needed
+    // Use prompt as-is
     let finalPrompt = prompt;
-    if (includeContext) {
-      const contextMd = await this.safeReadFile(join(workingDir, 'CONTEXT.md'));
-      if (contextMd.trim()) {
-        finalPrompt = `${prompt}\n\n${contextMd}`;
-      }
-    }
 
     console.log('Thread continue command:', {
       threadId,
@@ -661,28 +652,8 @@ export class AmpAdapter extends EventEmitter {
     });
   }
 
-  private async buildIterationPrompt(prompt: string, workingDir: string, sessionId?: string, includeContext?: boolean): Promise<string> {
-    try {
-      // If user doesn't want context, just return the prompt
-      if (!includeContext) {
-        return prompt;
-      }
-      
-      // Check if CONTEXT.md exists and include it if user opted in
-      const contextMd = await this.safeReadFile(join(workingDir, 'CONTEXT.md'));
-      
-      if (!contextMd.trim()) {
-        return prompt;
-      }
-      
-      // Include CONTEXT.md with the prompt since user opted in
-      return `${prompt}
-
-${contextMd}`;
-    } catch (error) {
-      console.warn('Failed to build iteration prompt:', error);
-      return prompt;
-    }
+  private async buildIterationPrompt(prompt: string, workingDir: string, sessionId?: string): Promise<string> {
+    return prompt;
   }
 
   // Note: buildContinuePrompt is no longer used - thread continuation now uses proper CLI commands
@@ -1432,37 +1403,46 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
         // Continue specific existing thread
         args.unshift('threads', 'continue', threadId);
         console.log(`Attempting to continue thread ${threadId} for interactive session`);
+        
+        // Store the threadId for potential fallback use
+        this.threadId = threadId;
       } else if (threadId === 'new' || !threadId) {
         // Force new thread creation or handle case with no threadId
         if (threadId === 'new') {
-          // Explicitly requested new thread - always create one
-          const threadName = `Chat ${new Date().toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
-            minute: '2-digit',
-            hour12: false 
-          })}`;
-          this.threadId = store.createThread(this.sessionId, threadName);
-          console.log(`Force created new thread ${this.threadId} for interactive session`);
+          // Explicitly requested new thread - let amp CLI create it naturally
+          console.log(`Explicitly requested new thread, will let amp CLI create it for interactive session`);
         } else if (store) {
           try {
-            // Check for existing threads using new thread model
-            const threads = store.getSessionThreads(this.sessionId);
-            if (threads.length > 0 && threads[0].messageCount > 0) {
-              const activeThread = threads.find((t: any) => t.status === 'active') || threads[0];
-              this.threadId = activeThread.id;
-              args.unshift('threads', 'continue', activeThread.id);
-            } else {
-              // Create new thread for interactive session
-              const threadName = `Chat ${new Date().toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: false 
-              })}`;
-              this.threadId = store.createThread(this.sessionId, threadName);
-              console.log(`Created new thread ${this.threadId} for interactive session`);
-            }
+            // First try to use current amp thread if it exists and belongs to this session
+            const { getCurrentAmpThreadId } = await import('./amp-utils.js');
+            const currentThreadId = await getCurrentAmpThreadId();
+            console.log(`[DEBUG] Current amp thread from file: ${currentThreadId}`);
+            console.log(`[DEBUG] Session ID: ${this.sessionId}`);
+            
+            if (currentThreadId) {
+            // Check if current thread belongs to this session
+               const threads = store.getSessionThreads(this.sessionId);
+               console.log(`[DEBUG] Session threads:`, threads.map((t: any) => t.id));
+               const currentSessionThread = threads.find((t: any) => t.id === currentThreadId);
+               console.log(`[DEBUG] Found current thread in session:`, !!currentSessionThread);
+              
+              if (currentSessionThread) {
+                console.log(`Using current amp thread ${currentThreadId} for interactive session`);
+                this.threadId = currentThreadId;
+                args.unshift('threads', 'continue', currentThreadId);
+              } else {
+                console.log(`Current amp thread ${currentThreadId} doesn't belong to session ${this.sessionId}`);
+                // Let amp CLI create the thread naturally - don't pass thread ID
+                console.log(`Will let amp CLI create new thread for interactive session`);
+              }
+              } else {
+              // No current thread, let amp CLI create new one
+              console.log(`No current amp thread found, will let amp CLI create new thread for interactive session`);
+              }
           } catch (error) {
-            console.warn('Could not check for existing threads:', error);
+            console.warn('Could not determine thread strategy, will let amp CLI create new thread:', error);
+            // Let amp CLI create the thread naturally - don't pass thread ID
+            console.log(`Will let amp CLI create fallback thread for interactive session`);
           }
         }
       }
@@ -1485,6 +1465,8 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
       }
 
       console.log('Starting interactive amp process:', config.ampPath, args);
+      console.log('Working directory:', workingDir);
+      console.log('Thread ID:', threadId);
 
       // Set up environment
       const env = { ...process.env, ...config.env };
@@ -1535,6 +1517,7 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
     this.child.stderr?.on('data', (data: Buffer) => {
       const chunk = data.toString();
       stderrBuffer += chunk;
+      console.log(`[DEBUG] Amp CLI stderr:`, chunk.trim());
       
       // Emit error event (stderr is plain text, not JSON)
       this.emit('streaming-event', {
@@ -1598,13 +1581,35 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
     for (const jsonString of completeObjects) {
       try {
         const parsedObject = JSON.parse(jsonString);
+        console.log(`[DEBUG] Received Amp response:`, parsedObject);
+         
+         // Log detailed error information for debugging
+         if (parsedObject.type === 'system' && parsedObject.subtype === 'error_during_execution') {
+           console.log(`[DEBUG] Error details:`, JSON.stringify(parsedObject.error, null, 2));
+         }
         
         // Signal ready when we get the first system init message (like Go implementation)
         if (this.state === 'connecting' && parsedObject.type === 'system' && parsedObject.subtype === 'init') {
-          this.state = 'ready';
-          this.emit('state', this.state);
-          console.log('Interactive session ready with tools:', parsedObject.tools);
-        }
+        this.state = 'ready';
+        this.emit('state', this.state);
+        console.log('Interactive session ready with tools:', parsedObject.tools);
+          
+           // Capture thread ID if we don't have one yet and amp CLI provided it
+           if (!this.threadId && (parsedObject.threadId || parsedObject.session_id)) {
+             this.threadId = parsedObject.threadId || parsedObject.session_id;
+             console.log(`[DEBUG] Captured thread ID from amp CLI: ${this.threadId}`);
+             // Store the thread in our local database
+             if (store) {
+               const existingThread = store.getSessionThreads(this.sessionId).find((t: any) => t.id === this.threadId);
+               if (!existingThread) {
+                 store.createThread(this.sessionId, 'Interactive Session', this.threadId);
+                 const threadName = `Thread ${this.threadId}`;
+                 store.updateThreadName(this.threadId, threadName);
+                 console.log(`[DEBUG] Stored thread ${this.threadId} in local database`);
+               }
+             }
+           }
+         }
         
         // Store raw stream event
         if (store) {
@@ -1782,7 +1787,10 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
   }
 
   private sendMessage(message: string): void {
-    if (!this.child?.stdin) return;
+    if (!this.child?.stdin) {
+      console.error('Cannot send message: child process stdin not available');
+      return;
+    }
 
     // Send JSON formatted message for --stream-json-input mode (like Go implementation)
     const messageObj = {
@@ -1794,6 +1802,7 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
     };
 
     const jsonLine = JSON.stringify(messageObj) + '\n';
+    console.log(`[DEBUG] Sending message to Amp CLI:`, messageObj);
     this.child.stdin.write(jsonLine);
   }
 
@@ -1872,4 +1881,6 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
       throw error;
     }
   }
+
+
 }

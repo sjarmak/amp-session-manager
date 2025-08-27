@@ -65,7 +65,7 @@ describe('CLI E2E Tests', () => {
     const result = await runCLI(['--help']);
     
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain('Amp Session Conductor CLI');
+    expect(result.stdout).toContain('Amp Session Orchestrator CLI');
     expect(result.stdout).toContain('Commands:');
     expect(result.stdout).toContain('list');
     expect(result.stdout).toContain('new');

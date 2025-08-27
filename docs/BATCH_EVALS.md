@@ -1,6 +1,6 @@
 # Batch Evaluations
 
-The Amp Session Conductor supports batch execution of multiple sessions for evaluation and testing purposes. This allows you to run the same or different prompts across multiple repositories with controlled concurrency and comprehensive reporting.
+The Amp Session Orchestrator supports batch execution of multiple sessions for evaluation and testing purposes. This allows you to run the same or different prompts across multiple repositories with controlled concurrency and comprehensive reporting.
 
 ## Using the Desktop UI
 
@@ -8,7 +8,7 @@ The desktop app provides a user-friendly interface for creating, monitoring, and
 
 ### Accessing Batches
 
-1. Open the Amp Session Conductor desktop app
+1. Open the Amp Session Orchestrator desktop app
 2. Click on the **Batches** tab in the top navigation
 3. You'll see a list of all batch runs with their status and progress
 
@@ -56,7 +56,7 @@ defaults:
   baseBranch: main
   scriptCommand: "pnpm -w test"
   model: gpt-5                # maps to --try-gpt5 via AmpAdapter
-                              # or "alloy" for alloy mode (sets amp.internal.alloy.enable=true)
+                              # or use --blend alloy-random for alloy mode (sets amp.internal.alloy.enable=true)
   jsonLogs: true
   timeoutSec: 900
   retries: 1                  # not implemented yet
@@ -228,7 +228,7 @@ Reports include:
 
 ## Integration with Existing Features
 
-Batch execution fully integrates with existing Amp Session Conductor features:
+Batch execution fully integrates with existing Amp Session Orchestrator features:
 - All telemetry collection (tokens, tool calls, timing)
 - Git operations (squash, rebase, merge)
 - Test script execution and result tracking
@@ -272,7 +272,7 @@ matrix:
     model: gpt-5      # Uses --try-gpt5 flag
   - repo: /projects/ml-service
     prompt: "Optimize data preprocessing pipeline"
-    model: alloy      # Uses amp.internal.alloy.enable=true
+    model: alloy      # Uses --blend alloy-random flag (sets amp.internal.alloy.enable=true)
 ```
 
 ### Auto-Merge Pipeline

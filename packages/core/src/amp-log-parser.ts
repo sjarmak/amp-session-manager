@@ -2,7 +2,7 @@
  * Amp CLI Log Parser
  * 
  * Parses ~/.cache/amp/logs/cli.log to extract tool usage, timestamps, and session information
- * for telemetry and session tracking in the Amp Session Conductor.
+ * for telemetry and session tracking in the Amp Session Orchestrator.
  */
 
 import { readFileSync, statSync } from 'fs';

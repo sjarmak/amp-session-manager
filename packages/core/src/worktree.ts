@@ -169,7 +169,7 @@ export class WorktreeManager {
           }
           
           console.log('Authentication validated, running iteration...');
-          await this.iterate(session.id, undefined, options.includeContext);
+          await this.iterate(session.id, undefined);
           console.log('✓ Initial iteration completed');
         } catch (error) {
           console.error('Initial iteration failed, but session was created successfully:', error);
@@ -200,7 +200,7 @@ export class WorktreeManager {
     }
   }
 
-  async iterate(sessionId: string, notes?: string, includeContext?: boolean, stageOnly?: boolean): Promise<void> {
+  async iterate(sessionId: string, notes?: string, stageOnly?: boolean): Promise<void> {
     const session = this.store.getSession(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
@@ -294,8 +294,7 @@ export class WorktreeManager {
           iterationPrompt!, 
           session.worktreePath, 
           session.modelOverride,
-          sessionId,
-          includeContext
+          sessionId
         );
       } finally {
         // Always cleanup streaming metrics connection
@@ -556,7 +555,7 @@ Raw Telemetry: ${JSON.stringify(result.telemetry, null, 2)}
 
       // Track follow-up prompt when notes are provided (after successful iteration)
       if (notes && result.success) {
-        this.store.addFollowUpPrompt(sessionId, notes, includeContext);
+        this.store.addFollowUpPrompt(sessionId, notes);
       }
 
       // Print summary
@@ -998,8 +997,18 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
    *  – worktree folders with no DB session
    *  – DB sessions whose folder is gone
    */
-  async pruneOrphans(repoRoot: string): Promise<{ removedDirs: number; removedSessions: number }> {
+  async pruneOrphans(repoRoot: string, dryRun = true): Promise<{ removedDirs: number; removedSessions: number }> {
     console.log(`🔍 Scanning for orphaned worktrees in ${repoRoot}...`);
+    
+    // SAFETY: Validate that repoRoot exists and is a valid git repository
+    const { stat } = await import('fs/promises');
+    try {
+      await stat(repoRoot);
+      await stat(`${repoRoot}/.git`);
+    } catch {
+      console.error(`🚨 SAFETY: Repository root ${repoRoot} is invalid or missing, skipping cleanup`);
+      return { removedDirs: 0, removedSessions: 0 };
+    }
     
     let removedDirs = 0;
     let removedSessions = 0;
@@ -1027,28 +1036,64 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
       // 1. Remove git worktrees that have no corresponding DB session
       for (const path of activePaths) {
         if (!dbSessions.find(s => s.worktreePath === path)) {
-          console.log(`🧹 Removing orphaned worktree: ${path}`);
-          try {
-            await git.exec(['worktree', 'remove', '--force', path]);
-            const { rm } = await import('fs/promises');
-            await rm(path, { recursive: true, force: true });
-            removedDirs++;
-          } catch (error) {
-            console.warn(`Failed to remove orphaned worktree ${path}:`, error);
+          // SAFETY CHECK: Only remove paths that are clearly worktree subdirectories
+          if (!path.includes('/.worktrees/') || path === repoRoot || !path.startsWith(repoRoot)) {
+            console.error(`🚨 SAFETY: Refusing to remove path that doesn't look like a worktree subdirectory: ${path}`);
+            console.error(`🚨 SAFETY: Expected pattern: ${repoRoot}/.worktrees/<session-id>`);
+            continue;
+          }
+          
+          // Additional safety: Check that it's a UUID-like directory name
+          const dirName = path.split('/').pop();
+          if (!dirName || !dirName.match(/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/)) {
+            console.error(`🚨 SAFETY: Directory name doesn't look like a session UUID: ${dirName}`);
+            continue;
+          }
+          
+          if (dryRun) {
+            console.log(`🔍 DRY RUN: Would remove orphaned worktree: ${path}`);
+            removedDirs++; // Count for dry run
+          } else {
+            console.log(`🧹 Removing orphaned worktree: ${path}`);
+            try {
+              await git.exec(['worktree', 'remove', '--force', path]);
+              // Only remove the directory if git worktree remove succeeded
+              const { rm } = await import('fs/promises');
+              await rm(path, { recursive: true, force: true });
+              removedDirs++;
+            } catch (error) {
+              console.warn(`Failed to remove orphaned worktree ${path}:`, error);
+            }
           }
         }
       }
       
-      // 2. Remove DB sessions whose directory is gone
+      // 2. Remove DB sessions whose directory is gone (but be more conservative)
       const { stat } = await import('fs/promises');
       for (const session of dbSessions) {
         try {
           await stat(session.worktreePath);
+          // Directory exists, check if it's a valid git worktree
+          if (!activePaths.has(session.worktreePath)) {
+            console.log(`⚠️  Session ${session.id} (${session.name}) directory exists but worktree is not registered with git - preserving session`);
+          }
         } catch {
-          // Directory doesn't exist, remove session from DB
-          console.log(`🧹 Removing orphaned session: ${session.id} (${session.name})`);
-          this.store.deleteSession(session.id);
-          removedSessions++;
+          // Directory doesn't exist - check if session was recently active before removing
+          const sessionAge = new Date().getTime() - new Date(session.createdAt).getTime();
+          const dayInMs = 24 * 60 * 60 * 1000;
+          
+          if (sessionAge < dayInMs) {
+            console.log(`⚠️  Preserving recent session ${session.id} (${session.name}) - created ${Math.round(sessionAge / (60 * 60 * 1000))} hours ago, directory may be temporarily missing`);
+          } else {
+            if (dryRun) {
+              console.log(`🔍 DRY RUN: Would remove orphaned session: ${session.id} (${session.name}) - directory missing and session is ${Math.round(sessionAge / dayInMs)} days old`);
+              removedSessions++; // Count for dry run
+            } else {
+              console.log(`🧹 Removing orphaned session: ${session.id} (${session.name}) - directory missing and session is ${Math.round(sessionAge / dayInMs)} days old`);
+              this.store.deleteSession(session.id);
+              removedSessions++;
+            }
+          }
         }
       }
       

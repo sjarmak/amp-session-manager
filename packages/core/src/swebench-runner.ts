@@ -174,8 +174,7 @@ export class SweBenchRunner extends EventEmitter {
         ampPrompt: caseItem.prompt || this.generateDefaultPrompt(caseItem),
         repoRoot: repoPath,
         baseBranch: caseItem.bugCommit,
-        scriptCommand: testCommand,
-        includeContext: false
+        scriptCommand: testCommand
       });
       console.log(`💼 Session created with worktree: ${session.id} at ${session.worktreePath}`);
 

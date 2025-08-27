@@ -163,7 +163,7 @@ function App() {
               className="h-12 w-auto"
             />
             <h1 className="text-5xl font-bold text-gruvbox-light0">
-              Amp Session Conductor
+              Amp Session Orchestrator
             </h1>
           </div>
           <p className="text-gruvbox-light3 font-header italic font-thin">

@@ -3,7 +3,6 @@ export interface Session {
   name: string;
   ampPrompt?: string;
   followUpPrompts?: string[];
-  contextIncluded?: boolean;
   repoRoot: string;
   baseBranch: string;
   branchName: string;
@@ -78,7 +77,6 @@ export interface SessionCreateOptions {
   scriptCommand?: string;
   modelOverride?: string;
   threadId?: string;
-  includeContext?: boolean;
   mode?: "async" | "interactive";
 }
 

@@ -1,6 +1,6 @@
 # Operations Guide
 
-This document contains examples and known gotchas for the Amp Session Conductor.
+This document contains examples and known gotchas for the Amp Session Orchestrator.
 
 ## CLI Examples
 

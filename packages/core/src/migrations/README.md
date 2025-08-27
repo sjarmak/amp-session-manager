@@ -1,6 +1,6 @@
 # Database Migration: Session-Thread Relationship Model
 
-This migration implements a new session-thread relationship model that provides structured thread management for the Amp Session Conductor.
+This migration implements a new session-thread relationship model that provides structured thread management for the Amp Session Orchestrator.
 
 ## Overview
 

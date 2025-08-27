@@ -13,4 +13,4 @@ matrix:
     model: gpt-5      # Use GPT-5 model
   - repo: /Users/sjarmak/test-project
     prompt: "Add a simple .gitignore file for Node.js projects"
-    model: alloy      # Use alloy mode
+    model: alloy      # Use --blend alloy-random mode

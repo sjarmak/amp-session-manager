@@ -9,7 +9,7 @@ export async function newCommand(options: {
   script?: string;
   model?: string;
   gpt5?: boolean;
-  alloy?: boolean;
+  blend?: string;
   run?: boolean;  // New flag to optionally run first iteration
 }): Promise<void> {
   try {
@@ -21,14 +21,17 @@ export async function newCommand(options: {
     
     // Handle model override priority: explicit flags > --model option
     let modelOverride = options.model;
-    if (options.gpt5 && options.alloy) {
-      console.error('Error: Cannot specify both --gpt5 and --alloy flags');
+    if (options.gpt5 && options.blend) {
+      console.error('Error: Cannot specify both --gpt5 and --blend flags');
       process.exit(1);
     }
     if (options.gpt5) {
       modelOverride = 'gpt-5';
-    } else if (options.alloy) {
+    } else if (options.blend === 'alloy-random') {
       modelOverride = 'alloy';
+    } else if (options.blend) {
+      console.error(`Error: Unknown blend mode "${options.blend}". Supported modes: alloy-random`);
+      process.exit(1);
     }
     
     const createOptions: SessionCreateOptions = {

@@ -31,14 +31,17 @@ export function ThreadsView({ currentSessionId }: ThreadsViewProps) {
       setLoading(true);
       setError(null);
       
-      // First, sync thread IDs for all sessions with the current Amp thread
-      try {
-        if (window.electronAPI.sessions.syncThreadIds) {
-          await window.electronAPI.sessions.syncThreadIds();
+      // Only sync thread IDs if we have a specific current session context
+      // For the main threads view, we want to show all existing threads without syncing
+      if (currentSessionId) {
+        try {
+          if (window.electronAPI.sessions.syncThreadIds) {
+            await window.electronAPI.sessions.syncThreadIds();
+          }
+        } catch (syncError) {
+          console.warn('Failed to sync thread IDs:', syncError);
+          // Continue with loading sessions even if sync fails
         }
-      } catch (syncError) {
-        console.warn('Failed to sync thread IDs:', syncError);
-        // Continue with loading sessions even if sync fails
       }
       
       // Get sessions that have threads using Electron API

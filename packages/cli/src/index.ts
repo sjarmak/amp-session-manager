@@ -36,7 +36,7 @@ const program = new Command();
 
 program
   .name('amp-sessions')
-  .description('Amp Session Conductor CLI')
+  .description('Amp Session Orchestrator CLI')
   .version('0.1.0');
 
 program
@@ -54,7 +54,7 @@ program
   .option('--script <command>', 'Test script command')
   .option('--model <model>', 'Override Amp model')
   .option('--gpt5', 'Use GPT-5 model (equivalent to --model gpt-5)')
-  .option('--alloy', 'Use Alloy model mode (sets amp.internal.alloy.enable=true)')
+  .option('--blend <mode>', 'Use blended model mode (e.g., --blend alloy-random sets amp.internal.alloy.enable=true)')
   .option('--run', 'Automatically run first iteration after creating session')
   .action(newCommand);
 

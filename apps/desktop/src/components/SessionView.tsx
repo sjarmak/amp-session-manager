@@ -29,6 +29,7 @@ export function SessionView({
   const [activeTab, setActiveTab] = useState<
     "overview" | "interactive" | "git"
   >(initialTab || "overview");
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   
   // Restore tab from localStorage on mount, unless initialTab is specified
   React.useEffect(() => {
@@ -78,7 +79,18 @@ export function SessionView({
       try {
         const threadsResult = await window.electronAPI.sessions.getThreads(session.id);
         if (threadsResult.success && threadsResult.threads) {
-          const sortedThreads = threadsResult.threads.sort((a, b) => 
+          // Filter out invalid threads - be more permissive to avoid hiding threads completely
+          const validThreads = threadsResult.threads.filter(thread => {
+            const isValidId = thread.id.startsWith('T-');
+            const isNotChatName = !thread.name.startsWith('Chat ');
+            const hasMessages = thread.messageCount > 0;
+            
+            // Include threads with proper IDs OR threads that have messages (even if legacy format)
+            return isValidId && (isNotChatName || hasMessages);
+          });
+          console.log('SessionView - Raw threads:', threadsResult.threads.length, 'Valid threads:', validThreads.length, validThreads);
+          
+          const sortedThreads = validThreads.sort((a, b) => 
             new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
           );
           setThreads(sortedThreads);
@@ -360,30 +372,40 @@ export function SessionView({
               {threads.map((thread, index) => (
                 <div key={thread.id} className="bg-gruvbox-bg1 p-6 rounded-lg border border-gruvbox-bg3">
                   <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center">
-                    <ChatBubbleLeftRightIcon className="w-5 h-5 text-gruvbox-bright-blue mr-2" />
-                  <h4 className="text-lg font-semibold text-gruvbox-fg0">
-                      {thread.name}
-                    </h4>
-                  <span className="ml-2 text-xs text-gruvbox-fg2 bg-gruvbox-bg2 px-2 py-1 rounded">
-                      #{index + 1}
+                    <div className="flex items-center">
+                      <ChatBubbleLeftRightIcon className="w-5 h-5 text-gruvbox-bright-blue mr-2" />
+                      <h4 className="text-lg font-semibold text-gruvbox-fg0">
+                        {thread.name}
+                      </h4>
+                      <span className="ml-2 text-xs text-gruvbox-fg2 bg-gruvbox-bg2 px-2 py-1 rounded font-mono">
+                        {thread.id}
+                      </span>
+                      <span className="ml-2 text-xs text-gruvbox-fg2 bg-gruvbox-bg3 px-2 py-1 rounded">
+                        #{index + 1}
                       </span>
                     </div>
                     
-                    {/* Extract thread ID from thread name and create amp link */}
-                    {(() => {
-                      const threadIdMatch = thread.name.match(/T-[a-f0-9-]+/i);
-                      return threadIdMatch ? (
-                        <a 
-                          href={`https://ampcode.com/threads/${threadIdMatch[0]}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-gruvbox-bright-blue hover:text-gruvbox-blue text-sm font-medium bg-gruvbox-bg2 px-3 py-1 rounded transition-colors"
-                        >
-                          View on Amp →
-                        </a>
-                      ) : null;
-                    })()}
+                    {/* Use actual thread ID for amp link */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          // Navigate to interactive tab with this thread selected
+                          setSelectedThreadId(thread.id);
+                          setActiveTab('interactive');
+                        }}
+                        className="text-gruvbox-bright-green hover:text-gruvbox-green text-sm font-medium bg-gruvbox-bg2 px-3 py-1 rounded transition-colors"
+                      >
+                        Continue Thread →
+                      </button>
+                      <a 
+                        href={`https://ampcode.com/threads/${thread.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gruvbox-bright-blue hover:text-gruvbox-blue text-sm font-medium bg-gruvbox-bg2 px-3 py-1 rounded transition-colors"
+                      >
+                        View on Amp →
+                      </a>
+                    </div>
                   </div>
                   
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-4">
@@ -576,7 +598,11 @@ export function SessionView({
 
       {activeTab === "interactive" && (
         <div className="bg-gruvbox-bg1 rounded-lg border border-gruvbox-bg3">
-          <InteractiveTab session={session} />
+          <InteractiveTab 
+              session={session} 
+              initialThreadId={selectedThreadId}
+              onThreadSelected={setSelectedThreadId} 
+            />
         </div>
       )}
 

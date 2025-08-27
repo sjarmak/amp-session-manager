@@ -367,7 +367,7 @@ export class BatchController extends EventEmitter {
     for (const repoRoot of repoRoots) {
       try {
         const worktreeManager = new WorktreeManager(this.store, this.dbPath);
-        results[repoRoot] = await worktreeManager.pruneOrphans(repoRoot);
+        results[repoRoot] = await worktreeManager.pruneOrphans(repoRoot, false); // Explicit cleanup in batch operations
       } catch (error) {
         console.error(`Failed to clean up repo ${repoRoot}:`, error);
         results[repoRoot] = { removedDirs: 0, removedSessions: 0 };

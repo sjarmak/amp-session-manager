@@ -97,7 +97,7 @@ async function runStartupCleanup() {
     for (const repoRoot of repoRoots) {
       try {
         console.log(`🔍 Scanning repository: ${repoRoot}`);
-        const result = await worktreeManager.pruneOrphans(repoRoot);
+        const result = await worktreeManager.pruneOrphans(repoRoot, true); // DRY RUN by default for safety
         totalRemovedDirs += result.removedDirs;
         totalRemovedSessions += result.removedSessions;
         
@@ -130,8 +130,11 @@ app.whenReady().then(async () => {
   // Setup signal handlers for graceful shutdown
   setupSignalHandlers();
   
-  // Run startup cleanup before UI loads
-  await runStartupCleanup();
+  // TEMPORARILY DISABLED: Run startup cleanup before UI loads
+  // await runStartupCleanup();
+  
+  // Initialize services without cleanup for safety
+  await initializeServices();
   createWindow();
 });
 
@@ -260,9 +263,14 @@ ipcMain.handle('sessions:get', async (_, sessionId: string) => {
 
 // Dialog handlers
 ipcMain.handle('dialog:selectDirectory', async () => {
-  const { dialog } = require('electron');
+  const { dialog, app } = require('electron');
+  const os = require('os');
+  
   const result = await dialog.showOpenDialog({
-    properties: ['openDirectory']
+    properties: ['openDirectory'],
+    defaultPath: os.homedir(), // Start in user's home directory
+    title: 'Select Repository Directory',
+    buttonLabel: 'Select Directory'
   });
   return result;
 });

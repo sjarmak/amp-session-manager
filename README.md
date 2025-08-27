@@ -1,262 +1,522 @@
 # Amp Session Manager
 
+[![CI Status](https://github.com/sjarmak/amp-session-manager/workflows/ci/badge.svg)](https://github.com/sjarmak/amp-session-manager/actions) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A cross-platform desktop application and CLI that transforms Amp coding sessions into a disciplined, auditable Git workflow with isolated worktrees, atomic commits, and comprehensive telemetry.
 
-## Overview
+## Table of Contents
 
-Amp Session Manager wraps the Amp coding agent in a reproducible Git workflow. Every time you ask Amp to change code, it works inside an **isolated worktree on its own branch**, commits after every iteration, and records rich telemetry. You can run many sessions in parallel, review diffs, and safely squash/rebase/merge changes back to your main branch.
+1. [TL;DR Quick-Start](#tldr-quick-start)
+2. [Why Amp Session Manager?](#why-amp-session-manager)
+3. [Features At-a-Glance](#features-at-a-glance)
+4. [Installation](#installation)
+5. [Desktop App vs. CLI - Which one do I need?](#desktop-app-vs-cli---which-one-do-i-need)
+6. [Detailed Usage](#detailed-usage)
+7. [Configuration](#configuration)
+8. [Advanced Topics](#advanced-topics)
+9. [Troubleshooting & FAQ](#troubleshooting--faq)
+10. [Contributing](#contributing)
+11. [Security](#security)
+12. [License](#license)
 
-## Core Capabilities
+## TL;DR Quick-Start
 
-- **Isolated Git Worktree Sessions**: Each session runs in `<repo>/.worktrees/<session-id>` on branch `amp/<slug>/<timestamp>`
-- **Deterministic, Atomic Commits**: Every Amp iteration creates a commit with `amp:` prefix  
-- **Reviewable History**: Track all changes through desktop UI diff viewer and CLI
-- **Safe Merge Workflow**: Squash → rebase → merge with conflict resolution
-- **Parallel Execution**: Run multiple sessions simultaneously with file-system locks
-- **Test Integration**: Run validation scripts per session with automatic gating
-- **Batch Processing**: Execute hundreds of prompts across repositories from YAML configs
-- **Real-time Streaming**: Live monitoring of Amp iterations with JSON-structured telemetry
-- **Cost & Usage Tracking**: Monitor token usage, tool calls, and costs across all models
-- **Rich Telemetry**: SQLite storage with NDJSON/CSV export for analytics
-- **Smart Notifications**: Desktop, email, and webhook alerts for session events
-- **Interactive Mode**: Threading support for multi-turn conversations with Amp
-- **Timeline View**: Visual diff review with chronological change tracking
-- **Benchmark Support**: SWE-bench integration for software engineering research
+```bash
+# Clone and build from source
+git clone https://github.com/sjarmak/amp-session-manager.git
+cd amp-session-manager
+pnpm install && pnpm build
 
-## Architecture
+# Create your first session
+pnpm cli new --repo ./my-project --name "add-auth" --prompt "Add JWT authentication system"
 
+# Run an iteration
+pnpm cli iterate sess-abc123
+
+# Review changes and merge
+pnpm cli diff sess-abc123
+pnpm cli merge sess-abc123 --message "feat: add JWT authentication"
 ```
-amp-session-manager/
-├── apps/
-│   └── desktop/          # Electron + React + TypeScript + Tailwind
-├── packages/
-│   ├── core/            # Session engine, Git ops, Amp adapter
-│   ├── cli/             # @ampsm/cli -> amp-sessions command
-│   └── types/           # Shared TypeScript contracts
-└── docs/                # Documentation
-```
 
-## Tech Stack
+**Note**: You need Git ≥2.38, Node.js ≥18, pnpm ≥8, and authenticated Amp CLI installed first.
 
-- **Desktop UI**: Electron + React + TypeScript + Vite + Tailwind CSS
-- **Backend**: Node.js (TypeScript) in Electron main process
-- **CLI**: Node.js (TypeScript), published as `@ampsm/cli`
-- **Storage**: SQLite via `better-sqlite3` for session metadata
-- **Git Operations**: System `git` via child processes
-- **Testing**: Vitest + ts-node
-- **CI**: GitHub Actions (lint, typecheck, unit tests)
+## Why Amp Session Manager?
+
+- **Isolated Development**: Every Amp session runs in its own Git worktree, preventing conflicts and enabling parallel development
+- **Atomic History**: Each iteration creates a deterministic commit, making all changes reviewable and reversible
+- **Enterprise-Ready**: Comprehensive telemetry, cost tracking, and batch processing for teams and research
+- **Safe Merging**: Built-in squash/rebase workflow with conflict resolution prevents messy Git history
+- **Full Visibility**: Desktop UI and CLI provide complete insight into Amp's changes with diff viewers and metrics
+
+## Features At-a-Glance
+
+**Session Management**: Isolated Git worktrees, atomic commits per iteration, parallel execution with file-system locks  
+**Desktop Application**: Electron GUI with real-time monitoring, diff viewer, batch management, and interactive chat  
+**CLI Interface**: Complete command-line control for automation, CI integration, and power users  
+**Git Integration**: Smart squash/rebase workflows, conflict resolution, and merge wizards  
+**Batch Processing**: Execute hundreds of prompts across repositories from YAML configurations  
+**Telemetry & Analytics**: SQLite storage, JSONL/CSV export, token usage tracking, and cost monitoring  
+**Interactive Mode**: Multi-turn conversations with Amp using thread continuity  
+**SWE-bench Support**: Automated benchmarking and software engineering research integration
 
 ## Installation
 
 ### Prerequisites
 
-- **Node.js**: >= 18.0.0 (LTS recommended)
-- **pnpm**: >= 8.0.0 (`npm install -g pnpm`)
-- **Git**: >= 2.38 (for improved worktree support)
-- **Amp CLI**: Installed and authenticated (`npm install -g @amp/cli && amp auth`)
+| Tool | Version | Purpose |
+|------|---------|---------|
+| **Node.js** | ≥18.0.0 LTS | Runtime for all components |
+| **pnpm** | ≥8.0.0 | Package manager and workspace orchestration |
+| **Git** | ≥2.38 | Worktree operations and repository management |
+| **Amp CLI** | Latest | AI coding agent integration |
 
-### Setup
+**Platform-specific build tools**:
+- **macOS**: Xcode Command Line Tools (`xcode-select --install`)
+- **Windows**: Visual Studio Build Tools or Visual Studio with C++ workload
+- **Linux**: `build-essential`, `libssl-dev`, `python3-dev`
+
+### From Source (Recommended)
 
 ```bash
 # Clone repository
 git clone https://github.com/sjarmak/amp-session-manager.git
 cd amp-session-manager
 
-# Install dependencies
+# Install dependencies (includes native compilation)
 pnpm install
 
 # Build all packages
 pnpm build
 
-# Verify Amp integration
+# Verify Amp CLI integration
 pnpm cli verify-amp
 
-# Start desktop application
+# Start desktop application (optional)
 pnpm dev
 ```
 
-### Development
-
+**Native dependency troubleshooting**:
 ```bash
-# Start the desktop app (Electron)
-pnpm dev
-
-# Run the CLI in watch mode  
-pnpm cli
-
-# Run tests across all packages
-pnpm test
-
-# Type checking across workspace
-pnpm typecheck
-
-# Code linting
-pnpm lint
+# If better-sqlite3 fails to compile
+pnpm rebuild
+# or manually
+cd node_modules/better-sqlite3 && npm run build-release
 ```
 
-## Desktop Application
-
-The desktop application provides a comprehensive GUI for managing Amp sessions:
-
-### Main Features
-
-- **Session Dashboard**: Visual overview of all sessions with real-time status indicators
-- **Live Session Monitoring**: Real-time updates as Amp executes iterations with streaming telemetry
-- **Diff Viewer**: Side-by-side comparison of changes with syntax highlighting and timeline view
-- **Merge Wizard**: Guided workflow for squashing, rebasing, and merging sessions
-- **Batch Run Management**: Visual interface for executing and monitoring batch operations
-- **Metrics Dashboard**: Charts showing token usage, costs, and performance across sessions
-- **Notification Center**: Cross-platform desktop notifications for session events
-- **Thread Integration**: View and manage Amp conversation threads directly
-- **Interactive Mode**: Multi-turn conversations with threading support
-
-### Navigation
-
-- **Sessions Tab**: Create, iterate, and manage individual sessions
-- **Batches Tab**: Configure and monitor multi-session batch runs  
-- **Metrics Tab**: Analyze performance and costs across all sessions
-- **Settings Tab**: Configure notifications, Amp integration, and preferences
-
-## CLI Interface
-
-### Session Management
+### Amp CLI Setup
 
 ```bash
-# Create new session
-amp-sessions new --repo ./my-repo --name "feature-x" --prompt "Implement feature X"
+# Install Amp CLI globally
+npm install -g @amp/cli
 
-# List all sessions with status
-amp-sessions list
+# Authenticate (required)
+amp login
+# Follow prompts to authenticate with your credentials
 
-# Run Amp iteration with streaming
-amp-sessions iterate <session-id> --stream
-
-# View session changes and timeline
-amp-sessions diff <session-id>
-
-# Stream Amp logs in real-time
-amp-sessions logs <session-id> --follow
-
-# Interactive mode with threading
-amp-sessions interactive <session-id>
+# Verify authentication
+amp whoami
 ```
 
-### Git Workflow
+### Docker (Headless CLI Only)
 
+```dockerfile
+FROM node:18-alpine
+RUN apk add --no-cache git python3 make g++
+COPY . /app
+WORKDIR /app
+RUN pnpm install && pnpm build
+ENTRYPOINT ["node", "packages/cli/dist/index.js"]
+```
+
+## Desktop App vs. CLI - Which one do I need?
+
+**Choose Desktop App if you want**:
+- Visual session management with real-time updates
+- Interactive diff viewer with syntax highlighting
+- Guided merge workflows and conflict resolution
+- Batch monitoring with progress visualization
+- Multi-turn conversations with Amp
+- Notifications and alerts
+
+**Choose CLI if you want**:
+- Automation and CI/CD integration
+- Script-driven batch processing
+- Terminal-based workflows
+- Minimal resource usage
+- Remote server deployment
+- Custom tooling integration
+
+**Use both**: The desktop app and CLI share the same SQLite database and can be used interchangeably.
+
+## Detailed Usage
+
+### Session Lifecycle Walkthrough
+
+**1. Create Session**
+```bash
+# Create isolated session in worktree
+pnpm cli new --repo ./my-project \
+              --name "feature-auth" \
+              --prompt "Implement JWT authentication with refresh tokens" \
+              --script "npm test" \
+              --model gpt-5
+
+# Output:
+# Created session: sess-a1b2c3d4
+# Worktree: ./my-project/.worktrees/sess-a1b2c3d4
+# Branch: amp/feature-auth/20241201-143022
+```
+
+**2. Run Iterations**
+```bash
+# Execute Amp iteration with streaming output
+pnpm cli iterate sess-a1b2c3d4 --stream
+
+# Interactive mode for multi-turn conversation
+pnpm cli interactive sess-a1b2c3d4
+
+# Check status and view changes
+pnpm cli status sess-a1b2c3d4
+pnpm cli diff sess-a1b2c3d4 --staged
+```
+
+**3. Review and Merge**
 ```bash
 # Squash all amp: commits into single commit
-amp-sessions squash <session-id> --message "feat: implement feature X"
+pnpm cli squash sess-a1b2c3d4 --message "feat: add JWT authentication system"
 
-# Rebase onto target branch with conflict resolution
-amp-sessions rebase <session-id> --onto main
+# Rebase onto main branch
+pnpm cli rebase sess-a1b2c3d4 --onto main
 
 # Complete merge workflow
-amp-sessions merge <session-id>
-
-# Pre-merge validation
-amp-sessions preflight <session-id>
+pnpm cli merge sess-a1b2c3d4
 ```
 
 ### Batch Processing
 
-```bash
-# Execute batch from YAML configuration
-amp-sessions batch start --file ./batch-config.yaml
-
-# Monitor batch execution
-amp-sessions batch status <run-id>
-
-# Export batch results
-amp-sessions batch export <run-id> --format csv --out ./data
-
-# Run SWE-bench benchmarks
-amp-sessions bench <benchmark-suite>
+**Create batch configuration**:
+```yaml
+# batch-auth-features.yaml
+name: "Authentication Features Batch"
+description: "Implement auth across multiple repositories"
+repos:
+  - path: "./frontend"
+    baseBranch: "main"
+  - path: "./backend" 
+    baseBranch: "develop"
+items:
+  - name: "jwt-auth"
+    prompt: "Add JWT authentication middleware"
+    script: "npm test"
+    model: "gpt-5"
+  - name: "refresh-tokens"
+    prompt: "Implement refresh token rotation"
+    script: "npm test"
+concurrency: 3
+notifications:
+  webhook: "https://hooks.slack.com/services/..."
 ```
 
-### Analytics & Reporting
-
+**Execute batch**:
 ```bash
-# Export all session data
-amp-sessions export --format ndjson --out sessions.jsonl
+# Start batch processing
+pnpm cli batch start --file batch-auth-features.yaml
 
-# Generate comprehensive report
-amp-sessions report --output report.md
+# Monitor progress
+pnpm cli batch status batch-abc123 --follow
 
-# Show detailed session metrics
-amp-sessions metrics <session-id>
-
-# Stream JSON telemetry
-amp-sessions iterate <session-id> --stream-json
+# Export results
+pnpm cli batch export batch-abc123 --format csv --out ./results/
 ```
 
-## Session Workflow
+### Metrics & Telemetry
 
-1. **Create Session**: `amp-sessions new` creates isolated worktree and branch
-2. **Iterate**: Amp makes changes, commits automatically with `amp:` prefix, runs optional tests
-3. **Manual Edits**: Make changes anytime - they're tracked separately from Amp commits
-4. **Review**: Desktop UI diff viewer or `amp-sessions diff` to examine all changes with timeline view
-5. **Squash**: `amp-sessions squash` combines all `amp:` commits into single commit
-6. **Rebase**: `amp-sessions rebase` safely rebases onto target branch with conflict handling
-7. **Merge**: `amp-sessions merge` completes full workflow or creates PR
+**View session metrics**:
+```bash
+# Detailed session analytics
+pnpm cli metrics sess-a1b2c3d4
 
-## Git Conventions
+# Token usage across all sessions
+pnpm cli usage --model gpt-5 --since "2024-11-01"
 
-- **Worktrees**: `<repo>/.worktrees/<session-id>`
-- **Branches**: `amp/<slug>/<timestamp>`
-- **Commit Messages**: Amp commits start with `amp:`, manual commits are free-form
-- **Squashing**: All `amp:` commits combined, manual commits preserved or included based on configuration
+# Export telemetry data
+pnpm cli export --format jsonl --out sessions.jsonl
+```
+
+**SQLite Database Schema**:
+The system stores all data in `~/.ampsm/sessions.db` with tables for:
+- `sessions` - Core session metadata and configuration
+- `iterations` - Individual Amp execution records with metrics
+- `tool_calls` - Detailed tool usage and performance data
+- `threads` - Conversation history and threading information
+- `batch_runs` - Batch execution tracking and results
+
+**External Analysis**:
+```bash
+# Open database in SQLite CLI
+sqlite3 ~/.ampsm/sessions.db
+
+# Example queries
+SELECT name, status, created_at FROM sessions ORDER BY created_at DESC;
+SELECT SUM(input_tokens + output_tokens) FROM iterations WHERE model = 'gpt-5';
+```
 
 ## Configuration
 
-Sessions support flexible configuration through:
+### Global Configuration
 
-- **Test Scripts**: Custom validation commands per session
-- **Model Override**: Specify different Amp models per session
-- **Notification Settings**: Configure desktop, email, and webhook alerts
-- **Telemetry Export**: Structured data export in NDJSON and CSV formats
+Location: `~/.ampsm/config.yaml`
 
-## Telemetry & Metrics
+```yaml
+# Sample configuration with defaults
+database:
+  path: "~/.ampsm/sessions.db"
+  backup_interval: "24h"
 
-The system captures comprehensive telemetry:
+git:
+  default_base_branch: "main"
+  worktree_dir: ".worktrees"
+  commit_prefix: "amp:"
 
-- **Token Usage**: Input/output tokens per model and session
-- **Cost Tracking**: Real-time cost monitoring across all models
-- **Performance Metrics**: Iteration timing and throughput
-- **Git Operations**: Commit frequency, diff sizes, conflict rates
-- **Test Results**: Validation script success rates and timing
-- **Error Analysis**: Categorized failure modes and recovery patterns
+amp:
+  default_model: "gpt-4"
+  timeout: "300s"
+  retry_attempts: 3
 
-## Troubleshooting
+notifications:
+  desktop: true
+  email:
+    enabled: false
+    smtp_host: ""
+    from: ""
+    to: []
+  webhook:
+    enabled: false
+    url: ""
 
-### Common Issues
+telemetry:
+  enabled: true
+  export_formats: ["jsonl", "csv"]
+  retention_days: 365
 
-**IPC Handler Errors**: If you see "No handler registered" errors, restart the desktop app. Handlers are registered immediately to prevent race conditions.
+ui:
+  theme: "gruvbox"
+  auto_update: true
+  confirm_destructive: true
+```
 
-**Build Failures**: Ensure all dependencies are installed with `pnpm install` and run `pnpm build` to verify compilation.
+### Per-Session Overrides
 
-**Git Worktree Issues**: Check that the target repository is clean and the base branch exists before creating sessions.
+```bash
+# Override model for specific session
+pnpm cli new --blend alloy-random --repo ./project --prompt "..."
 
-**Streaming Issues**: If `--stream-json` fails, ensure you're using `--execute` mode for JSON streaming.
+# Set custom test script
+pnpm cli new --script "pnpm test:integration" --repo ./project --prompt "..."
+
+# Configure notifications per session
+pnpm cli new --notify-webhook https://hooks.slack.com/... --repo ./project --prompt "..."
+```
+
+### Environment Variables
+
+```bash
+export AMP_API_KEY="your-amp-api-key"              # Required: Amp authentication
+export AMPSM_DB_PATH="/custom/path/sessions.db"    # Optional: Custom database location  
+export AMPSM_CONFIG_DIR="/custom/config"           # Optional: Custom config directory
+export AMPSM_LOG_LEVEL="debug"                     # Optional: Logging verbosity
+export AMPSM_DISABLE_TELEMETRY="true"              # Optional: Disable usage tracking
+```
+
+## Advanced Topics
+
+### Git Worktree Conventions
+
+- **Worktree Location**: `<repo>/.worktrees/<session-id>/`
+- **Branch Naming**: `amp/<slug>/<timestamp>` (e.g., `amp/auth-feature/20241201-143022`)
+- **Commit Messages**: Amp commits prefixed with `amp:`, manual commits use free-form messages
+- **Squashing Strategy**: All `amp:` commits combined; manual commits preserved or included based on configuration
+- **Safety**: Repository-level locking prevents concurrent operations; orphaned worktrees auto-detected and cleaned
+
+For complete Git workflow specifications, see [GIT-WORKTREES.md](./GIT-WORKTREES.md).
+
+### Custom Test Hooks
+
+```bash
+# Session with validation script
+pnpm cli new --script "make test-integration" --repo ./project --prompt "..."
+
+# Complex test pipeline
+pnpm cli new --script "./scripts/validate-feature.sh" --repo ./project --prompt "..."
+
+# Test script with custom timeout
+pnpm cli new --script "npm test" --timeout 600 --repo ./project --prompt "..."
+```
+
+Test scripts run after each iteration and gate session progression:
+- **Exit Code 0**: Iteration succeeds, continue
+- **Non-Zero Exit**: Mark session as `awaiting-input`, surface logs to user
+
+### SWE-bench Integration
+
+```bash
+# Run SWE-bench evaluation
+pnpm cli bench swe-bench-lite --dataset ./swe-bench.jsonl
+
+# Custom benchmark configuration
+pnpm cli bench custom --config ./custom-benchmark.yaml
+
+# Export benchmark results
+pnpm cli bench export bench-run-123 --format csv
+```
+
+SWE-bench integration supports:
+- Official SWE-bench dataset mounting
+- Custom problem definitions
+- Parallel execution across repositories
+- Automated result analysis and reporting
+
+### Extending WorktreeManager Metrics
+
+The core WorktreeManager emits events via MetricsEventBus for custom tracking:
+
+```typescript
+import { WorktreeManager } from '@ampsm/core';
+
+const manager = new WorktreeManager();
+manager.metricsEventBus.on('iteration.started', (event) => {
+  console.log(`Session ${event.sessionId} iteration started`);
+});
+
+manager.metricsEventBus.on('git.conflict', (event) => {
+  // Custom conflict handling
+  notifyDevOpsTeam(event);
+});
+```
+
+## Troubleshooting & FAQ
+
+| Issue | Symptoms | Solution |
+|-------|----------|----------|
+| **IPC Handler Errors** | "No handler registered for..." in desktop app | Restart desktop app; handlers register at startup |
+| **Build Failures** | Native module compilation errors | Run `pnpm rebuild`; ensure platform build tools installed |
+| **Git Worktree Issues** | "fatal: invalid reference" errors | Check target repo is clean and base branch exists |
+| **Streaming Failures** | JSON parsing errors in `--stream-json` | Use `--execute` mode; ensure Amp CLI ≥latest version |
+| **Authentication Errors** | "amp: not authenticated" | Run `amp login` and verify with `amp whoami` |
+| **Database Locks** | SQLite busy/locked errors | Check no other instances running; restart if persistent |
 
 ### Verification Commands
 
 ```bash
-# Verify installation
-pnpm cli verify-amp
-
-# Check system dependencies
+# Comprehensive system check
 pnpm cli doctor
 
 # Test Git operations
-pnpm cli test-git
+pnpm cli test-git --repo ./test-repo
+
+# Verify Amp integration
+pnpm cli verify-amp
+
+# Check database integrity
+pnpm cli db check
+
+# Clean orphaned worktrees
+pnpm cli clean-environment
 ```
 
-## Documentation
+### Common Error Codes
 
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - Detailed technical documentation
-- [GIT-WORKTREES.md](./GIT-WORKTREES.md) - Git workflow specifications
-- [AGENT.md](./AGENT.md) - Agent instruction guidelines
+- **E001**: Git repository not found or invalid
+- **E002**: Amp CLI authentication failure  
+- **E003**: SQLite database corruption
+- **E004**: Worktree creation failed
+- **E005**: Session iteration timeout
+- **E006**: Test script validation failure
+
+### Performance Tuning
+
+```bash
+# Increase SQLite performance
+export AMPSM_SQLITE_CACHE_SIZE=10000
+export AMPSM_SQLITE_JOURNAL_MODE=WAL
+
+# Reduce memory usage for large batches
+export AMPSM_BATCH_CONCURRENCY=2
+export AMPSM_STREAM_BUFFER_SIZE=1024
+
+# Enable debug logging
+export AMPSM_LOG_LEVEL=debug
+```
+
+## Contributing
+
+### Development Environment Setup
+
+```bash
+# Clone and setup development environment
+git clone https://github.com/sjarmak/amp-session-manager.git
+cd amp-session-manager
+pnpm install
+
+# Run tests across all packages
+pnpm test
+
+# Type checking
+pnpm typecheck
+
+# Start development servers
+pnpm dev      # Desktop app with hot reload
+pnpm cli      # CLI in watch mode
+```
+
+### Architecture Overview
+
+The system uses a monorepo structure with clear separation of concerns:
+
+- **packages/core**: Session engine, Git operations, Amp adapter, SQLite persistence
+- **packages/cli**: Command-line interface with Commander.js
+- **packages/types**: Shared TypeScript interfaces and data models  
+- **apps/desktop**: Electron + React desktop application
+
+For detailed architectural documentation, see [ARCHITECTURE.md](./ARCHITECTURE.md).
+
+### Commit Style
+
+- **feat**: New features (`feat: add batch processing support`)
+- **fix**: Bug fixes (`fix: handle Git worktree conflicts`)
+- **docs**: Documentation changes (`docs: update CLI reference`)
+- **perf**: Performance improvements (`perf: optimize SQLite queries`)
+- **test**: Test additions/changes (`test: add WorktreeManager unit tests`)
+
+### Code of Conduct
+
+We follow the [Contributor Covenant](https://www.contributor-covenant.org/) code of conduct. Be respectful, inclusive, and constructive in all interactions.
+
+## Security
+
+### Token Handling
+
+- **Storage**: Amp API keys stored in system keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service)
+- **Transmission**: All API communication uses TLS 1.3
+- **Database**: SQLite database contains no API keys or sensitive data
+- **Logs**: Logs are filtered to remove any potential secrets
+
+### Data Privacy
+
+- **Local First**: All source code and telemetry remain on your machine by default
+- **Opt-in Sharing**: Webhook notifications and external exports require explicit configuration
+- **Telemetry**: Usage analytics are anonymized and contain no source code or business logic
+
+### File Permissions
+
+- **Database**: `~/.ampsm/sessions.db` created with 0600 permissions (user read/write only)
+- **Config**: `~/.ampsm/config.yaml` created with 0644 permissions
+- **Worktrees**: Inherit permissions from parent repository
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) file for details.
+
+---
+
+**Questions or Issues?** Open a [GitHub issue](https://github.com/sjarmak/amp-session-manager/issues) or check the [Discussions](https://github.com/sjarmak/amp-session-manager/discussions) for community support.

@@ -23,6 +23,12 @@ export class SessionStore {
       this.migrateThreadIds();
       this.migrateAutoCommitDefault();
       this.migrateSessionThreads();
+      
+      // Clean up legacy Chat-named threads
+      const cleanedCount = this.cleanupLegacyChatThreads();
+      if (cleanedCount > 0) {
+        console.log(`[DEBUG] Cleaned up ${cleanedCount} legacy Chat-named threads`);
+      }
     } catch (error) {
       console.error('Failed to initialize SQLite database:', error);
       throw new Error(`Database initialization failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -326,7 +332,6 @@ export class SessionStore {
       id,
       name: options.name,
       ampPrompt: options.ampPrompt,
-      contextIncluded: options.includeContext,
       repoRoot: options.repoRoot,
       baseBranch: options.baseBranch || 'main',
       branchName: `amp/${slug}/${timestamp}`,
@@ -340,13 +345,13 @@ export class SessionStore {
     };
 
     const stmt = this.db.prepare(`
-      INSERT INTO sessions (id, name, ampPrompt, followUpPrompts, contextIncluded, repoRoot, baseBranch, branchName, 
+      INSERT INTO sessions (id, name, ampPrompt, followUpPrompts, repoRoot, baseBranch, branchName, 
         worktreePath, status, scriptCommand, modelOverride, threadId, createdAt, mode)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
-      session.id, session.name, session.ampPrompt ?? null, null, session.contextIncluded ? 1 : 0,
+      session.id, session.name, session.ampPrompt ?? null, null,
       session.repoRoot, session.baseBranch, session.branchName, session.worktreePath,
       session.status, session.scriptCommand ?? null, session.modelOverride ?? null,
       session.threadId ?? null, session.createdAt, session.mode ?? 'async'
@@ -363,7 +368,6 @@ export class SessionStore {
     return {
       ...row,
       followUpPrompts: row.followUpPrompts ? JSON.parse(row.followUpPrompts) : undefined,
-      contextIncluded: Boolean(row.contextIncluded),
       autoCommit: row.autoCommit !== undefined ? Boolean(row.autoCommit) : true
     } as Session;
   }
@@ -374,7 +378,6 @@ export class SessionStore {
     return rows.map(row => ({
       ...row,
       followUpPrompts: row.followUpPrompts ? JSON.parse(row.followUpPrompts) : undefined,
-      contextIncluded: Boolean(row.contextIncluded),
       autoCommit: row.autoCommit !== undefined ? Boolean(row.autoCommit) : true
     })) as Session[];
   }
@@ -395,11 +398,16 @@ export class SessionStore {
   // Ensure a thread record exists for a session's threadId
   private ensureThreadRecord(sessionId: string, threadId: string) {
     const existingThreads = this.getSessionThreads(sessionId);
-    const threadExists = existingThreads.some(t => t.name.includes(threadId));
+    const threadExists = existingThreads.some(t => t.id === threadId);
     
     if (!threadExists) {
-      const threadName = `Amp Thread ${threadId}`;
-      this.createThread(sessionId, threadName);
+      // Create thread with the exact ID (this will be for migration of existing threadIds)
+      const now = new Date().toISOString();
+      const stmt = this.db.prepare(`
+        INSERT INTO threads (id, sessionId, name, createdAt, updatedAt, status)
+        VALUES (?, ?, ?, ?, ?, 'active')
+      `);
+      stmt.run(threadId, sessionId, `Thread ${threadId}`, now, now);
     }
   }
 
@@ -456,28 +464,15 @@ export class SessionStore {
     stmt.run(autoCommit ? 1 : 0, id);
   }
 
-  addFollowUpPrompt(id: string, followUpPrompt: string, includeContext?: boolean) {
+  addFollowUpPrompt(id: string, followUpPrompt: string) {
     const session = this.getSession(id);
     if (!session) throw new Error(`Session ${id} not found`);
     
     const currentPrompts = session.followUpPrompts || [];
     const updatedPrompts = [...currentPrompts, followUpPrompt];
     
-    const updates: string[] = [];
-    const values: any[] = [];
-    
-    updates.push('followUpPrompts = ?');
-    values.push(JSON.stringify(updatedPrompts));
-    
-    if (includeContext !== undefined) {
-      updates.push('contextIncluded = ?');
-      values.push(includeContext ? 1 : 0);
-    }
-    
-    values.push(id);
-    
-    const stmt = this.db.prepare(`UPDATE sessions SET ${updates.join(', ')} WHERE id = ?`);
-    stmt.run(...values);
+    const stmt = this.db.prepare('UPDATE sessions SET followUpPrompts = ? WHERE id = ?');
+    stmt.run(JSON.stringify(updatedPrompts), id);
   }
 
   deleteSession(id: string): void {
@@ -1061,9 +1056,11 @@ export class SessionStore {
     }
   }
 
-  createThread(sessionId: string, name: string): string {
-    const id = `T-${randomUUID()}`;
+  createThread(sessionId: string, name: string, providedId?: string): string {
+    const id = providedId || `T-${randomUUID()}`;
     const now = new Date().toISOString();
+    
+    console.log(`[DEBUG] createThread - sessionId: ${sessionId}, name: "${name}", id: ${id}`);
     
     const stmt = this.db.prepare(`
       INSERT INTO threads (id, sessionId, name, createdAt, updatedAt, status)
@@ -1071,6 +1068,7 @@ export class SessionStore {
     `);
     
     stmt.run(id, sessionId, name, now, now);
+    console.log(`[DEBUG] createThread - successfully created thread ${id} with name "${name}"`);
     return id;
   }
 
@@ -1094,7 +1092,7 @@ export class SessionStore {
       ORDER BY t.updatedAt DESC
     `);
     
-    return stmt.all(sessionId) as Array<{
+    const threads = stmt.all(sessionId) as Array<{
       id: string;
       sessionId: string;
       name: string;
@@ -1103,11 +1101,16 @@ export class SessionStore {
       status: string;
       messageCount: number;
     }>;
+    
+    console.log(`[DEBUG] getSessionThreads for ${sessionId}:`, threads);
+    return threads;
   }
 
   addThreadMessage(threadId: string, role: 'user' | 'assistant' | 'system', content: string): string {
     const id = randomUUID();
     const now = new Date().toISOString();
+    
+    console.log(`[DEBUG] addThreadMessage - threadId: ${threadId}, role: ${role}, content: ${content.substring(0, 100)}...`);
     
     // Get next index for this thread
     const idxStmt = this.db.prepare('SELECT COALESCE(MAX(idx), -1) + 1 as nextIdx FROM thread_messages WHERE threadId = ?');
@@ -1122,6 +1125,8 @@ export class SessionStore {
     
     // Update thread updated timestamp
     this.updateThreadTimestamp(threadId);
+    
+    console.log(`[DEBUG] addThreadMessage - successfully added message ${id} to thread ${threadId} at index ${nextIdx}`);
     
     return id;
   }
@@ -1154,6 +1159,30 @@ export class SessionStore {
   updateThreadTimestamp(threadId: string): void {
     const stmt = this.db.prepare('UPDATE threads SET updatedAt = ? WHERE id = ?');
     stmt.run(new Date().toISOString(), threadId);
+  }
+
+  updateThreadName(threadId: string, name: string): void {
+    const stmt = this.db.prepare('UPDATE threads SET name = ?, updatedAt = ? WHERE id = ?');
+    stmt.run(name, new Date().toISOString(), threadId);
+  }
+
+  // Clean up legacy Chat-named threads
+  cleanupLegacyChatThreads(): number {
+    console.log('[DEBUG] Cleaning up legacy Chat-named threads...');
+    const chatThreads = this.db.prepare('SELECT id, name FROM threads WHERE name LIKE ?').all('Chat %') as { id: string; name: string }[];
+    console.log(`[DEBUG] Found ${chatThreads.length} legacy Chat threads:`, chatThreads);
+    
+    if (chatThreads.length > 0) {
+      const updateStmt = this.db.prepare('UPDATE threads SET name = ? WHERE id = ?');
+      
+      for (const thread of chatThreads) {
+        const newName = `Thread ${thread.id}`;
+        updateStmt.run(newName, thread.id);
+        console.log(`[DEBUG] Updated thread ${thread.id}: "${thread.name}" -> "${newName}"`);
+      }
+    }
+    
+    return chatThreads.length;
   }
 
   deleteThread(threadId: string): void {

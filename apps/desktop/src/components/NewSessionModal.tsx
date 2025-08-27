@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import type { SessionCreateOptions } from "@ampsm/types";
 
 interface NewSessionModalProps {
@@ -19,10 +19,17 @@ export function NewSessionModal({
     baseBranch: "main",
     scriptCommand: "",
     modelOverride: "",
-    includeContext: false,
   });
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Debug electronAPI availability
+  useEffect(() => {
+    console.log('NewSessionModal mounted, electronAPI available:', !!window.electronAPI);
+    console.log('window.electronAPI:', window.electronAPI);
+    console.log('window.electronAPI.sessions:', window.electronAPI?.sessions);
+    console.log('window.electronAPI.sessions.create:', window.electronAPI?.sessions?.create);
+  }, []);
 
   const resetForm = () => {
     setFormData({
@@ -32,7 +39,6 @@ export function NewSessionModal({
       baseBranch: "main",
       scriptCommand: "",
       modelOverride: "",
-      includeContext: false,
     });
     setError(null);
     setCreating(false);
@@ -83,11 +89,18 @@ export function NewSessionModal({
       repoRoot: formData.repoRoot.trim(),
       baseBranch: formData.baseBranch.trim() || "main",
       modelOverride: formData.modelOverride.trim() || undefined,
-      includeContext: formData.includeContext,
       mode: 'interactive',
     };
 
     try {
+      // Check if electronAPI is available
+      if (!window.electronAPI || !window.electronAPI.sessions || !window.electronAPI.sessions.create) {
+        console.error('electronAPI not available:', window.electronAPI);
+        setError('Application not ready. Please wait and try again.');
+        setCreating(false);
+        return;
+      }
+
       const result = await window.electronAPI.sessions.create(options);
 
       if (result.success) {
@@ -241,26 +254,7 @@ export function NewSessionModal({
             </select>
           </div>
 
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="includeContext"
-              checked={formData.includeContext}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  includeContext: e.target.checked,
-                }))
-              }
-              className="mr-2 rounded border-gruvbox-dark3/50 bg-gruvbox-dark0 text-gruvbox-aqua focus:ring-gruvbox-aqua/20"
-            />
-            <label
-              htmlFor="includeContext"
-              className="text-sm text-gruvbox-light3"
-            >
-              Include CONTEXT.md file content if it exists
-            </label>
-          </div>
+
 
           <div className="flex gap-3 pt-4">
             <button

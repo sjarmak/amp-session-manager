@@ -200,11 +200,6 @@ export function ConversationFlow({ session }: ConversationFlowProps) {
     <div className="bg-white p-6 rounded-lg border">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold">Conversation Flow</h3>
-        {session.contextIncluded && (
-          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-            CONTEXT.md included
-          </span>
-        )}
       </div>
 
       {allMessages.length > 0 ? (

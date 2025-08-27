@@ -1,4 +1,4 @@
-# AGENT.md — Amp Session Conductor
+# AGENT.md — Amp Session Orchestrator
 
 This document instructs a coding agent (Amp) how to work inside this repository to create and iterate on **isolated Git worktree sessions**, with deterministic commits, reviewable diffs, and safe squash/rebase back to the main branch.
 
@@ -216,7 +216,7 @@ The orchestrator composes this prompt for each iteration. Keep it short, specifi
 diff
 Copy
 Edit
-You are improving the Amp Session Conductor in this worktree.
+You are improving the Amp Session Orchestrator in this worktree.
 
 Goal:
 

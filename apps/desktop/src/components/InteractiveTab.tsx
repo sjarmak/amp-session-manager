@@ -29,11 +29,13 @@ interface Thread {
 
 interface InteractiveTabProps {
   session: Session;
+  initialThreadId?: string | null;
+  onThreadSelected?: (threadId: string | null) => void;
 }
 
 type ConnectionState = 'connecting' | 'ready' | 'closed' | 'error';
 
-export function InteractiveTab({ session }: InteractiveTabProps) {
+export function InteractiveTab({ session, initialThreadId, onThreadSelected }: InteractiveTabProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [connectionState, setConnectionState] = useState<ConnectionState>('closed');
@@ -43,6 +45,8 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
   const [showThreadDropdown, setShowThreadDropdown] = useState(false);
   const [availableThreads, setAvailableThreads] = useState<Thread[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isCreatingNewThread, setIsCreatingNewThread] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -59,10 +63,24 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
 
   // Reload messages when selectedThreadId changes
   useEffect(() => {
-    if (selectedThreadId) {
+    if (selectedThreadId && !isCreatingNewThread && !isLoadingMessages) {
+      console.log('useEffect: selectedThreadId changed, loading messages for:', selectedThreadId);
       loadThreadMessages(selectedThreadId);
+    } else if (!selectedThreadId && !isCreatingNewThread) {
+      console.log('useEffect: no selectedThreadId, clearing messages');
+      setMessages([]);
     }
-  }, [selectedThreadId]);
+  }, [selectedThreadId, isCreatingNewThread, isLoadingMessages]);
+
+  // Handle initialThreadId from parent component
+  useEffect(() => {
+    if (initialThreadId && initialThreadId !== selectedThreadId) {
+      setSelectedThreadId(initialThreadId);
+      setThreadId(initialThreadId);
+      onThreadSelected?.(initialThreadId);
+      loadThreadMessages(initialThreadId);
+    }
+  }, [initialThreadId]);
 
   // Click outside to close dropdown
   useEffect(() => {
@@ -218,27 +236,42 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
     };
   }, [session.id]);
 
-  const loadAvailableThreads = async () => {
+  const loadAvailableThreads = async (skipAutoSelection = false) => {
     try {
       const result = await window.electronAPI.sessions.getThreads(session.id);
       if (result.success && result.threads) {
         console.log('Available threads for session:', session.id, result.threads);
-        setAvailableThreads(result.threads);
-        // If there are threads and no current selection, select the most recent one (unless we're starting a new thread)
-        if (result.threads.length > 0 && !selectedThreadId && !session.threadId) {
-          const mostRecentThread = result.threads[0]; // threads are sorted by updatedAt DESC
-          console.log('Selecting most recent thread:', mostRecentThread);
-          setSelectedThreadId(mostRecentThread.id);
-          setThreadId(mostRecentThread.id);
-          // Load messages for this thread only if we're not in a fresh new thread state
-          if (selectedThreadId !== null) {
-            loadThreadMessages(mostRecentThread.id);
+        // Filter out threads that start with "Chat" (legacy) but be more permissive with IDs
+        const validThreads = result.threads.filter(thread => {
+          const isValidId = thread.id.startsWith('T-');
+          const isNotChatName = !thread.name.startsWith('Chat ');
+          const hasMessages = thread.messageCount > 0;
+          
+          console.log(`Thread ${thread.id} (${thread.name}): validId=${isValidId}, notChatName=${isNotChatName}, hasMessages=${hasMessages}`);
+          
+          // Include threads with proper IDs OR threads that have messages (even if legacy format)
+          return isValidId && (isNotChatName || hasMessages);
+        });
+        console.log('Raw threads:', result.threads.length, 'Filtered valid threads:', validThreads.length, validThreads);
+        setAvailableThreads(validThreads);
+        
+        // Only auto-select if not skipping and not creating a new thread
+        if (!skipAutoSelection && !isCreatingNewThread) {
+          // Don't auto-select threads - let the backend logic handle thread selection
+          // The backend will use current amp thread if it belongs to this session, 
+          // or create a new thread if needed. This prevents trying to continue 
+          // orphaned threads that don't exist on ampcode.com.
+          if (session.threadId && !selectedThreadId) {
+            // Only use session.threadId if it's set (indicates a specific thread choice)
+            console.log('Using explicitly set session threadId:', session.threadId);
+            setSelectedThreadId(session.threadId);
+            setThreadId(session.threadId);
+          } else {
+            // No pre-selection - let backend handle thread selection
+            console.log('No thread pre-selected - backend will handle thread selection');
+            setSelectedThreadId(null);
+            setThreadId('');
           }
-        } else if (session.threadId && !selectedThreadId) {
-          // If session has a threadId, use it
-          console.log('Using session threadId:', session.threadId);
-          setSelectedThreadId(session.threadId);
-          setThreadId(session.threadId);
         }
       } else {
         console.log('No threads found for session:', session.id);
@@ -249,6 +282,12 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
   };
 
   const loadThreadMessages = async (threadIdToLoad: string) => {
+    if (isLoadingMessages) {
+      console.log('Already loading messages, skipping duplicate request');
+      return;
+    }
+    
+    setIsLoadingMessages(true);
     try {
       console.log('Loading messages for thread:', threadIdToLoad);
       // Get messages from the thread storage system
@@ -321,17 +360,17 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
           }
         }
         
-        console.log('Loaded thread messages:', historyMessages);
+        console.log(`Loaded ${historyMessages.length} messages for thread ${threadIdToLoad}:`, historyMessages);
         setMessages(historyMessages);
       } else {
-        // Fallback to interactive history if no thread messages found
-        console.log('No thread messages found, trying interactive history as fallback');
-        await loadInteractiveHistory();
+        console.log(`No thread messages found for thread ${threadIdToLoad}, clearing messages`);
+        setMessages([]); // Clear messages instead of loading mixed history
       }
     } catch (err) {
-      console.error('Failed to load thread messages:', err);
-      // Fallback to interactive history
-      await loadInteractiveHistory();
+      console.error(`Failed to load thread messages for ${threadIdToLoad}:`, err);
+      setMessages([]); // Clear messages instead of loading mixed history
+    } finally {
+      setIsLoadingMessages(false);
     }
   };
 
@@ -400,11 +439,18 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
   };
 
   const loadMessageHistory = async () => {
+    if (isCreatingNewThread) {
+      console.log('Creating new thread, not loading any history');
+      setMessages([]);
+      return;
+    }
+    
     if (selectedThreadId) {
+      console.log(`Loading history for selected thread: ${selectedThreadId}`);
       loadThreadMessages(selectedThreadId);
     } else {
-      // Fallback to loading any existing messages
-      await loadInteractiveHistory();
+      console.log('No thread selected, clearing messages');
+      setMessages([]); // Clear messages instead of loading mixed session history
     }
   };
 
@@ -435,6 +481,9 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
   };
 
   const startNewThread = async () => {
+    console.log('Starting new thread...');
+    setIsCreatingNewThread(true);
+    
     // Stop any existing session first
     if (isStarted) {
       await stopInteractiveSession();
@@ -443,14 +492,21 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
     // Reset all state for a fresh start
     setSelectedThreadId(null);
     setThreadId('new'); // Special marker to force new thread creation
+    onThreadSelected?.(null);
     setMessages([]);
     setError(null);
     setConnectionState('closed');
     setIsStarted(false);
     setInput('');
     
-    // Reload available threads to get updated list
-    await loadAvailableThreads();
+    // Reload available threads to get updated list, but skip auto-selection
+    await loadAvailableThreads(true);
+    
+    // Allow thread creation to complete
+    setTimeout(() => {
+      setIsCreatingNewThread(false);
+      console.log('New thread creation completed');
+    }, 100);
   };
 
   const startInteractiveSession = async () => {
@@ -459,8 +515,9 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
     setIsStarted(true);
     
     try {
-      // Force new thread creation to avoid continuation issues with auto-created threads
-      const result = await window.electronAPI.interactive.start(session.id, 'new');
+      // Use the currently-selected thread if there is one, otherwise pass null to let backend decide
+      const threadArg = selectedThreadId || null;
+      const result = await window.electronAPI.interactive.start(session.id, threadArg);
       
       if (!result.success) {
         setError(result.error || 'Failed to start interactive session');
@@ -479,6 +536,18 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
       setIsStarted(false);
     } catch (err) {
       console.error('Failed to stop interactive session:', err);
+    }
+  };
+
+  const switchToThread = async (id: string) => {
+    // update UI state first
+    setSelectedThreadId(id);
+    setThreadId(id);
+
+    // if a session is live, restart it with the new thread
+    if (isStarted) {
+      await stopInteractiveSession();
+      await startInteractiveSession(); // will now use new selectedThreadId
     }
   };
 
@@ -532,69 +601,61 @@ export function InteractiveTab({ session }: InteractiveTabProps) {
         </div>
         
         <div className="flex gap-2 items-center">
-          {availableThreads.length > 0 && (
-            <div className="relative" ref={dropdownRef}>
-              <button
-                onClick={() => setShowThreadDropdown(!showThreadDropdown)}
-                className="px-3 py-1 bg-gruvbox-bg3 text-gruvbox-fg1 rounded text-sm hover:bg-gruvbox-bg2 border border-gruvbox-bg4 flex items-center gap-2"
-              >
-                {selectedThreadId 
-                  ? (() => {
-                      const thread = availableThreads.find(t => t.id === selectedThreadId);
-                      if (!thread) return 'Thread';
-                      // Show thread name with short ID for uniqueness
-                      return `${thread.name} (${thread.id.slice(0, 6)})`;
-                    })()
-                  : 'Select Thread'
-                }
-                <span className="text-xs">▼</span>
-              </button>
-              {showThreadDropdown && (
-                <div className="absolute right-0 top-full mt-1 bg-gruvbox-bg1 border border-gruvbox-bg3 rounded-md shadow-lg z-10 min-w-48">
-                  <div className="py-1">
-                    <button
-                      onClick={() => {
-                        startNewThread();
-                        setShowThreadDropdown(false);
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm text-gruvbox-fg2 hover:bg-gruvbox-bg2 border-b border-gruvbox-bg3"
-                    >
-                      Start New Thread
-                    </button>
-                    {availableThreads.map((thread) => (
-                      <button
-                        key={thread.id}
-                        onClick={() => {
-                          setSelectedThreadId(thread.id);
-                          setThreadId(thread.id);
-                          loadThreadMessages(thread.id);
-                          setShowThreadDropdown(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-gruvbox-bg2 ${
-                          selectedThreadId === thread.id ? 'bg-gruvbox-bg2 text-gruvbox-bright-blue' : 'text-gruvbox-fg1'
-                        }`}
-                      >
-                        <div className="font-medium">{thread.name}</div>
-                        <div className="text-xs text-gruvbox-fg2">
-                        ID: {thread.id.slice(0, 8)}... • {thread.messageCount} messages • {new Date(thread.updatedAt).toLocaleDateString()}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          
-          {/* New Thread button when no threads exist or as a standalone option */}
-          {(availableThreads.length === 0 || isStarted) && (
+          {/* Thread selection dropdown - always show if there are threads */}
+          <div className="relative" ref={dropdownRef}>
             <button
-              onClick={startNewThread}
-              className="px-3 py-1 bg-gruvbox-bg3 text-gruvbox-fg1 rounded text-sm hover:bg-gruvbox-bg2 border border-gruvbox-bg4"
+              onClick={() => setShowThreadDropdown(!showThreadDropdown)}
+              className="px-3 py-1 bg-gruvbox-bg3 text-gruvbox-fg1 rounded text-sm hover:bg-gruvbox-bg2 border border-gruvbox-bg4 flex items-center gap-2"
             >
-              New Thread
+              {selectedThreadId && availableThreads.length > 0
+                ? (() => {
+                    const thread = availableThreads.find(t => t.id === selectedThreadId);
+                    if (!thread) return 'New Thread';
+                    return `${thread.name} (${thread.id.slice(0, 6)})`;
+                  })()
+                : availableThreads.length > 0 
+                  ? 'Select Thread' 
+                  : 'New Thread'
+              }
+              <span className="text-xs">▼</span>
             </button>
-          )}
+            {showThreadDropdown && (
+              <div className="absolute right-0 top-full mt-1 bg-gruvbox-bg1 border border-gruvbox-bg3 rounded-md shadow-lg z-10 min-w-48">
+                <div className="py-1">
+                  <button
+                    onClick={() => {
+                      startNewThread();
+                      setShowThreadDropdown(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-gruvbox-bright-green hover:bg-gruvbox-bg2 border-b border-gruvbox-bg3 font-medium"
+                  >
+                    + Start New Thread
+                  </button>
+                  {availableThreads.length > 0 && availableThreads.map((thread) => (
+                    <button
+                      key={thread.id}
+                      onClick={async () => {
+                        console.log('Switching to thread:', thread.id);
+                        setIsCreatingNewThread(false);
+                        await switchToThread(thread.id);
+                        onThreadSelected?.(thread.id);
+                        setShowThreadDropdown(false);
+                        // Message loading will be handled by useEffect
+                      }}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gruvbox-bg2 ${
+                        selectedThreadId === thread.id ? 'bg-gruvbox-bg2 text-gruvbox-bright-blue' : 'text-gruvbox-fg1'
+                      }`}
+                    >
+                      <div className="font-medium">{thread.name}</div>
+                      <div className="text-xs text-gruvbox-fg2">
+                      ID: {thread.id.slice(0, 8)}... • {thread.messageCount} messages • {new Date(thread.updatedAt).toLocaleDateString()}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           
           {!isStarted ? (
             <button

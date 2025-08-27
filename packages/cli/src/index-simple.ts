@@ -6,7 +6,7 @@ const program = new Command();
 
 program
   .name('amp-sessions')
-  .description('Amp Session Conductor CLI')
+  .description('Amp Session Orchestrator CLI')
   .version('0.1.0');
 
 program
