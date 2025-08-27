@@ -1,23 +1,24 @@
-# Amp Session Manager
+# Amp Session Orchestrator
 
 [![CI Status](https://github.com/sjarmak/amp-session-manager/workflows/ci/badge.svg)](https://github.com/sjarmak/amp-session-manager/actions) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A cross-platform desktop application and CLI that transforms Amp coding sessions into a disciplined, auditable Git workflow with isolated worktrees, atomic commits, and comprehensive telemetry.
+A cross-platform desktop app and CLI that turns AI coding sessions into first-class, reviewable Git branches. It automates the iterate-commit-test loop with Amp, keeps history clean with worktrees and squash-rebases, and captures full audit logs – giving teams the speed of an AI pair-programmer without sacrificing code quality, security, or Git hygiene.
 
 ## Table of Contents
 
 1. [TL;DR Quick-Start](#tldr-quick-start)
-2. [Why Amp Session Manager?](#why-amp-session-manager)
-3. [Features At-a-Glance](#features-at-a-glance)
-4. [Installation](#installation)
-5. [Desktop App vs. CLI - Which one do I need?](#desktop-app-vs-cli---which-one-do-i-need)
-6. [Detailed Usage](#detailed-usage)
-7. [Configuration](#configuration)
-8. [Advanced Topics](#advanced-topics)
-9. [Troubleshooting & FAQ](#troubleshooting--faq)
-10. [Contributing](#contributing)
-11. [Security](#security)
-12. [License](#license)
+2. [Why Amp Session Orchestrator?](#why-amp-session-orchestrator)
+3. [Key Use Cases](#key-use-cases)
+4. [Features At-a-Glance](#features-at-a-glance)
+5. [Installation](#installation)
+6. [Desktop App vs. CLI - Which one do I need?](#desktop-app-vs-cli---which-one-do-i-need)
+7. [Detailed Usage](#detailed-usage)
+8. [Configuration](#configuration)
+9. [Advanced Topics](#advanced-topics)
+10. [Troubleshooting & FAQ](#troubleshooting--faq)
+11. [Contributing](#contributing)
+12. [Security](#security)
+13. [License](#license)
 
 ## TL;DR Quick-Start
 
@@ -40,13 +41,22 @@ pnpm cli merge sess-abc123 --message "feat: add JWT authentication"
 
 **Note**: You need Git ≥2.38, Node.js ≥18, pnpm ≥8, and authenticated Amp CLI installed first.
 
-## Why Amp Session Manager?
+## Why Amp Session Orchestrator?
 
-- **Isolated Development**: Every Amp session runs in its own Git worktree, preventing conflicts and enabling parallel development
-- **Atomic History**: Each iteration creates a deterministic commit, making all changes reviewable and reversible
-- **Enterprise-Ready**: Comprehensive telemetry, cost tracking, and batch processing for teams and research
-- **Safe Merging**: Built-in squash/rebase workflow with conflict resolution prevents messy Git history
-- **Full Visibility**: Desktop UI and CLI provide complete insight into Amp's changes with diff viewers and metrics
+- **Keeps AI-generated code isolated until ready**: Every Amp session runs in its own Git worktree, preventing conflicts with your main branch and enabling parallel development
+- **Makes every Amp iteration reviewable with deterministic commits**: Each iteration creates an atomic commit, making all changes traceable and reversible
+- **Automates Git worktree/branch management**: No more manual branch creation, worktree setup, or merge conflicts from AI experiments
+- **Provides rich audit logs and telemetry**: Comprehensive tracking of token usage, cost monitoring, and decision trails for teams and compliance
+- **Supports quality gates through test scripts**: Built-in validation ensures AI changes meet your standards before merging
+- **Works identically via CLI and desktop UI**: Full feature parity between command-line automation and visual session management
+
+## Key Use Cases
+
+- **AI feature branches**: Spin up isolated sessions for feature development, letting Amp iterate safely while you review each step
+- **Bug-fix/debug loops with test validation**: Use test scripts as quality gates to ensure fixes don't break existing functionality  
+- **Batch refactors across multiple areas**: Process dozens of similar changes across repositories with full audit trails
+- **Teaching/demos with visible timeline of changes**: Show exactly how AI approaches problems with reviewable commit history
+- **CI automation for reviewable AI-generated changes**: Integrate into pipelines for automated code generation that still requires human approval
 
 ## Features At-a-Glance
 
