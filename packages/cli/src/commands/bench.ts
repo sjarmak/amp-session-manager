@@ -175,7 +175,9 @@ async function executeBenchmarkCase(
       repoRoot: benchCase.repo,
       baseBranch: 'main',
       scriptCommand: benchCase.successCommand,
-      modelOverride: undefined
+      modelOverride: undefined,
+      // Set autoCommit to false for benchmark sessions so changes remain staged for review
+      autoCommit: false
     });
     
     try {

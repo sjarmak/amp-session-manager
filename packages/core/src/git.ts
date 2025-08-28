@@ -274,8 +274,19 @@ export class GitOps {
       // Show what got staged
       const stagedResult = await this.exec(['diff', '--cached', '--name-only'], worktreePath);
       console.log(`Staged files: "${stagedResult.stdout.trim()}"`);
+      
+      // Double-check final git status after staging
+      const finalStatusResult = await this.exec(['status', '--porcelain'], worktreePath);
+      console.log(`Final git status after staging: "${finalStatusResult.stdout.trim()}"`);
+      
+      // Show if there are any staged changes to commit
+      const stagedDiff = await this.exec(['diff', '--cached'], worktreePath);
+      const hasStaged = stagedDiff.stdout.trim().length > 0;
+      console.log(`Has staged changes to commit: ${hasStaged}`);
+      
     } else {
       console.error(`Failed to stage changes: ${result.stderr}`);
+      console.error(`Add command output: ${result.stdout}`);
     }
   }
 

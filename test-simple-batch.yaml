@@ -1,0 +1,6 @@
+concurrency: 1
+defaults:
+  baseBranch: main
+matrix:
+  - repo: /Users/sjarmak/amp-workflow-manager-v2
+    prompt: "Add a comment to the README.md file saying 'This is a test comment added by batch processing'"

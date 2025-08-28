@@ -78,6 +78,7 @@ export interface SessionCreateOptions {
   modelOverride?: string;
   threadId?: string;
   mode?: "async" | "interactive";
+  autoCommit?: boolean;
 }
 
 export interface PreflightResult {

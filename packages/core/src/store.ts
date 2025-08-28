@@ -353,15 +353,16 @@ export class SessionStore {
 
     const stmt = this.db.prepare(`
       INSERT INTO sessions (id, name, ampPrompt, followUpPrompts, repoRoot, baseBranch, branchName, 
-        worktreePath, status, scriptCommand, modelOverride, threadId, createdAt, mode)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        worktreePath, status, scriptCommand, modelOverride, threadId, createdAt, mode, autoCommit)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
       session.id, session.name, session.ampPrompt ?? null, null,
       session.repoRoot, session.baseBranch, session.branchName, session.worktreePath,
       session.status, session.scriptCommand ?? null, session.modelOverride ?? null,
-      session.threadId ?? null, session.createdAt, session.mode ?? 'async'
+      session.threadId ?? null, session.createdAt, session.mode ?? 'async',
+      options.autoCommit !== undefined ? (options.autoCommit ? 1 : 0) : null
     );
 
     return session;

@@ -1,0 +1,6 @@
+concurrency: 1
+defaults:
+  baseBranch: main
+matrix:
+  - repo: /Users/sjarmak/amp-workflow-manager-v2
+    prompt: "Add a line '# Testing staging fix' to the top of the README.md file"

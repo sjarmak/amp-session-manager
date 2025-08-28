@@ -328,6 +328,31 @@ export class WorktreeManager {
       }
 
       console.log(`[DEBUG] Reached commit section for session ${sessionId}`);
+      
+      // Detailed debugging before checking changes
+      console.log(`[DEBUG] Worktree path: ${session.worktreePath}`);
+      
+      // Show raw git status output
+      try {
+        const statusResult = await git.exec(['status', '--porcelain'], session.worktreePath);
+        console.log(`[DEBUG] Raw git status output: "${statusResult.stdout.trim()}"`);
+        
+        // Also check what files exist
+        const lsResult = await git.exec(['ls-files', '--others', '--exclude-standard'], session.worktreePath);
+        console.log(`[DEBUG] Untracked files: "${lsResult.stdout.trim()}"`);
+        
+        // Check staged files
+        const stagedResult = await git.exec(['diff', '--cached', '--name-only'], session.worktreePath);
+        console.log(`[DEBUG] Already staged files: "${stagedResult.stdout.trim()}"`);
+        
+        // Check unstaged files  
+        const unstagedResult = await git.exec(['diff', '--name-only'], session.worktreePath);
+        console.log(`[DEBUG] Unstaged files: "${unstagedResult.stdout.trim()}"`);
+        
+      } catch (debugError) {
+        console.log(`[DEBUG] Error getting git status:`, debugError);
+      }
+      
       // Check for changes and commit if necessary
       const hasChanges = await git.hasChanges(session.worktreePath);
       console.log(`[MAIN] hasChanges = ${hasChanges} for ${session.worktreePath}`);
@@ -370,6 +395,12 @@ export class WorktreeManager {
           // Verify changes are still staged after not committing
           const stagedFiles = await git.exec(['diff', '--cached', '--name-only'], session.worktreePath);
           console.log(`[DEBUG] Files still staged after skip commit: "${stagedFiles.stdout.trim()}"`);
+          
+          // Double-check that we really didn't commit by checking if working tree is clean
+          const finalStatus = await git.exec(['status', '--porcelain'], session.worktreePath);
+          if (finalStatus.stdout.trim() === '') {
+            console.warn(`[WARNING] Working tree is unexpectedly clean - changes may have been committed despite shouldCommit=false`);
+          }
         }
       } else {
         console.log('No changes to stage or commit');
@@ -511,10 +542,13 @@ Raw Telemetry: ${JSON.stringify(result.telemetry, null, 2)}
         const existingLog = await readFile(iterationLogPath, 'utf-8').catch(() => '');
         await writeFile(iterationLogPath, existingLog + metricsEntry);
         
-        // Commit the metrics update if there are changes
+        // Commit the metrics update if there are changes and autoCommit is enabled
         const hasChanges = await git.hasChanges(session.worktreePath);
-        if (hasChanges) {
+        if (hasChanges && session.autoCommit !== false) {
           await git.commitChanges('amp: update iteration metrics', session.worktreePath);
+          console.log('✓ Committed metrics update');
+        } else if (hasChanges) {
+          console.log('✓ Metrics updated but not committed (autoCommit disabled)');
         }
         
       } catch (error) {

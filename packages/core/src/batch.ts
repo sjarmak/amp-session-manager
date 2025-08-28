@@ -176,6 +176,8 @@ export class BatchRunner {
         baseBranch: planItem.baseBranch || plan.defaults.baseBranch,
         scriptCommand: planItem.scriptCommand || plan.defaults.scriptCommand,
         modelOverride: planItem.model || plan.defaults.model,
+        // Set autoCommit to false for batch sessions so changes remain staged for review
+        autoCommit: false,
       });
 
       // Update batch item with session ID
