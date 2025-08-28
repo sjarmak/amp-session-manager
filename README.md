@@ -22,22 +22,23 @@ A cross-platform desktop app and CLI that turns AI coding sessions into first-cl
 
 ## TL;DR Quick-Start
 
-```bash
+````bash
 # Clone and build from source
 git clone https://github.com/sjarmak/amp-session-manager.git
 cd amp-session-manager
 pnpm install && pnpm build
 
-# Create your first session
-pnpm cli new --repo ./my-project --name "add-auth" --prompt "Add JWT authentication system"
+cd apps/desktop
+pnpm dev
 
-# Run an iteration
-pnpm cli iterate sess-abc123
+# If the desktop app doesn't launch:
+pnpm store prune
+rm -rf ~/.cache/electron
+rm -rf node_modules
+pnpm install
 
-# Review changes and merge
-pnpm cli diff sess-abc123
-pnpm cli merge sess-abc123 --message "feat: add JWT authentication"
-```
+cd apps/desktop
+pnpm dev
 
 **Note**: You need Git ≥2.38, Node.js ≥18, pnpm ≥8, and authenticated Amp CLI installed first.
 
@@ -53,20 +54,20 @@ pnpm cli merge sess-abc123 --message "feat: add JWT authentication"
 ## Key Use Cases
 
 - **AI feature branches**: Spin up isolated sessions for feature development, letting Amp iterate safely while you review each step
-- **Bug-fix/debug loops with test validation**: Use test scripts as quality gates to ensure fixes don't break existing functionality  
+- **Bug-fix/debug loops with test validation**: Use test scripts as quality gates to ensure fixes don't break existing functionality
 - **Batch refactors across multiple areas**: Process dozens of similar changes across repositories with full audit trails
 - **Teaching/demos with visible timeline of changes**: Show exactly how AI approaches problems with reviewable commit history
 - **CI automation for reviewable AI-generated changes**: Integrate into pipelines for automated code generation that still requires human approval
 
 ## Features At-a-Glance
 
-**Session Management**: Isolated Git worktrees, atomic commits per iteration, parallel execution with file-system locks  
-**Desktop Application**: Electron GUI with real-time monitoring, diff viewer, batch management, and interactive chat  
-**CLI Interface**: Complete command-line control for automation, CI integration, and power users  
-**Git Integration**: Smart squash/rebase workflows, conflict resolution, and merge wizards  
-**Batch Processing**: Execute hundreds of prompts across repositories from YAML configurations  
-**Telemetry & Analytics**: SQLite storage, JSONL/CSV export, token usage tracking, and cost monitoring  
-**Interactive Mode**: Multi-turn conversations with Amp using thread continuity  
+**Session Management**: Isolated Git worktrees, atomic commits per iteration, parallel execution with file-system locks
+**Desktop Application**: Electron GUI with real-time monitoring, diff viewer, batch management, and interactive chat
+**CLI Interface**: Complete command-line control for automation, CI integration, and power users
+**Git Integration**: Smart squash/rebase workflows, conflict resolution, and merge wizards
+**Batch Processing**: Execute hundreds of prompts across repositories from YAML configurations
+**Telemetry & Analytics**: SQLite storage, JSONL/CSV export, token usage tracking, and cost monitoring
+**Interactive Mode**: Multi-turn conversations with Amp using thread continuity
 **SWE-bench Support**: Automated benchmarking and software engineering research integration
 
 ## Installation
@@ -103,9 +104,10 @@ pnpm cli verify-amp
 
 # Start desktop application (optional)
 pnpm dev
-```
+````
 
 **Native dependency troubleshooting**:
+
 ```bash
 # If better-sqlite3 fails to compile
 pnpm rebuild
@@ -141,6 +143,7 @@ ENTRYPOINT ["node", "packages/cli/dist/index.js"]
 ## Desktop App vs. CLI - Which one do I need?
 
 **Choose Desktop App if you want**:
+
 - Visual session management with real-time updates
 - Interactive diff viewer with syntax highlighting
 - Guided merge workflows and conflict resolution
@@ -149,6 +152,7 @@ ENTRYPOINT ["node", "packages/cli/dist/index.js"]
 - Notifications and alerts
 
 **Choose CLI if you want**:
+
 - Automation and CI/CD integration
 - Script-driven batch processing
 - Terminal-based workflows
@@ -163,6 +167,7 @@ ENTRYPOINT ["node", "packages/cli/dist/index.js"]
 ### Session Lifecycle Walkthrough
 
 **1. Create Session**
+
 ```bash
 # Create isolated session in worktree
 pnpm cli new --repo ./my-project \
@@ -178,6 +183,7 @@ pnpm cli new --repo ./my-project \
 ```
 
 **2. Run Iterations**
+
 ```bash
 # Execute Amp iteration with streaming output
 pnpm cli iterate sess-a1b2c3d4 --stream
@@ -191,6 +197,7 @@ pnpm cli diff sess-a1b2c3d4 --staged
 ```
 
 **3. Review and Merge**
+
 ```bash
 # Squash all amp: commits into single commit
 pnpm cli squash sess-a1b2c3d4 --message "feat: add JWT authentication system"
@@ -205,6 +212,7 @@ pnpm cli merge sess-a1b2c3d4
 ### Batch Processing
 
 **Create batch configuration**:
+
 ```yaml
 # batch-auth-features.yaml
 name: "Authentication Features Batch"
@@ -212,7 +220,7 @@ description: "Implement auth across multiple repositories"
 repos:
   - path: "./frontend"
     baseBranch: "main"
-  - path: "./backend" 
+  - path: "./backend"
     baseBranch: "develop"
 items:
   - name: "jwt-auth"
@@ -228,6 +236,7 @@ notifications:
 ```
 
 **Execute batch**:
+
 ```bash
 # Start batch processing
 pnpm cli batch start --file batch-auth-features.yaml
@@ -242,6 +251,7 @@ pnpm cli batch export batch-abc123 --format csv --out ./results/
 ### Metrics & Telemetry
 
 **View session metrics**:
+
 ```bash
 # Detailed session analytics
 pnpm cli metrics sess-a1b2c3d4
@@ -255,6 +265,7 @@ pnpm cli export --format jsonl --out sessions.jsonl
 
 **SQLite Database Schema**:
 The system stores all data in `~/.ampsm/sessions.db` with tables for:
+
 - `sessions` - Core session metadata and configuration
 - `iterations` - Individual Amp execution records with metrics
 - `tool_calls` - Detailed tool usage and performance data
@@ -262,6 +273,7 @@ The system stores all data in `~/.ampsm/sessions.db` with tables for:
 - `batch_runs` - Batch execution tracking and results
 
 **External Analysis**:
+
 ```bash
 # Open database in SQLite CLI
 sqlite3 ~/.ampsm/sessions.db
@@ -332,7 +344,7 @@ pnpm cli new --notify-webhook https://hooks.slack.com/... --repo ./project --pro
 
 ```bash
 export AMP_API_KEY="your-amp-api-key"              # Required: Amp authentication
-export AMPSM_DB_PATH="/custom/path/sessions.db"    # Optional: Custom database location  
+export AMPSM_DB_PATH="/custom/path/sessions.db"    # Optional: Custom database location
 export AMPSM_CONFIG_DIR="/custom/config"           # Optional: Custom config directory
 export AMPSM_LOG_LEVEL="debug"                     # Optional: Logging verbosity
 export AMPSM_DISABLE_TELEMETRY="true"              # Optional: Disable usage tracking
@@ -364,6 +376,7 @@ pnpm cli new --script "npm test" --timeout 600 --repo ./project --prompt "..."
 ```
 
 Test scripts run after each iteration and gate session progression:
+
 - **Exit Code 0**: Iteration succeeds, continue
 - **Non-Zero Exit**: Mark session as `awaiting-input`, surface logs to user
 
@@ -381,6 +394,7 @@ pnpm cli bench export bench-run-123 --format csv
 ```
 
 SWE-bench integration supports:
+
 - Official SWE-bench dataset mounting
 - Custom problem definitions
 - Parallel execution across repositories
@@ -391,14 +405,14 @@ SWE-bench integration supports:
 The core WorktreeManager emits events via MetricsEventBus for custom tracking:
 
 ```typescript
-import { WorktreeManager } from '@ampsm/core';
+import { WorktreeManager } from "@ampsm/core";
 
 const manager = new WorktreeManager();
-manager.metricsEventBus.on('iteration.started', (event) => {
+manager.metricsEventBus.on("iteration.started", (event) => {
   console.log(`Session ${event.sessionId} iteration started`);
 });
 
-manager.metricsEventBus.on('git.conflict', (event) => {
+manager.metricsEventBus.on("git.conflict", (event) => {
   // Custom conflict handling
   notifyDevOpsTeam(event);
 });
@@ -406,14 +420,14 @@ manager.metricsEventBus.on('git.conflict', (event) => {
 
 ## Troubleshooting & FAQ
 
-| Issue | Symptoms | Solution |
-|-------|----------|----------|
-| **IPC Handler Errors** | "No handler registered for..." in desktop app | Restart desktop app; handlers register at startup |
-| **Build Failures** | Native module compilation errors | Run `pnpm rebuild`; ensure platform build tools installed |
-| **Git Worktree Issues** | "fatal: invalid reference" errors | Check target repo is clean and base branch exists |
-| **Streaming Failures** | JSON parsing errors in `--stream-json` | Use `--execute` mode; ensure Amp CLI ≥latest version |
-| **Authentication Errors** | "amp: not authenticated" | Run `amp login` and verify with `amp whoami` |
-| **Database Locks** | SQLite busy/locked errors | Check no other instances running; restart if persistent |
+| Issue                     | Symptoms                                      | Solution                                                  |
+| ------------------------- | --------------------------------------------- | --------------------------------------------------------- |
+| **IPC Handler Errors**    | "No handler registered for..." in desktop app | Restart desktop app; handlers register at startup         |
+| **Build Failures**        | Native module compilation errors              | Run `pnpm rebuild`; ensure platform build tools installed |
+| **Git Worktree Issues**   | "fatal: invalid reference" errors             | Check target repo is clean and base branch exists         |
+| **Streaming Failures**    | JSON parsing errors in `--stream-json`        | Use `--execute` mode; ensure Amp CLI ≥latest version      |
+| **Authentication Errors** | "amp: not authenticated"                      | Run `amp login` and verify with `amp whoami`              |
+| **Database Locks**        | SQLite busy/locked errors                     | Check no other instances running; restart if persistent   |
 
 ### Verification Commands
 
@@ -437,7 +451,7 @@ pnpm cli clean-environment
 ### Common Error Codes
 
 - **E001**: Git repository not found or invalid
-- **E002**: Amp CLI authentication failure  
+- **E002**: Amp CLI authentication failure
 - **E003**: SQLite database corruption
 - **E004**: Worktree creation failed
 - **E005**: Session iteration timeout
@@ -485,7 +499,7 @@ The system uses a monorepo structure with clear separation of concerns:
 
 - **packages/core**: Session engine, Git operations, Amp adapter, SQLite persistence
 - **packages/cli**: Command-line interface with Commander.js
-- **packages/types**: Shared TypeScript interfaces and data models  
+- **packages/types**: Shared TypeScript interfaces and data models
 - **apps/desktop**: Electron + React desktop application
 
 For detailed architectural documentation, see [ARCHITECTURE.md](./ARCHITECTURE.md).
