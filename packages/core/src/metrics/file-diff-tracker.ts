@@ -131,6 +131,12 @@ export class FileDiffTracker {
     
     const fileStats: Record<string, { added: number; deleted: number; operation: 'create' | 'modify' | 'delete' }> = {};
     
+    // Files to exclude from diff tracking (orchestrator-managed files)
+    const excludedPaths = [
+      'AGENT_CONTEXT/',
+      'AGENT_CONTEXT\\' // Windows path separator
+    ];
+    
     // Parse numstat output: <added>\t<deleted>\t<filename>
     for (const line of statLines) {
       const parts = line.split('\t');
@@ -138,6 +144,11 @@ export class FileDiffTracker {
         const added = parts[0] === '-' ? 0 : parseInt(parts[0], 10) || 0;
         const deleted = parts[1] === '-' ? 0 : parseInt(parts[1], 10) || 0;
         const filename = parts[2];
+        
+        // Skip excluded paths
+        if (excludedPaths.some(excludedPath => filename.startsWith(excludedPath))) {
+          continue;
+        }
         
         fileStats[filename] = {
           added,
@@ -152,6 +163,11 @@ export class FileDiffTracker {
       if (line.length >= 2) {
         const status = line.substring(0, 2);
         const filename = line.substring(3);
+        
+        // Skip excluded paths
+        if (excludedPaths.some(excludedPath => filename.startsWith(excludedPath))) {
+          continue;
+        }
         
         // Handle untracked files (??)
         if (status === '??' && workingDir) {
