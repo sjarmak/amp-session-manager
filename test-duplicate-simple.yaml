@@ -1,0 +1,8 @@
+concurrency: 1
+defaults:
+  baseBranch: main
+  scriptCommand: "echo 'test completed' && exit 0"
+  timeoutSec: 30
+matrix:
+  - repo: /Users/sjarmak/test-project
+    prompt: "Test prompt to check for duplicate threads"

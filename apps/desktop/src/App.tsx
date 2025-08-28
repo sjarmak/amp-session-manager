@@ -10,6 +10,7 @@ import { NewBatchModal } from './components/NewBatchModal';
 import { BenchmarksView } from './components/BenchmarksView';
 import { BenchmarkRunDetail } from './components/BenchmarkRunDetail';
 import { NewBenchmarkModal } from './components/NewBenchmarkModal';
+import { BackgroundBatchBanner } from './components/BackgroundBatchBanner';
 
 import NotificationSettingsModal from './components/NotificationSettingsModal';
 import { AuthStatus } from './components/AuthStatus';
@@ -27,6 +28,7 @@ function App() {
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [newInteractiveSessionId, setNewInteractiveSessionId] = useState<string | null>(null);
+  const [hasBatchRunning, setHasBatchRunning] = useState(false);
 
   const handleSessionSelect = (session: Session) => {
     setNewInteractiveSessionId(null); // Clear the flag when manually selecting
@@ -152,9 +154,37 @@ function App() {
     };
   }, []);
 
+  // Monitor batch running state for padding adjustment
+  useEffect(() => {
+    const checkBatchStatus = async () => {
+      try {
+        const runs = await window.electronAPI.batch.listRuns();
+        const hasRunning = runs.some((run: any) => run.status === 'running');
+        setHasBatchRunning(hasRunning);
+      } catch (error) {
+        console.error('Failed to check batch status:', error);
+      }
+    };
+
+    checkBatchStatus();
+
+    const handleBatchEvent = (event: any) => {
+      if (event.type === 'run-started') {
+        setHasBatchRunning(true);
+      } else if (event.type === 'run-finished' || event.type === 'run-aborted') {
+        // Check if any batches are still running
+        checkBatchStatus();
+      }
+    };
+
+    window.electronAPI.batch.onEvent(handleBatchEvent);
+    return () => window.electronAPI.batch.offEvent(handleBatchEvent);
+  }, []);
+
   return (
     <div className="min-h-screen bg-gruvbox-dark0">
-      <div className="container mx-auto py-8 px-4 max-w-6xl">
+      <BackgroundBatchBanner />
+      <div className={`container mx-auto py-8 px-4 max-w-6xl ${hasBatchRunning ? 'pt-24' : ''}`}>
         <header className="text-center mb-8 relative app-header">
           <div className="flex items-center justify-center gap-2 mb-4">
             <img 
@@ -252,6 +282,7 @@ function App() {
             <BatchRunDetail
               runId={selectedBatchRun}
               onBack={handleBackToBatches}
+              onSessionSelect={handleSessionSelect}
             />
           ) : currentView === 'benchmark-detail' && selectedBenchmarkRun ? (
             <BenchmarkRunDetail

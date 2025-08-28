@@ -85,11 +85,17 @@ export function NewBatchModal({ isOpen, onClose, onBatchCreated }: NewBatchModal
       
       const result = await window.electronAPI.batch.start({ planYaml });
       
+      console.log('Batch start result:', result);
       if (result.success) {
+        console.log('Batch started successfully, runId:', result.runId);
+        setLoading(false); // Reset loading state before closing
         onBatchCreated();
-        onClose();
-        // Reset form
+        // Reset form state
         setPlanYaml(DEFAULT_PLAN);
+        setValidationErrors([]);
+        // Close window immediately - the persistent banner will show running status
+        onClose();
+        return; // Exit early on success
       } else {
         alert(`Failed to start batch: ${result.error}`);
       }
@@ -138,8 +144,14 @@ export function NewBatchModal({ isOpen, onClose, onBatchCreated }: NewBatchModal
         <div className="flex justify-between items-center p-6 border-b border-gruvbox-bg3">
           <h2 className="text-xl font-semibold text-gruvbox-fg0">New Batch Run</h2>
           <button
-            onClick={onClose}
+            onClick={() => {
+              setLoading(false);
+              setPlanYaml(DEFAULT_PLAN);
+              setValidationErrors([]);
+              onClose();
+            }}
             className="text-gruvbox-fg2 hover:text-gruvbox-fg0"
+            disabled={false}
           >
             ✕
           </button>
@@ -193,7 +205,12 @@ export function NewBatchModal({ isOpen, onClose, onBatchCreated }: NewBatchModal
           
           <div className="flex space-x-3">
             <button
-              onClick={onClose}
+              onClick={() => {
+                setLoading(false);
+                setPlanYaml(DEFAULT_PLAN);
+                setValidationErrors([]);
+                onClose();
+              }}
               className="px-4 py-2 text-gruvbox-fg2 hover:text-gruvbox-fg0 transition-colors"
             >
               Cancel

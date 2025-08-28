@@ -1,7 +1,7 @@
 import { SessionStore } from './store.js';
 import { GitOps } from './git.js';
 import { AmpAdapter, type AmpAdapterConfig } from './amp.js';
-import { getCurrentAmpThreadId } from './amp-utils.js';
+// import { getCurrentAmpThreadId } from './amp-utils.js'; // Removed - we now capture thread IDs directly from Amp output
 import type { Session, SessionCreateOptions, IterationRecord, PreflightResult, SquashOptions, RebaseResult, MergeOptions } from '@ampsm/types';
 import { mkdir, writeFile, readFile } from 'fs/promises';
 import * as fs from 'fs';
@@ -580,23 +580,49 @@ Raw Telemetry: ${JSON.stringify(result.telemetry, null, 2)}
         console.log('    Tool breakdown:', Object.entries(toolSummary).map(([tool, count]) => `${tool}(${count})`).join(', '));
       }
 
-      // Update thread ID if it changed during iteration
-      const { getCurrentAmpThreadId } = await import('./amp-utils.js');
-      const currentThreadId = await getCurrentAmpThreadId();
-      if (currentThreadId && currentThreadId !== session.threadId) {
-        this.store.updateSessionThreadId(sessionId, currentThreadId);
+      // Update thread ID if it was captured from Amp output during iteration
+      console.log(`[DEBUG] Thread ID update check - result.threadId: ${result.threadId}, session.threadId: ${session.threadId}, sessionId: ${sessionId}`);
+      if (result.threadId && result.threadId !== session.threadId) {
+        console.log(`[DEBUG] Updating thread ID from ${session.threadId} to ${result.threadId} for session ${sessionId}`);
+        this.store.updateSessionThreadId(sessionId, result.threadId);
         
         // Create or update thread record in threads table
-        const existingThreads = this.store.getSessionThreads(sessionId);
-        const threadExists = existingThreads.some(t => t.id === currentThreadId);
-        
-        if (!threadExists) {
-          const threadName = `Amp Thread ${currentThreadId}`;
-          this.store.createThread(sessionId, threadName, currentThreadId);
-          console.log(`  Created thread record: ${threadName}`);
+        console.log(`[DEBUG] Ensuring thread record exists: sessionId=${sessionId}, threadId=${result.threadId}`);
+        try {
+          // Check if thread exists globally first
+          const globalThread = this.store.getThread(result.threadId);
+          
+          if (!globalThread) {
+            // Thread doesn't exist globally, safe to create
+            const threadName = `Amp Thread ${result.threadId}`;
+            console.log(`[DEBUG] Creating new thread record: sessionId=${sessionId}, threadId=${result.threadId}, threadName=${threadName}`);
+            this.store.createThread(sessionId, threadName, result.threadId);
+            
+            // Add the initial user prompt as the first message in the thread
+            if (session.ampPrompt) {
+              this.store.addThreadMessage(result.threadId, 'user', session.ampPrompt);
+              console.log(`  Added user message to thread: ${session.ampPrompt.substring(0, 50)}...`);
+            }
+            
+            console.log(`  Created thread record: ${threadName}`);
+          } else if (globalThread.sessionId !== sessionId) {
+            // Thread exists but belongs to different session - this shouldn't happen in batch mode
+            console.warn(`Thread ${result.threadId} exists but belongs to session ${globalThread.sessionId}, not ${sessionId}. This may indicate concurrent session issues.`);
+          } else {
+            console.log(`[DEBUG] Thread ${result.threadId} already exists for this session, skipping creation`);
+          }
+        } catch (error: any) {
+          // If creation fails due to constraint violation, just log and continue
+          if (error.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
+            console.log(`[DEBUG] Thread ${result.threadId} already exists (constraint violation), continuing...`);
+          } else {
+            throw error;
+          }
         }
         
-        console.log(`  Updated thread ID: ${currentThreadId}`);
+        console.log(`  Updated thread ID: ${result.threadId}`);
+      } else {
+        console.log(`[DEBUG] No thread ID update needed - either no threadId captured (${!!result.threadId}) or same as existing (${result.threadId === session.threadId})`);
       }
 
     } catch (error) {
@@ -899,16 +925,9 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
       return 'Session not found.';
     }
     
-    // If session doesn't have threadId, try to get current one and update
+    // If session doesn't have threadId, there's no safe way to infer it for this session
     if (!session.threadId) {
-      const currentThreadId = await getCurrentAmpThreadId();
-      if (currentThreadId) {
-        console.log(`Updating session ${sessionId} with threadId: ${currentThreadId}`);
-        this.store.updateSessionThreadId(sessionId, currentThreadId);
-        session.threadId = currentThreadId;
-      } else {
-        return 'No thread ID available for this session. Thread conversations are created when sessions are linked to active Amp threads.';
-      }
+      return 'No thread ID available for this session. Thread conversations are created when sessions are linked to active Amp threads.';
     }
 
     try {

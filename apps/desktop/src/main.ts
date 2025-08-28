@@ -183,11 +183,14 @@ async function initializeServices() {
     });
 
     // Forward batch events to frontend
-    batchController.on('event', (event: any) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('batch:event', event);
-      }
-    });
+    const forward = (type: string) => (payload: any) =>
+      mainWindow && !mainWindow.isDestroyed() &&
+      mainWindow.webContents.send('batch:event', { type, ...payload });
+
+    batchController.on('run-started', forward('run-started'));
+    batchController.on('run-updated', forward('run-updated'));
+    batchController.on('run-finished', forward('run-finished'));
+    batchController.on('run-aborted', forward('run-aborted'));
 
     servicesReady = true;
     console.log('Services initialized successfully');
@@ -994,8 +997,8 @@ ipcMain.handle('batch:listItems', async (_, options: any) => {
 
 ipcMain.handle('batch:start', async (_, options: any) => {
   try {
-    const result = await batchController.start(options);
-    return { success: true, runId: result.runId };
+    const runId = await batchController.start(options);
+    return { success: true, runId };
   } catch (error) {
     console.error('Failed to start batch:', error);
     return { success: false, error: error.message };

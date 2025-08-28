@@ -75,7 +75,7 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected, onT
 
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 50;
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10;
       setUserScrolledUp(!isAtBottom);
     };
 
@@ -86,7 +86,11 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected, onT
   // Auto-scroll to bottom when new messages arrive, but only if user hasn't scrolled up
   useEffect(() => {
     if (!userScrolledUp && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      // Use a small delay to avoid rapid successive scrolls
+      const timeoutId = setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+      }, 100);
+      return () => clearTimeout(timeoutId);
     }
   }, [messages, userScrolledUp]);
 

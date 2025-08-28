@@ -36,9 +36,10 @@ export interface BatchRun {
 export interface BatchRunDetailProps {
   runId: string;
   onBack: () => void;
+  onSessionSelect: (session: any) => void;
 }
 
-export function BatchRunDetail({ runId, onBack }: BatchRunDetailProps) {
+export function BatchRunDetail({ runId, onBack, onSessionSelect }: BatchRunDetailProps) {
   const [run, setRun] = useState<BatchRun | null>(null);
 const [items, setItems] = useState<BatchItem[]>([]);
 const [loading, setLoading] = useState(true);
@@ -425,9 +426,17 @@ const exportMenuRef = useRef<HTMLDivElement>(null);
     }
   }
 
-  function openSession(sessionId: string) {
-    // This would navigate to the session view
-    console.log('Open session:', sessionId);
+  async function openSession(sessionId: string) {
+    try {
+      const session = await window.electronAPI.sessions.get(sessionId);
+      if (session) {
+        onSessionSelect(session);
+      } else {
+        console.error('Session not found:', sessionId);
+      }
+    } catch (error) {
+      console.error('Failed to get session:', error);
+    }
   }
 
   function openWorktree(sessionId: string) {

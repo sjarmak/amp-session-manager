@@ -27,6 +27,26 @@ export function BatchesView({ onRunSelect, onNewBatch }: BatchesViewProps) {
 
   useEffect(() => {
     loadRuns();
+    
+    // Listen for batch events to update the list in real-time
+    const handleBatchEvent = (event: any) => {
+      if (event.type === 'run-started' || event.type === 'run-finished' || event.type === 'run-aborted') {
+        loadRuns(); // Reload the full list when runs change
+      } else if (event.type === 'run-updated') {
+        // Update specific run in place
+        setRuns(prevRuns => 
+          prevRuns.map(run => 
+            run.runId === event.runId ? { ...run, ...event.run } : run
+          )
+        );
+      }
+    };
+
+    window.electronAPI.batch.onEvent(handleBatchEvent);
+    
+    return () => {
+      window.electronAPI.batch.offEvent(handleBatchEvent);
+    };
   }, []);
 
   const loadRuns = async () => {
@@ -99,9 +119,7 @@ export function BatchesView({ onRunSelect, onNewBatch }: BatchesViewProps) {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Created
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
-                    Model
-                  </th>
+
                   <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Concurrency
                   </th>
@@ -110,9 +128,6 @@ export function BatchesView({ onRunSelect, onNewBatch }: BatchesViewProps) {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
-                    Tokens
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Actions
@@ -133,9 +148,6 @@ export function BatchesView({ onRunSelect, onNewBatch }: BatchesViewProps) {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
                       {formatDate(run.createdAt)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg2">
-                      {run.defaultModel === 'gpt-5' ? 'gpt-5' : run.defaultModel || 'claude sonnet 4'}
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
                       {run.concurrency}
                     </td>
@@ -146,12 +158,17 @@ export function BatchesView({ onRunSelect, onNewBatch }: BatchesViewProps) {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(run.status)}`}>
-                        {run.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
-                      {run.totalTokens.toLocaleString()}
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(run.status)}`}>
+                          {run.status}
+                        </span>
+                        {run.status === 'running' && (
+                          <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 bg-gruvbox-bright-blue rounded-full animate-pulse"></div>
+                            <span className="text-xs text-gruvbox-bright-blue font-medium">Live</span>
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg2">
                       <button

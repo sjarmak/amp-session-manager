@@ -37,6 +37,7 @@ export interface AmpIterationResult {
   output: string;
   telemetry: AmpTelemetry;
   awaitingInput: boolean;
+  threadId?: string;
 }
 
 export interface StreamingEvent {
@@ -62,6 +63,8 @@ export class AmpAdapter extends EventEmitter {
   private jsonBuffer: string = '';
   /** remembers the most recently announced model for this adapter run */
   private lastModel: string | undefined;
+  /** captures the thread ID from amp CLI output during current run */
+  private capturedThreadId: string | undefined;
 
   constructor(config: AmpAdapterConfig = {}, store?: any) {
     super();
@@ -96,10 +99,19 @@ export class AmpAdapter extends EventEmitter {
       return activeThread.id;
     }
     
-    // Create new thread
-    const session = this.store.getSession(sessionId);
-    const threadName = prompt ? `${prompt.slice(0, 50)}...` : 'Interactive Session';
-    return this.store.createThread(sessionId, threadName);
+    // If we have a prompt, check if there's an existing thread with the same first user message
+    if (prompt) {
+      const existingThreads = this.store.findThreadByFirstUserMessage(prompt);
+      if (existingThreads.length > 0) {
+        console.log(`[DEBUG] Found existing thread with matching prompt: ${existingThreads[0].id}`);
+        return existingThreads[0].id;
+      }
+    }
+    
+    // For new sessions, don't create a thread record yet - let AMP create the thread
+    // and we'll capture the actual thread ID from AMP's output later
+    // Return a placeholder that won't be used since AMP will create its own thread
+    return 'amp-will-create';
   }
 
   private async getIterationCount(sessionId: string): Promise<number> {
@@ -129,18 +141,16 @@ export class AmpAdapter extends EventEmitter {
     const isFirstRun = !(await this.hasExistingThread(sessionId));
     
     if (isFirstRun) {
-      // Create new thread and store user message
+      // For first run, let AMP create the thread - don't pre-create a thread record
       const threadId = await this.getOrCreateThread(sessionId, prompt);
-      if (this.store) {
-        this.store.addThreadMessage(threadId, 'user', prompt);
-      }
+      // Don't store message for placeholder thread - AMP will handle thread creation
       
       const finalPrompt = await this.buildIterationPrompt(prompt, workingDir, sessionId);
       return this.runAmpCommand(finalPrompt, workingDir, modelOverride, sessionId, threadId);
     } else {
       // Get existing thread and continue it
       const threadId = await this.getOrCreateThread(sessionId);
-      if (this.store) {
+      if (this.store && threadId !== 'amp-will-create') {
         this.store.addThreadMessage(threadId, 'user', prompt);
       }
       
@@ -361,6 +371,9 @@ export class AmpAdapter extends EventEmitter {
       let stderr = '';
       let streamBuffer = '';
       
+      // Reset captured thread ID for this run
+      this.capturedThreadId = undefined;
+      
       // Real-time telemetry tracking
       const realtimeTelemetry: AmpTelemetry = {
         exitCode: 0,
@@ -461,7 +474,8 @@ export class AmpAdapter extends EventEmitter {
           success: exitCode === 0,
           output: redactedOutput,
           telemetry,
-          awaitingInput
+          awaitingInput,
+          threadId: this.capturedThreadId
         });
       });
       
@@ -474,7 +488,8 @@ export class AmpAdapter extends EventEmitter {
             exitCode: -1,
             toolCalls: []
           },
-          awaitingInput: false
+          awaitingInput: false,
+          threadId: this.capturedThreadId
         });
       });
     });
@@ -1206,6 +1221,21 @@ Please provide a thorough analysis and actionable recommendations.`;
           operation: parsed.operation,
           linesAdded: parsed.linesAdded || 0,
           linesDeleted: parsed.linesDeleted || 0
+        };
+
+      /* ──────────────────────────────── system messages ───────────────────── */
+      case 'system':
+        // Capture thread ID from system init messages
+        if (parsed.subtype === 'init' && (parsed.session_id || parsed.threadId)) {
+          const oldThreadId = this.capturedThreadId;
+          this.capturedThreadId = parsed.session_id || parsed.threadId;
+          console.log(`[DEBUG] Captured thread ID from system init: ${oldThreadId} -> ${this.capturedThreadId}`);
+        }
+        return {
+          type: 'system',
+          timestamp: ts,
+          subtype: parsed.subtype,
+          session_id: parsed.session_id
         };
 
       default:

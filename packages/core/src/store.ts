@@ -1088,6 +1088,11 @@ export class SessionStore {
     return id;
   }
 
+  getThread(threadId: string): { id: string; sessionId: string } | undefined {
+    const stmt = this.db.prepare('SELECT id, sessionId FROM threads WHERE id = ?');
+    return stmt.get(threadId) as { id: string; sessionId: string } | undefined;
+  }
+
   getSessionThreads(sessionId: string): Array<{
     id: string;
     sessionId: string;
@@ -1180,6 +1185,37 @@ export class SessionStore {
   updateThreadName(threadId: string, name: string): void {
     const stmt = this.db.prepare('UPDATE threads SET name = ?, updatedAt = ? WHERE id = ?');
     stmt.run(name, new Date().toISOString(), threadId);
+  }
+
+  findThreadByFirstUserMessage(content: string): Array<{
+    id: string;
+    sessionId: string;
+    name: string;
+    createdAt: string;
+    updatedAt: string;
+    status: string;
+    messageCount: number;
+  }> {
+    const stmt = this.db.prepare(`
+      SELECT DISTINCT t.id, t.sessionId, t.name, t.createdAt, t.updatedAt, t.status, 
+        (SELECT COUNT(*) FROM thread_messages tm2 WHERE tm2.threadId = t.id) as messageCount
+      FROM threads t
+      JOIN thread_messages tm ON t.id = tm.threadId
+      WHERE tm.role = 'user' 
+        AND tm.idx = 0
+        AND tm.content = ?
+      ORDER BY t.updatedAt DESC
+    `);
+    
+    return stmt.all(content) as Array<{
+      id: string;
+      sessionId: string;
+      name: string;
+      createdAt: string;
+      updatedAt: string;
+      status: string;
+      messageCount: number;
+    }>;
   }
 
   // Clean up legacy Chat-named threads

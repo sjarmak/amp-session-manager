@@ -1,0 +1,10 @@
+concurrency: 2
+defaults:
+  baseBranch: main
+  timeoutSec: 300
+  mergeOnPass: false
+matrix:
+  - repo: /Users/sjarmak/test-project
+    prompt: "Create a simple hello.txt file"
+  - repo: /Users/sjarmak/test-project  
+    prompt: "Create a simple world.txt file"
