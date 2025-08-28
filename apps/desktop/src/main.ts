@@ -157,6 +157,7 @@ let batchController: any;
 let sweBenchRunner: any;
 let notifier: any;
 let metricsAPI: any;
+let metricsEventBus: any;
 let servicesReady = false;
 
 async function initializeServices() {
@@ -166,7 +167,7 @@ async function initializeServices() {
     
     // Initialize shared metrics system first
     const logger = new Logger('Desktop');
-    const metricsEventBus = new MetricsEventBus(logger);
+    metricsEventBus = new MetricsEventBus(logger);
     const sqliteSink = new SQLiteMetricsSink(dbPath, logger);
     metricsEventBus.addSink(sqliteSink);
     metricsAPI = new MetricsAPI(sqliteSink, store, logger);
@@ -1067,7 +1068,7 @@ ipcMain.handle('batch:cleanEnvironment', async () => {
 ipcMain.handle('auth:validate', async () => {
   try {
     const { AmpAdapter } = require('@ampsm/core');
-    const ampAdapter = new AmpAdapter(loadAmpConfig(), store);
+    const ampAdapter = new AmpAdapter(loadAmpConfig(), store, metricsEventBus);
     return await ampAdapter.validateAuth();
   } catch (error) {
     console.error('Failed to validate auth:', error);
@@ -1195,6 +1196,11 @@ ipcMain.handle('metrics:getSessionSummary', async (_, sessionId: string) => {
       throw new Error('Metrics API not initialized');
     }
     const summary = await metricsAPI.getSessionSummary(sessionId);
+    console.log(`[METRICS API] Session summary for ${sessionId}:`, {
+      totalLocAdded: summary?.totalLocAdded,
+      totalLocDeleted: summary?.totalLocDeleted,
+      linesChanged: summary?.linesChanged
+    });
     return { success: true, summary };
   } catch (error) {
     console.error('Failed to get session metrics summary:', error);
@@ -1409,7 +1415,7 @@ ipcMain.handle('interactive:start', async (_, sessionId: string, threadId?: stri
     }
 
     const { AmpAdapter } = require('@ampsm/core');
-    const ampAdapter = new AmpAdapter(loadAmpConfig(), store);
+    const ampAdapter = new AmpAdapter(loadAmpConfig(), store, metricsEventBus);
     
     // Check authentication first
     const isAuthenticated = await ampAdapter.checkAuthentication();

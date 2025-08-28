@@ -12,6 +12,8 @@ export function BackgroundBenchmarkBanner() {
   const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+
     const loadRunningBenchmarks = async () => {
       try {
         const runs = await window.electronAPI.benchmarks.listRuns();
@@ -22,6 +24,14 @@ export function BackgroundBenchmarkBanner() {
         if (running.length > 0) {
           setIsDismissed(false);
         }
+
+        // Only start polling if we have running benchmarks, stop if none
+        if (running.length > 0 && !interval) {
+          interval = setInterval(loadRunningBenchmarks, 5000);
+        } else if (running.length === 0 && interval) {
+          clearInterval(interval);
+          interval = null;
+        }
       } catch (error) {
         console.error('Failed to load running benchmarks:', error);
       }
@@ -29,14 +39,13 @@ export function BackgroundBenchmarkBanner() {
 
     loadRunningBenchmarks();
 
-    // Poll for updates as fallback
-    const interval = setInterval(loadRunningBenchmarks, 5000);
-
     const handleBenchmarkEvent = (event: any) => {
       if (event.type === 'run-started') {
         loadRunningBenchmarks();
       } else if (event.type === 'run-finished' || event.type === 'run-aborted') {
         setRunningBenchmarks(prev => prev.filter(benchmark => benchmark.runId !== event.runId));
+        // Re-check and potentially stop polling
+        loadRunningBenchmarks();
       } else if (event.type === 'run-updated' && event.run) {
         setRunningBenchmarks(prev => 
           prev.map(benchmark => 
@@ -48,7 +57,7 @@ export function BackgroundBenchmarkBanner() {
 
     window.electronAPI.benchmarks.onEvent(handleBenchmarkEvent);
     return () => {
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
       window.electronAPI.benchmarks.offEvent(handleBenchmarkEvent);
     };
   }, []);

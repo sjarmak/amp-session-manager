@@ -22,6 +22,11 @@ export interface SessionMetricsSummary {
   totalFilesChanged: number;
   totalLocAdded: number;
   totalLocDeleted: number;
+  linesChanged: {
+    added: number;
+    deleted: number;
+    total: number;
+  };
   totalCostUsd: number;
   successfulIterations: number;
   successRate: number;
@@ -149,14 +154,22 @@ export class MetricsAPI {
       const testResults = this.calculateTestResults(sessionId);
       const userMessages = this.sqliteSink.getUserMessages(sessionId);
 
+      const totalAdded = rawSummary.total_loc_added || 0;
+      const totalDeleted = rawSummary.total_loc_deleted || 0;
+
       const summary: SessionMetricsSummary = {
         sessionId,
         totalIterations: rawSummary.total_iterations,
         totalDurationMs: rawSummary.total_duration_ms || 0,
         avgDurationMs: rawSummary.avg_duration_ms || 0,
         totalFilesChanged: rawSummary.total_files_changed || 0,
-        totalLocAdded: rawSummary.total_loc_added || 0,
-        totalLocDeleted: rawSummary.total_loc_deleted || 0,
+        totalLocAdded: totalAdded,
+        totalLocDeleted: totalDeleted,
+        linesChanged: {
+          added: totalAdded,
+          deleted: totalDeleted,
+          total: totalAdded + totalDeleted
+        },
         totalCostUsd: rawSummary.total_cost_usd || 0,
         successfulIterations: rawSummary.successful_iterations || 0,
         successRate: rawSummary.total_iterations > 0 

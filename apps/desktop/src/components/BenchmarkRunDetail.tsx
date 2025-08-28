@@ -142,7 +142,7 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
                     className="text-gruvbox-fg3 hover:text-gruvbox-bright-blue text-xs p-1 rounded"
                     title="Copy full path"
                   >
-                    📋
+                    Copy
                   </button>
                 </div>
               ) : (

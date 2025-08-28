@@ -114,9 +114,17 @@ export function EnhancedSessionSummary({ session, className = '' }: EnhancedSess
 
         // Get line changes from API summary (more reliable)
         if (apiSummaryResult.success && apiSummaryResult.summary) {
+          console.log(`[UI] API Summary result for session ${session.id}:`, {
+            totalLocAdded: apiSummaryResult.summary.totalLocAdded,
+            totalLocDeleted: apiSummaryResult.summary.totalLocDeleted,
+            linesChanged: apiSummaryResult.summary.linesChanged
+          });
           summaryMetrics.linesChanged.added = apiSummaryResult.summary.totalLocAdded || 0;
           summaryMetrics.linesChanged.deleted = apiSummaryResult.summary.totalLocDeleted || 0;
           summaryMetrics.linesChanged.total = summaryMetrics.linesChanged.added + summaryMetrics.linesChanged.deleted;
+          console.log(`[UI] Set summaryMetrics.linesChanged:`, summaryMetrics.linesChanged);
+        } else {
+          console.log(`[UI] API Summary failed or no summary:`, apiSummaryResult);
         }
 
         // Process stream events if available for additional data

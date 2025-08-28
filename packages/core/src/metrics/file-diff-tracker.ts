@@ -1,4 +1,6 @@
 import { execSync } from 'child_process';
+import { readFileSync, existsSync, statSync } from 'fs';
+import { join } from 'path';
 import { Logger } from '../utils/logger';
 
 export interface FileDiff {
@@ -44,8 +46,8 @@ export class FileDiffTracker {
       this.logger.debug(`[DIFF] Staged diff stat output: "${stagedDiffStatOutput}"`);
 
       // Parse both unstaged and staged changes
-      const unstagedChanges = this.parseDiffOutput(diffOutput, diffStatOutput, statusOutput);
-      const stagedChanges = this.parseDiffOutput(stagedDiffOutput, stagedDiffStatOutput, stagedStatusOutput);
+      const unstagedChanges = this.parseDiffOutput(diffOutput, diffStatOutput, statusOutput, workingDir);
+      const stagedChanges = this.parseDiffOutput(stagedDiffOutput, stagedDiffStatOutput, stagedStatusOutput, workingDir);
       
       // Combine and deduplicate by path
       const allChanges = [...unstagedChanges];
@@ -89,7 +91,7 @@ export class FileDiffTracker {
         workingDir
       );
 
-      return this.parseDiffOutput(diffOutput, diffStatOutput, statusOutput);
+      return this.parseDiffOutput(diffOutput, diffStatOutput, statusOutput, workingDir);
     } catch (error) {
       this.logger.error('Failed to get file changes between commits:', error);
       return [];
@@ -120,7 +122,7 @@ export class FileDiffTracker {
     }
   }
 
-  private parseDiffOutput(diffOutput: string, statOutput: string, statusOutput: string): FileDiff[] {
+  private parseDiffOutput(diffOutput: string, statOutput: string, statusOutput: string, workingDir?: string): FileDiff[] {
     const results: FileDiff[] = [];
     
     // Parse diff stats (lines added/deleted per file)
@@ -145,13 +147,25 @@ export class FileDiffTracker {
       }
     }
     
-    // Parse status output to determine operation type
+    // Parse status output to determine operation type and handle untracked files
     for (const line of statusLines) {
       if (line.length >= 2) {
         const status = line.substring(0, 2);
         const filename = line.substring(3);
         
-        if (fileStats[filename]) {
+        // Handle untracked files (??)
+        if (status === '??' && workingDir) {
+          const filePath = join(workingDir, filename);
+          const lineCount = this.countLinesInFile(filePath);
+          console.log(`[DIFF] Untracked file ${filename}: ${lineCount} lines`);
+          this.logger.debug(`[DIFF] Untracked file ${filename}: ${lineCount} lines`);
+          
+          fileStats[filename] = {
+            added: lineCount,
+            deleted: 0,
+            operation: 'create'
+          };
+        } else if (fileStats[filename]) {
           if (status.includes('A') || status.includes('N')) {
             fileStats[filename].operation = 'create';
           } else if (status.includes('D')) {
@@ -229,6 +243,27 @@ export class FileDiffTracker {
     const remaining = lines.length - this.maxDiffLines;
     
     return `${truncated}\n... (${remaining} more lines truncated)`;
+  }
+
+  private countLinesInFile(filePath: string): number {
+    try {
+      if (!existsSync(filePath)) {
+        return 0;
+      }
+
+      const stats = statSync(filePath);
+      if (!stats.isFile()) {
+        return 0;
+      }
+
+      const content = readFileSync(filePath, 'utf-8');
+      // Count non-empty lines
+      const lines = content.split('\n').filter(line => line.trim() !== '');
+      return lines.length;
+    } catch (error) {
+      this.logger.debug(`Failed to count lines in ${filePath}:`, error);
+      return 0;
+    }
   }
 
   /**

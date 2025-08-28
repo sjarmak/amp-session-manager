@@ -65,8 +65,9 @@ export class AmpAdapter extends EventEmitter {
   private lastModel: string | undefined;
   /** captures the thread ID from amp CLI output during current run */
   private capturedThreadId: string | undefined;
+  private metricsEventBus?: any;
 
-  constructor(config: AmpAdapterConfig = {}, store?: any) {
+  constructor(config: AmpAdapterConfig = {}, store?: any, metricsEventBus?: any) {
     super();
     this.config = {
       ampPath: config.ampPath || process.env.AMP_BIN || 'amp',
@@ -76,6 +77,7 @@ export class AmpAdapter extends EventEmitter {
       extraArgs: config.extraArgs || []
     };
     this.store = store;
+    this.metricsEventBus = metricsEventBus;
   }
 
   private async hasExistingThread(sessionId: string): Promise<boolean> {
@@ -1388,7 +1390,8 @@ Please provide a thorough analysis and actionable recommendations.`;
       this.config,
       this.store,
       this.telemetryParser,
-      autoCommit
+      autoCommit,
+      this.metricsEventBus
     );
 
     return interactiveHandle;
@@ -1424,6 +1427,7 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
   private workingDir: string = '';
   private autoCommit?: boolean;
   private isInteractive: boolean = true;
+  private metricsEventBus?: any;
 
   constructor(
     sessionId: string,
@@ -1433,7 +1437,8 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
     config: AmpAdapterConfig,
     store: any,
     telemetryParser: any,
-    autoCommit?: boolean
+    autoCommit?: boolean,
+    metricsEventBus?: any
   ) {
     super();
     this.sessionId = sessionId;
@@ -1443,6 +1448,7 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
     this.config = config;
     this.workingDir = workingDir;
     this.autoCommit = autoCommit;
+    this.metricsEventBus = metricsEventBus;
     this.initializeConnection(workingDir, modelOverride, threadId, config, store, telemetryParser, autoCommit);
   }
 
@@ -1999,6 +2005,19 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
                 endTime: new Date().toISOString(),
                 exitCode: 0
               });
+              
+              // Also create the iteration in the metrics system
+              if (this.metricsEventBus) {
+                const iterationNumber = iterations.length; // Since this is the new iteration
+                await this.metricsEventBus.publishIterationStart(
+                  this.sessionId,
+                  iterationId,
+                  iterationNumber,
+                  'Interactive session',
+                  []
+                );
+              }
+              
               console.log(`[INTERACTIVE] Created iteration ${iterationId} for tracking`);
             }
             
@@ -2012,16 +2031,39 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
                   operation: change.operation
                 });
                 
-                // Also store as metric event for aggregation
-                this.store.db.prepare(`
-                  INSERT INTO metric_file_edits (iteration_id, file_path, operation_type, lines_added, lines_deleted, timestamp)
-                  VALUES (?, ?, ?, ?, ?, ?)
-                `).run(iterationId, change.path, change.operation, change.linesAdded, change.linesDeleted, new Date().toISOString());
+                // Use metrics event bus for proper handling and foreign key constraints
+                if (this.metricsEventBus) {
+                  await this.metricsEventBus.publishFileEdit(
+                    this.sessionId,
+                    iterationId,
+                    change.path,
+                    {
+                      linesAdded: change.linesAdded,
+                      linesDeleted: change.linesDeleted,
+                      diff: change.diff,
+                      operation: change.operation
+                    }
+                  );
+                }
                 
                 console.log(`[INTERACTIVE] Stored file_edit metrics for ${change.path}: +${change.linesAdded}/-${change.linesDeleted}`);
               } catch (error) {
                 console.error('Failed to store interactive file_edit events:', error);
               }
+            }
+            
+            // Publish iteration end event to trigger aggregation of file changes
+            if (fileChanges.length > 0 && this.metricsEventBus) {
+              const iterationNumber = iterations.length; // Use same number as start event
+              await this.metricsEventBus.publishIterationEnd(
+                this.sessionId,
+                iterationId,
+                iterationNumber,
+                'success',
+                0, // No duration for interactive
+                0  // No exit code
+              );
+              console.log(`[INTERACTIVE] Published iteration_end for metrics aggregation`);
             }
           }
         } catch (error) {

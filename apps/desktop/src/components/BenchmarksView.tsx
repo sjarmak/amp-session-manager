@@ -272,7 +272,7 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
                             className="text-gruvbox-fg3 hover:text-gruvbox-bright-blue text-xs p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                             title="Copy full path"
                           >
-                            📋
+                            Copy
                           </button>
                         </div>
                       ) : (

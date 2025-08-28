@@ -441,7 +441,7 @@ export class SQLiteMetricsSink implements MetricsSink {
     if (!gitResult) {
       const fileResult = this.db.prepare(`
         SELECT 
-          COUNT(DISTINCT path) as files_changed,
+          COUNT(DISTINCT file_path) as files_changed,
           SUM(lines_added) as insertions,
           SUM(lines_deleted) as deletions
         FROM metric_file_edits 

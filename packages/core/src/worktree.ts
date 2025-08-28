@@ -65,7 +65,7 @@ export class WorktreeManager {
       }
     }
     
-    this.ampAdapter = new AmpAdapter(this.loadAmpConfig(), this.store);
+    this.ampAdapter = new AmpAdapter(this.loadAmpConfig(), this.store, this.metricsEventBus);
   }
 
   async createSession(options: SessionCreateOptions): Promise<Session> {
@@ -365,12 +365,7 @@ export class WorktreeManager {
         await git.stageAllChanges(session.worktreePath);
         console.log(`[MAIN] Staged all changes`);
         
-        // Track file changes BEFORE committing them
-        console.log(`[MAIN] About to track file changes for ${session.worktreePath}`);
-        this.logger.debug(`[MAIN] About to track file changes for ${session.worktreePath}`);
-        await this.trackFileChangesAfterAmp(sessionId, iterationId, session.worktreePath);
-        console.log(`[MAIN] Finished tracking file changes`);
-        this.logger.debug(`[MAIN] Finished tracking file changes`);
+        // File changes have already been tracked above before metrics calculation
         const changedFilesList = await git.getChangedFiles(session.worktreePath);
         changedFiles = changedFilesList.length;
         
@@ -421,6 +416,15 @@ export class WorktreeManager {
         if (testResult === 'fail') {
           finalStatus = 'awaiting-input';
         }
+      }
+
+      // Track file changes BEFORE publishing metrics so file edit events are available
+      if (hasChanges) {
+        console.log(`[MAIN] About to track file changes for ${session.worktreePath}`);
+        this.logger.debug(`[MAIN] About to track file changes for ${session.worktreePath}`);
+        await this.trackFileChangesAfterAmp(sessionId, iterationId, session.worktreePath);
+        console.log(`[MAIN] Finished tracking file changes`);
+        this.logger.debug(`[MAIN] Finished tracking file changes`);
       }
 
       // Publish comprehensive metrics
@@ -1173,6 +1177,12 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
     try {
       console.log(`[TRACK] Starting file change tracking for ${worktreePath}`);
       this.logger.debug(`[TRACK] Starting file change tracking for ${worktreePath}`);
+      
+      // Stage all changes before diff tracking so FileDiffTracker can see them
+      const git = new GitOps(worktreePath);
+      await git.stageAllChanges(worktreePath);
+      console.log(`[TRACK] Staged all changes before diff tracking`);
+      
       const fileDiffTracker = new FileDiffTracker(this.logger);
       const fileChanges = await fileDiffTracker.getFileChanges(worktreePath);
       
