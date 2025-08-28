@@ -91,8 +91,7 @@ export function NewBenchmarkModal({ isOpen, onClose, onBenchmarkCreated }: NewBe
               setBenchmarkType('swebench');
               onClose();
             }}
-            disabled={loading}
-            className="p-1 hover:bg-gruvbox-bg2 rounded transition-colors disabled:opacity-50"
+            className="p-1 hover:bg-gruvbox-bg2 rounded transition-colors"
             title="Close"
           >
             <svg className="w-5 h-5 text-gruvbox-fg2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
