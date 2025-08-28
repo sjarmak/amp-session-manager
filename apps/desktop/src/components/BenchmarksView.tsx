@@ -1,5 +1,35 @@
 import React, { useState, useEffect } from 'react';
 
+interface TooltipProps {
+  children: React.ReactNode;
+  content: string;
+}
+
+function Tooltip({ children, content }: TooltipProps) {
+  const [isVisible, setIsVisible] = useState(false);
+
+  return (
+    <div className="relative inline-block">
+      <div
+        onMouseEnter={() => setIsVisible(true)}
+        onMouseLeave={() => setIsVisible(false)}
+      >
+        {children}
+      </div>
+      {isVisible && (
+        <div className="fixed z-50 p-3 text-sm text-gruvbox-fg0 bg-gruvbox-bg0 border border-gruvbox-bg3 rounded shadow-xl max-w-md break-words" 
+             style={{
+               top: '50%',
+               left: '50%',
+               transform: 'translate(-50%, -50%)'
+             }}>
+          {content}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export interface BenchmarkRun {
   runId: string;
   type: 'swebench' | 'custom';
@@ -120,6 +150,15 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
     }
   };
 
+  const handleCopyPath = async (path: string) => {
+    try {
+      await navigator.clipboard.writeText(path);
+      // Could add a toast notification here if desired
+    } catch (error) {
+      console.error('Failed to copy path:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -166,103 +205,125 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-gruvbox-bg1 border border-gruvbox-bg3 rounded-lg">
+          <div className="w-full">
+            <table className="w-full bg-gruvbox-bg1 border border-gruvbox-bg3 rounded-lg table-fixed">
               <thead className="bg-gruvbox-bg2">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                  <th className="w-20 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Run ID
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                  <th className="w-36 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Created
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                  <th className="w-20 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Type
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                  <th className="w-32 px-2 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Source
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                  <th className="w-16 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Total Cases
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                  <th className="w-24 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Progress
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                  <th className="w-20 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                  <th className="w-24 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-gruvbox-bg1 divide-y divide-gruvbox-bg3">
                 {runs.map((run) => (
-                  <tr key={run.runId} className="hover:bg-gruvbox-bg2">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                  <tr key={run.runId} className="hover:bg-gruvbox-bg2 group">
+                    <td className="px-3 py-4 whitespace-nowrap">
                       <button
                         onClick={() => onRunSelect(run.runId, run.type)}
-                        className="text-gruvbox-bright-purple hover:text-gruvbox-purple font-mono text-sm"
+                        className="text-gruvbox-bright-purple hover:text-gruvbox-purple font-mono text-sm truncate block max-w-full"
+                        title={run.runId}
                       >
                         {run.runId.slice(0, 8)}
                       </button>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
-                      {formatDate(run.createdAt)}
+                    <td className="px-3 py-4 text-sm text-gruvbox-fg1">
+                      <div className="truncate" title={formatDate(run.createdAt)}>
+                        {formatDate(run.createdAt)}
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
+                      <span className={`inline-flex px-1 py-1 text-xs font-semibold rounded-full ${
                         run.type === 'swebench' ? 'bg-gruvbox-purple/20 text-gruvbox-bright-purple' : 'bg-gruvbox-blue/20 text-gruvbox-bright-blue'
                       }`}>
-                        {run.type === 'swebench' ? 'SWE-bench' : 'Custom'}
+                        {run.type === 'swebench' ? 'SWE' : 'Custom'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg2 max-w-xs truncate">
-                      {run.casesDir || 'N/A'}
+                    <td className="px-2 py-4 text-sm text-gruvbox-fg2">
+                      {run.casesDir ? (
+                        <div className="flex items-center gap-1">
+                          <Tooltip content={run.casesDir}>
+                            <span className="truncate block cursor-help">
+                              {run.casesDir.split('/').pop() || run.casesDir}
+                            </span>
+                          </Tooltip>
+                          <button
+                            onClick={() => handleCopyPath(run.casesDir!)}
+                            className="text-gruvbox-fg3 hover:text-gruvbox-bright-blue text-xs p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Copy full path"
+                          >
+                            📋
+                          </button>
+                        </div>
+                      ) : (
+                        'N/A'
+                      )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gruvbox-fg1 text-center">
                       {run.totalCases}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
-                      <div className="text-gruvbox-fg1">{run.completedCases}/{run.totalCases}</div>
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
+                      <div className="text-gruvbox-fg1 text-xs">{run.completedCases}/{run.totalCases}</div>
                       <div className="text-xs text-gruvbox-fg2">
                         {run.passedCases}✓ {run.failedCases}✗
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(run.status)}`}>
+                    <td className="px-3 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-1">
+                        <span className={`inline-flex px-1 py-1 text-xs font-semibold rounded-full ${getStatusColor(run.status)}`}>
                           {run.status}
                         </span>
                         {run.status === 'running' && (
-                          <div className="w-2 h-2 bg-gruvbox-bright-blue rounded-full animate-pulse" />
+                          <div className="w-1 h-1 bg-gruvbox-bright-blue rounded-full animate-pulse" />
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg2">
-                      <button
-                        onClick={() => onRunSelect(run.runId, run.type)}
-                        className="text-gruvbox-bright-purple hover:text-gruvbox-purple mr-3"
-                      >
-                        View
-                      </button>
-                      {run.status === 'running' ? (
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gruvbox-fg2">
+                      <div className="flex flex-col gap-1">
                         <button
-                          onClick={() => handleAbort(run.runId)}
-                          disabled={aborting === run.runId}
-                          className="text-gruvbox-bright-orange hover:text-gruvbox-orange disabled:opacity-50"
+                          onClick={() => onRunSelect(run.runId, run.type)}
+                          className="text-gruvbox-bright-purple hover:text-gruvbox-purple text-xs"
                         >
-                          {aborting === run.runId ? 'Aborting...' : 'Abort'}
+                          View
                         </button>
-                      ) : (
-                        <button
-                          onClick={() => handleDelete(run.runId)}
-                          disabled={deleting === run.runId}
-                          className="text-gruvbox-bright-red hover:text-gruvbox-red disabled:opacity-50"
-                        >
-                          {deleting === run.runId ? 'Deleting...' : 'Delete'}
-                        </button>
-                      )}
+                        {run.status === 'running' ? (
+                          <button
+                            onClick={() => handleAbort(run.runId)}
+                            disabled={aborting === run.runId}
+                            className="text-gruvbox-bright-orange hover:text-gruvbox-orange disabled:opacity-50 text-xs"
+                          >
+                            {aborting === run.runId ? 'Aborting...' : 'Abort'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleDelete(run.runId)}
+                            disabled={deleting === run.runId}
+                            className="text-gruvbox-bright-red hover:text-gruvbox-red disabled:opacity-50 text-xs"
+                          >
+                            {deleting === run.runId ? 'Deleting...' : 'Delete'}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

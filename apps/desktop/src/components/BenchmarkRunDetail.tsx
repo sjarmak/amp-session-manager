@@ -131,7 +131,24 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
           </div>
           <div>
             <div className="text-sm text-gruvbox-fg2">Source</div>
-            <div className="font-medium text-sm truncate text-gruvbox-fg1">{run.casesDir || 'Custom'}</div>
+            <div className="font-medium text-sm text-gruvbox-fg1" title={run.casesDir || 'Custom'}>
+              {run.casesDir ? (
+                <div className="flex items-center gap-2">
+                  <span className="truncate">
+                    {run.casesDir.split('/').pop() || run.casesDir}
+                  </span>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(run.casesDir)}
+                    className="text-gruvbox-fg3 hover:text-gruvbox-bright-blue text-xs p-1 rounded"
+                    title="Copy full path"
+                  >
+                    📋
+                  </button>
+                </div>
+              ) : (
+                'Custom'
+              )}
+            </div>
           </div>
           <div>
             <div className="text-sm text-gruvbox-fg2">Total Cases</div>
