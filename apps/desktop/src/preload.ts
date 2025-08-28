@@ -139,7 +139,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getResults: (runId: string) => ipcRenderer.invoke('benchmarks:getResults', runId),
     start: (options: any) => ipcRenderer.invoke('benchmarks:start', options),
     abort: (runId: string) => ipcRenderer.invoke('benchmarks:abort', runId),
-    delete: (runId: string) => ipcRenderer.invoke('benchmarks:delete', runId)
+    delete: (runId: string) => ipcRenderer.invoke('benchmarks:delete', runId),
+    onEvent: (callback: (event: any) => void) => {
+      ipcRenderer.on('benchmark-event', (_, event) => callback(event));
+    },
+    offEvent: (callback: (event: any) => void) => {
+      ipcRenderer.removeListener('benchmark-event', callback);
+    }
   },
 
   // Auth and external links

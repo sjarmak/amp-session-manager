@@ -11,6 +11,7 @@ import { BenchmarksView } from './components/BenchmarksView';
 import { BenchmarkRunDetail } from './components/BenchmarkRunDetail';
 import { NewBenchmarkModal } from './components/NewBenchmarkModal';
 import { BackgroundBatchBanner } from './components/BackgroundBatchBanner';
+import { BackgroundBenchmarkBanner } from './components/BackgroundBenchmarkBanner';
 
 import NotificationSettingsModal from './components/NotificationSettingsModal';
 import { AuthStatus } from './components/AuthStatus';
@@ -29,6 +30,7 @@ function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [newInteractiveSessionId, setNewInteractiveSessionId] = useState<string | null>(null);
   const [hasBatchRunning, setHasBatchRunning] = useState(false);
+  const [hasBenchmarkRunning, setHasBenchmarkRunning] = useState(false);
 
   const handleSessionSelect = (session: Session) => {
     setNewInteractiveSessionId(null); // Clear the flag when manually selecting
@@ -181,10 +183,44 @@ function App() {
     return () => window.electronAPI.batch.offEvent(handleBatchEvent);
   }, []);
 
+  // Monitor benchmark running state for padding adjustment
+  useEffect(() => {
+    const checkBenchmarkStatus = async () => {
+      try {
+        const runs = await window.electronAPI.benchmarks.listRuns();
+        const hasRunning = runs.some((run: any) => run.status === 'running');
+        setHasBenchmarkRunning(hasRunning);
+      } catch (error) {
+        console.error('Failed to check benchmark status:', error);
+      }
+    };
+
+    checkBenchmarkStatus();
+
+    const handleBenchmarkEvent = (event: any) => {
+      if (event.type === 'run-started') {
+        setHasBenchmarkRunning(true);
+      } else if (event.type === 'run-finished' || event.type === 'run-aborted') {
+        // Check if any benchmarks are still running
+        checkBenchmarkStatus();
+      }
+    };
+
+    if (window.electronAPI?.benchmarks?.onEvent) {
+      window.electronAPI.benchmarks.onEvent(handleBenchmarkEvent);
+      return () => {
+        if (window.electronAPI?.benchmarks?.offEvent) {
+          window.electronAPI.benchmarks.offEvent(handleBenchmarkEvent);
+        }
+      };
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-gruvbox-dark0">
       <BackgroundBatchBanner />
-      <div className={`container mx-auto py-8 px-4 max-w-6xl ${hasBatchRunning ? 'pt-24' : ''}`}>
+      <BackgroundBenchmarkBanner />
+      <div className={`container mx-auto py-8 px-4 max-w-6xl ${(hasBatchRunning || hasBenchmarkRunning) ? 'pt-24' : ''}`}>
         <header className="text-center mb-8 relative app-header">
           <div className="flex items-center justify-center gap-2 mb-4">
             <img 

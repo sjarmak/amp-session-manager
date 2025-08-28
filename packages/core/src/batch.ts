@@ -225,10 +225,21 @@ export class BatchRunner {
                 includeManual: 'include'
               });
               await worktreeManager.rebaseOntoBase(session.id);
+              // Only cleanup if merge was successful
+              console.log(`Batch item ${item.id} merged successfully, cleaning up worktree`);
+              await worktreeManager.cleanup(session.id);
             } catch (mergeError) {
               console.warn(`Merge failed for batch item ${item.id}: ${mergeError}`);
+              console.log(`Worktree preserved for debugging at: ${session.worktreePath}`);
             }
+          } else {
+            console.log(`Batch item ${item.id} tests failed, worktree preserved at: ${session.worktreePath}`);
           }
+        } else {
+          // If not auto-merging, preserve the worktree for manual review
+          console.log(`Batch item ${item.id} completed. Worktree preserved at: ${session.worktreePath}`);
+          console.log(`To view changes: cd "${session.worktreePath}" && git status`);
+          console.log(`To merge: amp-sessions squash ${session.id} && amp-sessions rebase ${session.id}`);
         }
       } else {
         this.store.updateBatchItem(item.id, {

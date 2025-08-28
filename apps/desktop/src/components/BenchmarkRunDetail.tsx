@@ -24,6 +24,26 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
 
   useEffect(() => {
     loadRunDetails();
+
+    // Set up event listeners for real-time updates
+    const handleBenchmarkEvent = (event: any) => {
+      if (event.runId === runId) {
+        if (['run-finished', 'run-aborted'].includes(event.type)) {
+          loadRunDetails();
+        } else if (event.type === 'run-updated' && event.run) {
+          setRun((prevRun: any) => prevRun ? { ...prevRun, ...event.run } : prevRun);
+        }
+      }
+    };
+
+    if (window.electronAPI?.benchmarks?.onEvent) {
+      window.electronAPI.benchmarks.onEvent(handleBenchmarkEvent);
+      return () => {
+        if (window.electronAPI?.benchmarks?.offEvent) {
+          window.electronAPI.benchmarks.offEvent(handleBenchmarkEvent);
+        }
+      };
+    }
   }, [runId]);
 
   const loadRunDetails = async () => {

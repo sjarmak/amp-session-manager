@@ -349,8 +349,10 @@ export class WorktreeManager {
         const changedFilesList = await git.getChangedFiles(session.worktreePath);
         changedFiles = changedFilesList.length;
         
-        // Only commit if not in stage-only mode or if session has autoCommit disabled
+        // Only commit if not in stage-only mode and session has autoCommit enabled
         const shouldCommit = !stageOnly && (session.autoCommit !== false);
+        console.log(`[DEBUG] shouldCommit=${shouldCommit}, stageOnly=${stageOnly}, autoCommit=${session.autoCommit}`);
+        
         if (shouldCommit) {
           // Use instrumented git operations for metrics tracking (skip addAll since already staged)
           const commitResult = await gitInstrumentation.commit(
@@ -363,7 +365,11 @@ export class WorktreeManager {
           
           console.log(`✓ Committed ${changedFiles} changed files: ${commitSha?.slice(0, 8)}`);
         } else {
-          console.log(`✓ Staged ${changedFiles} changed files for manual commit`);
+          console.log(`✓ Staged ${changedFiles} changed files for manual commit (stageOnly=${stageOnly}, autoCommit=${session.autoCommit})`);
+          
+          // Verify changes are still staged after not committing
+          const stagedFiles = await git.exec(['diff', '--cached', '--name-only'], session.worktreePath);
+          console.log(`[DEBUG] Files still staged after skip commit: "${stagedFiles.stdout.trim()}"`);
         }
       } else {
         console.log('No changes to stage or commit');

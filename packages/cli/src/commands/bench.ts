@@ -224,12 +224,11 @@ async function executeBenchmarkCase(
       };
       
     } finally {
-      // Cleanup session
-      try {
-        await manager.cleanup(session.id);
-      } catch (error) {
-        console.warn(`Failed to cleanup session ${session.id}:`, error);
-      }
+      // Don't cleanup session automatically - leave worktree for user to review changes
+      // The user can manually cleanup later with: amp-sessions cleanup <session-id>
+      console.log(`Benchmark session ${session.id} completed. Worktree preserved at: ${session.worktreePath}`);
+      console.log(`To view changes: cd "${session.worktreePath}" && git status`);
+      console.log(`To cleanup: amp-sessions cleanup ${session.id}`);
     }
     
   } catch (error) {

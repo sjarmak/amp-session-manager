@@ -26,6 +26,28 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
 
   useEffect(() => {
     loadRuns();
+
+    // Set up event listeners for real-time updates
+    const handleBenchmarkEvent = (event: any) => {
+      if (['run-started', 'run-finished', 'run-aborted'].includes(event.type)) {
+        loadRuns();
+      } else if (event.type === 'run-updated' && event.runId) {
+        setRuns(prev => 
+          prev.map(run => 
+            run.runId === event.runId ? { ...run, ...event.run } : run
+          )
+        );
+      }
+    };
+
+    if (window.electronAPI?.benchmarks?.onEvent) {
+      window.electronAPI.benchmarks.onEvent(handleBenchmarkEvent);
+      return () => {
+        if (window.electronAPI?.benchmarks?.offEvent) {
+          window.electronAPI.benchmarks.offEvent(handleBenchmarkEvent);
+        }
+      };
+    }
   }, []);
 
   const loadRuns = async () => {
@@ -208,9 +230,14 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(run.status)}`}>
-                        {run.status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(run.status)}`}>
+                          {run.status}
+                        </span>
+                        {run.status === 'running' && (
+                          <div className="w-2 h-2 bg-gruvbox-bright-blue rounded-full animate-pulse" />
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg2">
                       <button

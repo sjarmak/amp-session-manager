@@ -108,6 +108,8 @@ declare global {
         start: (options: any) => Promise<{ success: boolean; runId?: string; error?: string }>;
         abort: (runId: string) => Promise<{ success: boolean; error?: string }>;
         delete: (runId: string) => Promise<{ success: boolean; error?: string }>;
+        onEvent: (callback: (event: any) => void) => void;
+        offEvent: (callback: (event: any) => void) => void;
       };
       
       // Auth and external links
