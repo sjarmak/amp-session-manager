@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import type { Session, IterationRecord, ToolCall, SessionCreateOptions, AmpTelemetry, BatchRecord, BatchItem, ExportOptions, SweBenchRun, SweBenchCaseResult } from '@ampsm/types';
 import { randomUUID } from 'crypto';
+import { join } from 'path';
 import { getDbPath } from './config.js';
 import { createTimestampId, getCurrentISOString } from './utils/date.js';
 
@@ -835,6 +836,112 @@ export class SessionStore {
     }
 
     return result;
+  }
+
+  async exportSessionData(sessionId: string, includeConversation: boolean = true, metricsAPI?: any): Promise<any> {
+    // Get base session data
+    const session = this.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    // Get all iterations for this session
+    const iterations = this.getIterations(sessionId);
+    
+    // Get all tool calls for this session
+    const toolCalls = this.getToolCalls(sessionId);
+    
+    // Get merge history
+    const mergeHistoryStmt = this.db.prepare('SELECT * FROM merge_history WHERE sessionId = ? ORDER BY startedAt DESC');
+    const mergeHistory = mergeHistoryStmt.all(sessionId);
+
+    // Check if this session is part of a batch run
+    const batchItemStmt = this.db.prepare('SELECT * FROM batch_items WHERE sessionId = ?');
+    const batchItem = batchItemStmt.get(sessionId) as BatchItem | undefined;
+    
+    let batchInfo = null;
+    if (batchItem) {
+      const batch = this.getBatch(batchItem.runId);
+      batchInfo = {
+        runId: batchItem.runId,
+        batchDefaults: batch ? JSON.parse(batch.defaultsJson) : null,
+        batchItem
+      };
+    }
+
+    // Get thread conversation if available and requested
+    let conversation = null;
+    if (includeConversation && session.threadId) {
+      try {
+        const { ThreadStore: ThreadStoreClass } = await import('./amp/threads/store.js');
+        const { Logger } = await import('./utils/logger.js');
+        const ts = new ThreadStoreClass(this, new Logger('ExportThread'));
+        const thread = ts.getFullThread(session.threadId);
+        conversation = thread;
+      } catch (error) {
+        // Thread loading failed (likely schema mismatch), skip conversation
+        console.warn(`Could not load conversation for session ${sessionId}, skipping conversation history:`, error instanceof Error ? error.message : String(error));
+        conversation = { error: 'Failed to load conversation due to database schema incompatibility' };
+      }
+    }
+
+    // Calculate aggregate metrics - use metrics API if available for more accurate data
+    let aggregateMetrics;
+    if (metricsAPI) {
+      try {
+        const sessionSummary = await metricsAPI.getSessionSummary(sessionId);
+        if (sessionSummary) {
+          aggregateMetrics = {
+            totalTokens: sessionSummary.tokenUsage.totalTokens,
+            totalDurationMs: sessionSummary.totalDurationMs,
+            filesModified: sessionSummary.fileEdits.filter((f: any) => f.operationType === 'modify').length,
+            filesCreated: sessionSummary.fileEdits.filter((f: any) => f.operationType === 'create').length,
+            iterationCount: sessionSummary.totalIterations,
+            toolCallCount: sessionSummary.toolUsage.reduce((sum: number, tool: any) => sum + tool.callCount, 0),
+            successfulToolCalls: sessionSummary.toolUsage.reduce((sum: number, tool: any) => sum + (tool.callCount - tool.failureCount), 0),
+            failedToolCalls: sessionSummary.toolUsage.reduce((sum: number, tool: any) => sum + tool.failureCount, 0)
+          };
+        }
+      } catch (error) {
+        console.warn(`Could not get metrics from metrics API for session ${sessionId}:`, error);
+      }
+    }
+    
+    // Fallback to basic metrics calculation if metrics API unavailable or failed
+    if (!aggregateMetrics) {
+      const totalTokens = iterations.reduce((sum, iter) => sum + (iter.totalTokens || 0), 0);
+      const totalDuration = iterations.length > 0 && iterations[iterations.length - 1].endTime && iterations[0].startTime
+        ? new Date(iterations[iterations.length - 1].endTime!).getTime() - new Date(iterations[0].startTime).getTime()
+        : 0;
+      const filesModified = new Set(toolCalls.filter(tc => tc.toolName === 'edit_file' && tc.success).map(tc => {
+        try {
+          return JSON.parse(tc.argsJson).path;
+        } catch { return null; }
+      }).filter(Boolean)).size;
+      const filesCreated = toolCalls.filter(tc => tc.toolName === 'create_file' && tc.success).length;
+
+      aggregateMetrics = {
+        totalTokens,
+        totalDurationMs: totalDuration,
+        filesModified,
+        filesCreated,
+        iterationCount: iterations.length,
+        toolCallCount: toolCalls.length,
+        successfulToolCalls: toolCalls.filter(tc => tc.success).length,
+        failedToolCalls: toolCalls.filter(tc => !tc.success).length
+      };
+    }
+
+    return {
+      session,
+      iterations,
+      toolCalls,
+      mergeHistory,
+      batchInfo,
+      conversation,
+      aggregateMetrics,
+      exportedAt: new Date().toISOString()
+    };
   }
 
   // Recovery operations

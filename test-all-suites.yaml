@@ -1,0 +1,33 @@
+version: 1
+name: "Test All Suites"
+description: "Test that all suites run and progress updates"
+
+defaults:
+  base_branch: main
+  parallel: 1
+  max_iterations: 2
+  timeout_sec: 180
+  json_logs: true
+  merge_on_pass: false
+
+models:
+  default:
+    name: default
+
+metrics:
+  - success_rate
+  - total_runtime_sec
+
+suites:
+  - id: smoke
+    description: "Basic smoke test"
+    cases:
+      - id: simple_readme
+        repo: octocat/Hello-World
+        prompt: "Create README.md with project info"
+        script_command: "test -f README.md"
+        
+  - id: swebench_quick
+    description: "SWE-bench quick cases"
+    swebench_cases_dir: "eval_data/swebench/quick"
+    max_iterations: 3

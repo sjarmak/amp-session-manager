@@ -1,0 +1,28 @@
+version: 1
+name: "Ultra Quick Test"
+description: "Minimal test"
+
+defaults:
+  base_branch: main
+  parallel: 1
+  max_iterations: 3
+  timeout_sec: 120
+  json_logs: true
+  merge_on_pass: false
+
+models:
+  default:
+    name: default
+
+metrics:
+  - success_rate
+  - total_runtime_sec
+
+suites:
+  - id: smoke
+    description: "Single case"
+    cases:
+      - id: simple_file
+        repo: octocat/Hello-World
+        prompt: "Create a file hello.txt with 'Hello' inside it."
+        script_command: "test -f hello.txt"

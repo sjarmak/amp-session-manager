@@ -49,6 +49,7 @@ declare global {
         resetToCommit: (sessionId: string, commitRef: string, soft?: boolean) => Promise<{ success: boolean; error?: string }>;
         cherryPick: (sessionId: string, shas: string[]) => Promise<{ success: boolean; error?: string }>;
         getDiff: (sessionId: string, filePath?: string) => Promise<{ success: boolean; result?: { diff: string }; error?: string }>;
+        exportSession: (options: { sessionId: string; format: 'markdown' | 'json'; outputDir: string; includeConversation: boolean }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
         };
 
   // Main repository git operations
@@ -126,6 +127,8 @@ declare global {
       };
 
       // Event listeners for interactive changes
+      onInteractiveFilesChanged?: (callback: (event: any, sessionId: string, data: any) => void) => void;
+      offInteractiveFilesChanged?: (callback: (event: any, sessionId: string, data: any) => void) => void;
       onInteractiveChangesStaged?: (callback: (event: any, sessionId: string, data: any) => void) => void;
       offInteractiveChangesStaged?: (callback: (event: any, sessionId: string, data: any) => void) => void;
     };

@@ -1533,6 +1533,10 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
       // Set up environment
       const env = { ...process.env, ...config.env };
       
+      // Set working directory for Amp tools
+      env['PWD'] = workingDir;
+      env['AMP_WORKING_DIR'] = workingDir;
+      
       // Set alloy environment variable if alloy model is selected
       if (modelOverride === 'alloy') {
         env['amp.internal.alloy.enable'] = 'true';
@@ -1956,6 +1960,14 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
       // Check if there are any unstaged changes
       const hasUnstagedChanges = await git.hasUnstagedChanges(this.workingDir);
       console.log(`Post-interactive check: hasUnstagedChanges=${hasUnstagedChanges} for session ${this.sessionId}`);
+      
+      // Emit file changes event immediately when changes are detected
+      if (hasUnstagedChanges) {
+        this.emit('files-changed', {
+          sessionId: this.sessionId,
+          message: 'Files modified by Amp'
+        });
+      }
       
       if (hasUnstagedChanges) {
         console.log(`Staging interactive changes for session ${this.sessionId}`);

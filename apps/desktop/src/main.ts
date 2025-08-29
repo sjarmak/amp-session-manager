@@ -564,6 +564,30 @@ ipcMain.handle('sessions:export-patch', async (_, sessionId: string, outputPath:
   }
 });
 
+ipcMain.handle('sessions:exportSession', async (_, options: {
+  sessionId: string;
+  format: 'markdown' | 'json';
+  outputDir: string;
+  includeConversation: boolean;
+}) => {
+  try {
+    const { Exporter } = require('@ampsm/core');
+    const exporter = new Exporter(store, store.dbPath);
+    
+    const filePath = await exporter.exportSession(
+      options.sessionId,
+      options.format,
+      options.outputDir,
+      options.includeConversation
+    );
+    
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('Failed to export session:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to export session' };
+  }
+});
+
 // New Git Actions handlers
 ipcMain.handle('sessions:getGitStatus', async (_, sessionId: string) => {
   try {
@@ -1464,6 +1488,11 @@ ipcMain.handle('interactive:start', async (_, sessionId: string, threadId?: stri
 
     ampHandle.on('error', (error) => {
       mainWindow?.webContents.send('interactive:error', sessionId, handleId, error.message || String(error));
+    });
+
+    ampHandle.on('files-changed', (data) => {
+      // Notify renderer that files have changed
+      mainWindow?.webContents.send('interactive:files-changed', sessionId, handleId, data);
     });
 
     ampHandle.on('changes-staged', (data) => {

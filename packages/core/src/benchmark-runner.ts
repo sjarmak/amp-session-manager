@@ -140,8 +140,34 @@ export class BenchmarkRunner extends EventEmitter {
           if (!this.runningBenchmarks.get(benchmarkId)) break;
           
           console.log(`📊 Running suite: ${suite.id} for model: ${modelKey}`);
-          const suiteResult = await this.runSuite(suite, modelConfig, config.defaults);
-          modelResult.suites[suite.id] = suiteResult;
+          try {
+            const suiteResult = await this.runSuite(suite, modelConfig, config.defaults);
+            modelResult.suites[suite.id] = suiteResult;
+            
+            // Update progress after each suite completion
+            const currentResult: BenchmarkResult = {
+              id: benchmarkId,
+              configPath,
+              startTime: result.startTime,
+              models: { ...result.models, [modelKey]: modelResult },
+              status: 'running'
+            };
+            
+            this.store.updateSweBenchRun(benchmarkId, {
+              completed: this.calculateCompletedCases(currentResult),
+              passed: this.calculatePassedCases(currentResult),
+              failed: this.calculateFailedCases(currentResult)
+            });
+            
+          } catch (error) {
+            console.error(`❌ Suite ${suite.id} failed for model ${modelKey}:`, error);
+            // Create empty suite result to continue execution
+            modelResult.suites[suite.id] = {
+              suite: suite.id,
+              cases: [],
+              summary: { total: 0, passed: 0, failed: 0, successRate: 0 }
+            };
+          }
         }
 
         // Calculate aggregate metrics for this model
@@ -247,7 +273,9 @@ export class BenchmarkRunner extends EventEmitter {
     defaults: any
   ): Promise<SuiteResult> {
     // Create a temporary SWE-bench run
-    const casesDir = path.resolve(suite.swebench_cases_dir);
+    const casesDir = path.isAbsolute(suite.swebench_cases_dir) 
+      ? suite.swebench_cases_dir 
+      : path.resolve(process.cwd(), suite.swebench_cases_dir);
     const runOptions = {
       casesDir,
       name: `Benchmark-${suite.id}-${modelConfig.name}`,
@@ -263,6 +291,7 @@ export class BenchmarkRunner extends EventEmitter {
     }
 
     try {
+      console.log(`🔍 Loading cases from: ${casesDir}`);
       const sweBenchRun = await this.sweBenchRunner.run(runOptions);
       if (!sweBenchRun) {
         throw new Error('SweBenchRunner.run() returned undefined');
@@ -288,6 +317,9 @@ export class BenchmarkRunner extends EventEmitter {
           successRate: sweBenchRun.total > 0 ? sweBenchRun.passed / sweBenchRun.total : 0
         }
       };
+    } catch (error) {
+      console.error(`❌ SWE-bench suite ${suite.id} failed:`, error);
+      throw error;
     } finally {
       // Restore original environment
       process.env = originalEnv;
@@ -456,7 +488,9 @@ export class BenchmarkRunner extends EventEmitter {
       if (suite.swebench_cases_dir) {
         // Estimate based on directory - could be more accurate by reading files
         try {
-          const resolvedPath = path.resolve(suite.swebench_cases_dir);
+          const resolvedPath = path.isAbsolute(suite.swebench_cases_dir)
+            ? suite.swebench_cases_dir
+            : path.resolve(process.cwd(), suite.swebench_cases_dir);
           const files = require('fs').readdirSync(resolvedPath).filter((f: string) => f.endsWith('.json'));
           total += files.length;
         } catch {

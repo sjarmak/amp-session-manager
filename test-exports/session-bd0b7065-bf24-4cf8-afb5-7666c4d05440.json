@@ -1,0 +1,90 @@
+{
+  "session": {
+    "id": "bd0b7065-bf24-4cf8-afb5-7666c4d05440",
+    "name": "test",
+    "ampPrompt": null,
+    "repoRoot": "/Users/sjarmak/test-project",
+    "baseBranch": "main",
+    "branchName": "amp/test/2025-08-29T13-06-19",
+    "worktreePath": "/Users/sjarmak/test-project/.worktrees/bd0b7065-bf24-4cf8-afb5-7666c4d05440",
+    "status": "idle",
+    "scriptCommand": null,
+    "modelOverride": null,
+    "threadId": "T-7d6e52a5-a4be-460a-98ac-311d0ddeba3d",
+    "createdAt": "2025-08-29T13:06:19.919Z",
+    "lastRun": "2025-08-29T13:06:20.122Z",
+    "notes": null,
+    "contextIncluded": null,
+    "mode": "interactive",
+    "autoCommit": false
+  },
+  "iterations": [],
+  "toolCalls": [],
+  "mergeHistory": [],
+  "batchInfo": null,
+  "conversation": null,
+  "aggregateMetrics": {
+    "totalTokens": 0,
+    "totalDurationMs": 0,
+    "filesModified": 0,
+    "filesCreated": 0,
+    "iterationCount": 0,
+    "toolCallCount": 0,
+    "successfulToolCalls": 0,
+    "failedToolCalls": 0
+  },
+  "exportedAt": "2025-08-29T13:17:46.467Z",
+  "detailedMetrics": {
+    "summary": {
+      "sessionId": "bd0b7065-bf24-4cf8-afb5-7666c4d05440",
+      "totalIterations": 0,
+      "totalDurationMs": 0,
+      "avgDurationMs": 0,
+      "totalFilesChanged": 0,
+      "totalLocAdded": 0,
+      "totalLocDeleted": 0,
+      "linesChanged": {
+        "added": 0,
+        "deleted": 0,
+        "total": 0
+      },
+      "totalCostUsd": 0,
+      "successfulIterations": 0,
+      "successRate": 0,
+      "firstIteration": null,
+      "lastIteration": null,
+      "tokenUsage": {
+        "totalPromptTokens": 0,
+        "totalCompletionTokens": 0,
+        "totalTokens": 0,
+        "costBreakdown": [],
+        "costByModel": {}
+      },
+      "toolUsage": [],
+      "fileEdits": [],
+      "gitStats": {
+        "totalCommits": 0,
+        "manualCommits": 0,
+        "conflictEvents": 0,
+        "mergeEvents": 0
+      },
+      "testResults": {
+        "totalRuns": 0,
+        "passRate": 0,
+        "avgTestDuration": 0
+      },
+      "userMessages": {
+        "totalMessages": 0,
+        "messages": []
+      }
+    },
+    "iterations": [],
+    "toolUsage": []
+  },
+  "contextFiles": {
+    "iterationLog": "# Iteration Log for test\n\nSession created at 2025-08-29T13:06:19.919Z\n\n",
+    "sessionMd": "# Session: test\n\n## Goal\nundefined\n\n## Configuration\n- Repository: /Users/sjarmak/test-project\n- Base Branch: main\n- Branch: amp/test/2025-08-29T13-06-19\n- Worktree: /Users/sjarmak/test-project/.worktrees/bd0b7065-bf24-4cf8-afb5-7666c4d05440\n- Status: idle\n\n\n\n## Notes\nNo notes\n\n## Created\n2025-08-29T13:06:19.919Z\n\n",
+    "diffSummary": "No changes since last iteration.\n",
+    "lastStatus": "{\n  \"status\": \"idle\",\n  \"lastUpdate\": \"2025-08-29T13:06:19.919Z\"\n}"
+  }
+}

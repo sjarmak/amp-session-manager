@@ -34,6 +34,14 @@ export function GitActionsTab({ session, onSessionUpdate }: GitActionsTabProps) 
   useEffect(() => {
     loadGitStatus();
 
+    // Listen for file changes (before staging)
+    const handleFilesChanged = (event: any, sessionId: string, data: any) => {
+      if (sessionId === session.id) {
+        console.log('Interactive files changed:', data);
+        loadGitStatus(); // Refresh git status
+      }
+    };
+
     // Listen for interactive changes being staged
     const handleChangesStaged = (event: any, sessionId: string, data: any) => {
       if (sessionId === session.id) {
@@ -42,10 +50,14 @@ export function GitActionsTab({ session, onSessionUpdate }: GitActionsTabProps) 
       }
     };
 
+    window.electronAPI.onInteractiveFilesChanged?.(handleFilesChanged);
     window.electronAPI.onInteractiveChangesStaged?.(handleChangesStaged);
 
     return () => {
-      // Cleanup listener if needed
+      // Cleanup listeners if needed
+      if (window.electronAPI.offInteractiveFilesChanged) {
+        window.electronAPI.offInteractiveFilesChanged(handleFilesChanged);
+      }
       if (window.electronAPI.offInteractiveChangesStaged) {
         window.electronAPI.offInteractiveChangesStaged(handleChangesStaged);
       }

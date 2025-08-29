@@ -1,6 +1,6 @@
 import { SessionStore } from './store.js';
 import type { ExportOptions, ReportOptions } from '@ampsm/types';
-import { writeFile, mkdir } from 'fs/promises';
+import { writeFile, mkdir, readFile } from 'fs/promises';
 import { join } from 'path';
 import { MetricsAPI, SQLiteMetricsSink, costCalculator, Logger } from './metrics/index.js';
 
@@ -301,5 +301,218 @@ ${Object.entries(analysis.batchResults.statusCounts).map(([status, count]) =>
   <pre style="white-space: pre-wrap; font-family: inherit;">${md}</pre>
 </body>
 </html>`;
+  }
+
+  async exportSession(sessionId: string, format: 'json' | 'markdown', outDir: string, includeConversation: boolean = true): Promise<string> {
+    try {
+      const sessionData = await this.store.exportSessionData(sessionId, includeConversation, this.metricsAPI);
+    
+    // Enhance with metrics data if available
+    if (this.metricsAPI) {
+      try {
+        const sessionMetrics = await this.metricsAPI.getSessionSummary(sessionId);
+        const iterationMetrics = await this.metricsAPI.getIterationMetrics(sessionId);
+        const toolUsage = await this.metricsAPI.getToolUsageStats(sessionId);
+        
+        sessionData.detailedMetrics = {
+          summary: sessionMetrics,
+          iterations: iterationMetrics,
+          toolUsage
+        };
+      } catch (error) {
+        console.warn(`Failed to get detailed metrics for session ${sessionId}:`, error);
+      }
+    }
+
+    // Try to include AGENT_CONTEXT files if they exist
+    try {
+      if (sessionData.session?.worktreePath) {
+        const contextDir = join(sessionData.session.worktreePath, 'AGENT_CONTEXT');
+        const contextFiles = {
+          iterationLog: await this.tryReadFile(join(contextDir, 'ITERATION_LOG.md')),
+          sessionMd: await this.tryReadFile(join(contextDir, 'SESSION.md')),
+          diffSummary: await this.tryReadFile(join(contextDir, 'DIFF_SUMMARY.md')),
+          lastStatus: await this.tryReadFile(join(contextDir, 'LAST_STATUS.json'))
+        };
+        sessionData.contextFiles = contextFiles;
+      }
+    } catch (error) {
+      // Context files may not exist, that's fine
+    }
+
+    // Include YAML config if this is from a batch
+    if (sessionData.batchInfo?.batchItem && sessionData.session.repoRoot) {
+      try {
+        // Try to find the original YAML file - this is heuristic based
+        const yamlContent = await this.findYamlConfig(sessionData.batchInfo.runId, sessionData.session.repoRoot);
+        if (yamlContent) {
+          sessionData.batchYamlConfig = yamlContent;
+        }
+      } catch (error) {
+        console.warn(`Could not find YAML config for batch ${sessionData.batchInfo.runId}:`, error);
+      }
+    }
+
+    await mkdir(outDir, { recursive: true });
+
+    if (format === 'json') {
+      const filename = `session-${sessionId}.json`;
+      const filepath = join(outDir, filename);
+      await writeFile(filepath, JSON.stringify(sessionData, null, 2));
+      return filepath;
+    } else {
+      const filename = `session-${sessionId}.md`;
+      const filepath = join(outDir, filename);
+      const markdown = this.generateSessionMarkdownReport(sessionData);
+      await writeFile(filepath, markdown);
+      return filepath;
+    }
+    } catch (error) {
+      console.error('Error in exportSession:', error);
+      throw error;
+    }
+  }
+
+  private async tryReadFile(path: string): Promise<string | null> {
+    try {
+      return await readFile(path, 'utf-8');
+    } catch {
+      return null;
+    }
+  }
+
+  private async findYamlConfig(runId: string, repoRoot: string): Promise<string | null> {
+    // Common locations for YAML configs in eval scenarios
+    const possiblePaths = [
+      join(repoRoot, 'evals', `${runId}.yaml`),
+      join(repoRoot, 'evals', `${runId}.yml`),
+      join(repoRoot, `${runId}.yaml`),
+      join(repoRoot, `${runId}.yml`),
+      join(repoRoot, 'eval.yaml'),
+      join(repoRoot, 'eval.yml')
+    ];
+
+    for (const path of possiblePaths) {
+      const content = await this.tryReadFile(path);
+      if (content) return content;
+    }
+
+    return null;
+  }
+
+  private generateSessionMarkdownReport(data: any): string {
+    const session = data.session;
+    const metrics = data.aggregateMetrics;
+    
+    let report = `# Session Export: ${session.name}
+
+## Session Details
+- **Session ID**: ${session.id}
+- **Repository**: ${session.repoRoot}
+- **Base Branch**: ${session.baseBranch}
+- **Branch**: ${session.branchName}
+- **Status**: ${session.status}
+- **Mode**: ${session.mode || 'async'}
+- **Created**: ${new Date(session.createdAt).toLocaleString()}
+- **Last Run**: ${session.lastRun ? new Date(session.lastRun).toLocaleString() : 'Never'}
+${session.modelOverride ? `- **Model Override**: ${session.modelOverride}` : ''}
+${session.scriptCommand ? `- **Test Command**: ${session.scriptCommand}` : ''}
+
+## Initial Prompt
+\`\`\`
+${session.ampPrompt || 'No prompt provided'}
+\`\`\`
+
+## Summary Metrics
+- **Total Iterations**: ${metrics.iterationCount}
+- **Total Tokens**: ${metrics.totalTokens.toLocaleString()}
+- **Total Duration**: ${Math.round(metrics.totalDurationMs / 1000)}s
+- **Files Modified**: ${metrics.filesModified}
+- **Files Created**: ${metrics.filesCreated}
+- **Tool Calls**: ${metrics.toolCallCount} (${metrics.successfulToolCalls} successful, ${metrics.failedToolCalls} failed)
+`;
+
+    // Add batch information if available
+    if (data.batchInfo) {
+      report += `
+## Batch Information
+- **Run ID**: ${data.batchInfo.runId}
+- **Batch Status**: ${data.batchInfo.batchItem.status}
+${data.batchInfo.batchDefaults ? `
+### Batch Defaults
+\`\`\`json
+${JSON.stringify(data.batchInfo.batchDefaults, null, 2)}
+\`\`\`
+` : ''}
+`;
+    }
+
+    // Add YAML config if available
+    if (data.batchYamlConfig) {
+      report += `
+## Original YAML Configuration
+\`\`\`yaml
+${data.batchYamlConfig}
+\`\`\`
+`;
+    }
+
+    // Add iterations details
+    if (data.iterations.length > 0) {
+      report += `
+## Iterations
+
+| # | Start Time | Duration | Files Changed | Tokens | Test Result | Status |
+|---|------------|----------|---------------|--------|-------------|---------|
+`;
+      data.iterations.forEach((iter: any, i: number) => {
+        const duration = iter.endTime && iter.startTime 
+          ? Math.round((new Date(iter.endTime).getTime() - new Date(iter.startTime).getTime()) / 1000)
+          : '—';
+        report += `| ${i + 1} | ${new Date(iter.startTime).toLocaleString()} | ${duration}s | ${iter.changedFiles} | ${iter.totalTokens || '—'} | ${iter.testResult || '—'} | ${iter.exitCode === 0 ? '✅' : iter.exitCode ? '❌' : '—'} |\n`;
+      });
+    }
+
+    // Add conversation history
+    if (data.conversation?.messages) {
+      report += `
+## Conversation History
+
+`;
+      data.conversation.messages.forEach((msg: any) => {
+        const role = msg.role === 'user' ? '🧑‍💻 User' : msg.role === 'assistant' ? '🤖 Assistant' : '🔧 System';
+        const timestamp = new Date(msg.created_at).toLocaleString();
+        report += `### ${role} (${timestamp})
+
+${msg.content}
+
+`;
+      });
+    }
+
+    // Add context files if available
+    if (data.contextFiles) {
+      if (data.contextFiles.iterationLog) {
+        report += `
+## Iteration Log
+\`\`\`
+${data.contextFiles.iterationLog}
+\`\`\`
+`;
+      }
+      if (data.contextFiles.sessionMd) {
+        report += `
+## Session Context
+${data.contextFiles.sessionMd}
+`;
+      }
+    }
+
+    report += `
+---
+*Exported on ${new Date(data.exportedAt).toLocaleString()}*
+`;
+
+    return report;
   }
 }

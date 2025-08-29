@@ -48,7 +48,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     commitAmend: (sessionId: string, message: string) => ipcRenderer.invoke('sessions:commitAmend', sessionId, message) as Promise<{ success: boolean; result?: { commitSha: string }; error?: string }>,
     resetToCommit: (sessionId: string, commitRef: string, soft?: boolean) => ipcRenderer.invoke('sessions:resetToCommit', sessionId, commitRef, soft) as Promise<{ success: boolean; error?: string }>,
     cherryPick: (sessionId: string, shas: string[]) => ipcRenderer.invoke('sessions:cherryPick', sessionId, shas) as Promise<{ success: boolean; error?: string }>,
-    getDiff: (sessionId: string, filePath?: string) => ipcRenderer.invoke('sessions:getDiff', sessionId, filePath) as Promise<{ success: boolean; result?: { diff: string }; error?: string }>
+    getDiff: (sessionId: string, filePath?: string) => ipcRenderer.invoke('sessions:getDiff', sessionId, filePath) as Promise<{ success: boolean; result?: { diff: string }; error?: string }>,
+    exportSession: (options: { sessionId: string; format: 'markdown' | 'json'; outputDir: string; includeConversation: boolean }) => ipcRenderer.invoke('sessions:exportSession', options) as Promise<{ success: boolean; filePath?: string; error?: string }>
   },
 
   // Main repository git operations
@@ -162,6 +163,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Event listeners for interactive changes
+  onInteractiveFilesChanged: (callback: (event: any, sessionId: string, data: any) => void) => {
+    ipcRenderer.on('interactive:files-changed', callback);
+  },
+
+  offInteractiveFilesChanged: (callback: (event: any, sessionId: string, data: any) => void) => {
+    ipcRenderer.removeListener('interactive:files-changed', callback);
+  },
+
   onInteractiveChangesStaged: (callback: (event: any, sessionId: string, data: any) => void) => {
     ipcRenderer.on('interactive:changes-staged', callback);
   },

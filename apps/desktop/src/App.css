@@ -33,6 +33,10 @@ body {
 /* Electron window drag region */
 .app-header {
   -webkit-app-region: drag;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 .app-header button {

@@ -20,7 +20,7 @@ import { continueMergeCommand } from './commands/continue-merge.js';
 import { abortMergeCommand } from './commands/abort-merge.js';
 import { cleanupCommand } from './commands/cleanup.js';
 import { batchCommand, abortRunCommand } from './commands/batch.js';
-import { exportCommand } from './commands/export.js';
+import { exportCommand, exportSessionCommand } from './commands/export.js';
 import { reportCommand } from './commands/report.js';
 import { lockCommand } from './commands/lock.js';
 import { repairCommand } from './commands/repair.js';
@@ -201,10 +201,10 @@ program
   .option('--json', 'Output as JSON')
   .action(abortRunCommand);
 
-// Export command
+// Export commands
 program
   .command('export')
-  .description('Export session data in various formats')
+  .description('Export batch/multi-session data in various formats')
   .requiredOption('--out <path>', 'Output directory or file path')
   .option('--run <runId>', 'Export data for specific batch run')
   .option('--sessions <sessionIds>', 'Export data for specific sessions (comma-separated)')
@@ -213,6 +213,14 @@ program
   .option('--tables <tables>', 'Tables to export (comma-separated)', 'sessions,iterations,tool_calls,merge_history,batches,batch_items')
   .option('--format <format>', 'Export format: json|ndjson|csv', 'json')
   .action(exportCommand);
+
+program
+  .command('export-session <sessionId>')
+  .description('Export comprehensive single session data with conversation history')
+  .requiredOption('--out <path>', 'Output directory')
+  .option('--format <format>', 'Export format: json|markdown', 'markdown')
+  .option('--no-conversation', 'Exclude conversation history from export')
+  .action(exportSessionCommand);
 
 // Report command
 program

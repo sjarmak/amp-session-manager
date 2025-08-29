@@ -31,6 +31,7 @@ export function SessionView({
     "overview" | "interactive" | "git"
   >(initialTab || "overview");
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   
   // Restore tab from localStorage on mount, unless initialTab is specified
   React.useEffect(() => {
@@ -122,6 +123,43 @@ export function SessionView({
   }, [activeTab]);
 
 
+
+  const handleExportSession = async (format: 'markdown' | 'json') => {
+    setShowExportMenu(false);
+    try {
+      const result = await window.electronAPI.dialog.selectDirectory();
+      
+      if (result.canceled || !result.filePaths?.[0]) {
+        return;
+      }
+
+      const outputDir = result.filePaths[0];
+      
+      // Call the session export through electron API
+      const exportResult = await window.electronAPI.sessions.exportSession({
+        sessionId: session.id,
+        format,
+        outputDir,
+        includeConversation: true
+      });
+      
+      if (exportResult.success) {
+        console.log(`Session exported to ${exportResult.filePath}`);
+        // Simple browser notification since window.electronAPI.notifications.show doesn't exist
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Session Exported', {
+            body: `Session "${session.name}" exported as ${format} to ${outputDir}`
+          });
+        }
+      } else {
+        setError(`Export failed: ${exportResult.error}`);
+      }
+      
+    } catch (error) {
+      console.error('Export failed:', error);
+      setError(`Export failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
 
   const handleDelete = async () => {
     console.log("Delete button clicked");
@@ -252,7 +290,34 @@ export function SessionView({
       {activeTab === "overview" && (
         <div className="space-y-4">
           <div className="bg-gruvbox-bg1 p-6 rounded-lg border border-gruvbox-bg3">
-            <h3 className="text-lg font-semibold mb-4 text-gruvbox-fg0">Session Details</h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gruvbox-fg0">Session Details</h3>
+              <div className="relative">
+                <button
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  className="px-3 py-1 text-sm bg-gruvbox-bg3 hover:bg-gruvbox-bg4 text-gruvbox-fg1 rounded border border-gruvbox-bg4 flex items-center gap-2"
+                >
+                  📄 Export
+                  <span className="text-xs">▼</span>
+                </button>
+                {showExportMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-gruvbox-bg1 border border-gruvbox-bg3 rounded shadow-lg z-10">
+                    <button
+                      onClick={() => handleExportSession('markdown')}
+                      className="w-full text-left px-4 py-2 text-sm text-gruvbox-fg1 hover:bg-gruvbox-bg2 flex items-center gap-2"
+                    >
+                      📝 Export as Markdown
+                    </button>
+                    <button
+                      onClick={() => handleExportSession('json')}
+                      className="w-full text-left px-4 py-2 text-sm text-gruvbox-fg1 hover:bg-gruvbox-bg2 flex items-center gap-2"
+                    >
+                      🗂️ Export as JSON
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <dt className="text-sm font-medium text-gruvbox-fg2">ID</dt>
