@@ -39,6 +39,7 @@ pnpm install
 
 cd apps/desktop
 pnpm dev
+````
 
 **Note**: You need Git ≥2.38, Node.js ≥18, pnpm ≥8, and authenticated Amp CLI installed first.
 
@@ -104,7 +105,7 @@ pnpm cli verify-amp
 
 # Start desktop application (optional)
 pnpm dev
-````
+```
 
 **Native dependency troubleshooting**:
 
