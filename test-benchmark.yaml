@@ -1,0 +1,34 @@
+version: 1
+name: "Test Benchmark - Quick"
+description: "Quick test to verify benchmark runner works"
+
+defaults:
+  base_branch: main
+  parallel: 2
+  max_iterations: 5
+  timeout_sec: 300
+  json_logs: true
+  merge_on_pass: false
+
+models:
+  default:
+    name: default
+  gpt5:
+    name: gpt-5
+    amp_args: ["--try-gpt5"]
+
+metrics:
+  - success_rate
+  - avg_iterations
+  - total_runtime_sec
+
+suites:
+  - id: smoke
+    description: "Single-turn test"
+    cases:
+      - id: hello_readme
+        repo: octocat/Hello-World
+        prompt: |
+          Create a README.md that explains how to run the project, add it,
+          commit it, and make sure `cat README.md` shows the expected text.
+        script_command: "grep -q 'Hello World' README.md"

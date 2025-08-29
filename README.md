@@ -114,23 +114,6 @@ The Git tab provides full version control operations:
 ### CLI Batch Operations
 
 ```bash
-# Create batch configuration
-cat > batch-config.yaml << EOF
-name: "Authentication Features"
-repos:
-  - path: "./frontend"
-    baseBranch: "main"
-  - path: "./backend"
-    baseBranch: "develop"
-items:
-  - name: "jwt-auth"
-    prompt: "Implement JWT authentication middleware"
-    script: "npm test"
-  - name: "refresh-tokens"
-    prompt: "Add refresh token rotation"
-concurrency: 2
-EOF
-
 # Execute batch
 pnpm cli batch start --file batch-config.yaml
 
@@ -140,6 +123,64 @@ pnpm cli batch status batch-123 --follow
 # Export results
 pnpm cli batch export batch-123 --format csv
 ```
+
+#### Batch Configuration Schema
+
+```yaml
+# batch-config.yaml - Complete configuration example
+runId: "custom-batch-id"                    # Optional: Custom batch identifier
+concurrency: 3                             # Required: Max parallel sessions
+
+# Default settings applied to all matrix items
+defaults:
+  baseBranch: "main"                        # Required: Default base branch
+  scriptCommand: "npm test"                 # Optional: Default test/validation script
+  model: "claude-3-5-sonnet"               # Optional: Default AI model
+  jsonLogs: true                           # Optional: Enable structured logging
+  timeoutSec: 600                          # Optional: Timeout per session (seconds)
+  retries: 2                               # Optional: Retry attempts on failure
+  mergeOnPass: false                       # Optional: Auto-merge successful sessions
+
+# Matrix of batch items (required, minimum 1 item)
+matrix:
+  - repo: "./frontend"                      # Required: Repository path
+    prompt: "Implement JWT authentication"  # Required: Task description
+    baseBranch: "develop"                   # Optional: Override default branch
+    scriptCommand: "pnpm test:auth"         # Optional: Override default script
+    model: "gpt-5"                          # Optional: Override default model
+    timeoutSec: 900                         # Optional: Override default timeout
+    mergeOnPass: true                       # Optional: Override default merge behavior
+  
+  - repo: "./backend"
+    prompt: "Add refresh token rotation"
+    # Uses defaults for unspecified options
+  
+  - repo: "./mobile"
+    prompt: "Update authentication flow"
+    model: "alloy"                          # Use --blend alloy-random mode
+    scriptCommand: "flutter test"
+```
+
+**Configuration Options:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `runId` | string | No | Custom batch identifier (auto-generated if omitted) |
+| `concurrency` | number | Yes | Maximum parallel sessions to run |
+| `defaults.baseBranch` | string | Yes | Default Git branch for all repositories |
+| `defaults.scriptCommand` | string | No | Default test/validation command |
+| `defaults.model` | string | No | Default AI model (`claude-3-5-sonnet`, `gpt-5`, `alloy`) |
+| `defaults.jsonLogs` | boolean | No | Enable structured JSON logging for metrics |
+| `defaults.timeoutSec` | number | No | Timeout per session in seconds |
+| `defaults.retries` | number | No | Number of retry attempts on failure |
+| `defaults.mergeOnPass` | boolean | No | Auto-merge sessions that pass validation |
+| `matrix[].repo` | string | Yes | Path to repository for this item |
+| `matrix[].prompt` | string | Yes | Task description for Amp |
+| `matrix[].baseBranch` | string | No | Override default base branch |
+| `matrix[].scriptCommand` | string | No | Override default validation script |
+| `matrix[].model` | string | No | Override default AI model |
+| `matrix[].timeoutSec` | number | No | Override default timeout |
+| `matrix[].mergeOnPass` | boolean | No | Override default merge behavior |
 
 ## Benchmarks and Evaluation
 
@@ -165,6 +206,107 @@ pnpm cli bench custom --config ./custom-benchmark.yaml
 # Export results
 pnpm cli bench export bench-run-123 --format csv
 ```
+
+#### Benchmark Configuration Schema
+
+```yaml
+# benchmark-config.yaml - Complete configuration example
+version: 1                                  # Required: Configuration version
+name: "Custom Benchmark"                    # Required: Benchmark name
+description: "Evaluation of specific tasks" # Optional: Benchmark description
+
+# Global defaults applied to all suites and cases
+defaults:
+  base_branch: "main"                       # Default Git branch
+  parallel: 4                               # Parallel execution limit
+  max_iterations: 10                        # Maximum iterations per case
+  timeout_sec: 900                          # Timeout per case (15 minutes)
+  json_logs: true                           # Enable structured logging
+  merge_on_pass: false                      # Never auto-merge (measurement only)
+
+# Model configurations for testing different AI models
+models:
+  default:
+    name: "default"                         # Use Amp's default model
+  gpt5:
+    name: "gpt-5"
+    amp_args: ["--try-gpt5"]               # CLI arguments for GPT-5
+  alloy:
+    name: "alloy"
+    amp_args: ["--blend", "alloy-random"]   # CLI arguments for Alloy
+
+# Metrics to collect and analyze
+metrics:
+  - success_rate                            # Pass rate percentage
+  - avg_iterations                          # Average iterations to completion
+  - avg_prompt_tokens                       # Average input tokens used
+  - avg_completion_tokens                   # Average output tokens generated
+  - avg_total_tokens                        # Average total tokens consumed
+  - total_cost_usd                          # Total cost in USD
+  - total_runtime_sec                       # Total execution time
+
+# Test suites containing cases
+suites:
+  - id: "smoke_tests"                       # Required: Suite identifier
+    description: "Quick validation tasks"   # Optional: Suite description
+    max_iterations: 5                       # Optional: Override default max iterations
+    cases:
+      - id: "readme_creation"               # Required: Case identifier
+        repo: "octocat/Hello-World"         # Required: Repository (GitHub slug or path)
+        prompt: |                           # Required: Task description
+          Create a README.md file explaining how to run the project
+        script_command: "grep -q 'Hello' README.md"  # Optional: Validation script
+        
+      - id: "function_addition"
+        repo: "scratch/math-lib"
+        setup_script: |                     # Optional: Pre-execution setup
+          echo 'def subtract(a,b): return a-b' > math.py
+        prompt: |
+          Add an add(a: int, b: int) -> int function and test file
+        follow_up_prompts:                  # Optional: Multi-turn conversation
+          - "Add type hints to all functions"
+          - "Optimize for performance"
+        script_command: "pytest -q"
+        
+  - id: "swe_bench_cases"                   # SWE-bench integration
+    description: "Real bug fixing evaluation"
+    swebench_cases_dir: "eval_data/swebench/easy"  # Directory with *.json case files
+    max_iterations: 8
+```
+
+**Configuration Options:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `version` | number | Yes | Configuration schema version (currently 1) |
+| `name` | string | Yes | Benchmark name for identification |
+| `description` | string | No | Detailed benchmark description |
+| `defaults.base_branch` | string | No | Default Git branch for repositories |
+| `defaults.parallel` | number | No | Maximum parallel case execution |
+| `defaults.max_iterations` | number | No | Maximum iterations per case |
+| `defaults.timeout_sec` | number | No | Timeout per case in seconds |
+| `defaults.json_logs` | boolean | No | Enable structured logging |
+| `defaults.merge_on_pass` | boolean | No | Auto-merge successful cases |
+| `models` | object | No | AI model configurations to test |
+| `models.*.name` | string | Yes | Model identifier |
+| `models.*.amp_args` | array | No | Additional CLI arguments for model |
+| `metrics` | array | No | List of metrics to collect |
+| `suites[].id` | string | Yes | Unique suite identifier |
+| `suites[].description` | string | No | Suite description |
+| `suites[].max_iterations` | number | No | Override default max iterations |
+| `suites[].cases` | array | No | List of test cases (if not using SWE-bench) |
+| `suites[].cases[].id` | string | Yes | Unique case identifier |
+| `suites[].cases[].repo` | string | Yes | Repository path or GitHub slug |
+| `suites[].cases[].prompt` | string | Yes | Task description for Amp |
+| `suites[].cases[].script_command` | string | No | Validation/test command |
+| `suites[].cases[].setup_script` | string | No | Pre-execution setup commands |
+| `suites[].cases[].follow_up_prompts` | array | No | Multi-turn conversation prompts |
+| `suites[].swebench_cases_dir` | string | No | Path to SWE-bench case files directory |
+
+**SWE-bench Integration:**
+- Set `swebench_cases_dir` to directory containing `*.json` case files
+- Each JSON file should contain `id`, `repo`, `bugCommit`, `fixCommit`, `testPath`, and `prompt`
+- Cases automatically use repository setup and validation from SWE-bench format
 
 ## Configuration
 

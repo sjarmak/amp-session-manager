@@ -1,8 +1,0 @@
-{
-  "id": "test#001",
-  "repo": "python/cpython",
-  "bugCommit": "v3.9.0",
-  "fixCommit": "v3.9.1",
-  "testPath": "test/test_example.py::TestExample::test_simple",
-  "prompt": "Fix the failing test by implementing the missing functionality. The test expects a simple function to return the correct value."
-}
