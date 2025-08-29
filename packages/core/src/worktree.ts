@@ -1258,10 +1258,43 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
       };
     }
   }
+
+  /**
+   * Continue a thread directly using the same logic as interactive mode
+   * This bypasses the complex iteration logic and uses direct thread continuation
+   */
+  async continueThreadDirectly(
+    sessionId: string,
+    threadId: string, 
+    prompt: string,
+    modelOverride?: string
+  ): Promise<void> {
+    const session = this.store.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    console.log(`🔗 Continuing thread ${threadId} with prompt: ${prompt.slice(0, 100)}...`);
+
+    // Use direct thread continuation like interactive mode
+    const result = await this.ampAdapter.runThreadContinue(
+      threadId,
+      prompt,
+      session.worktreePath,
+      modelOverride || session.modelOverride,
+      sessionId
+    );
+
+    if (!result.success) {
+      console.error(`❌ Thread continuation failed: ${result.output}`);
+      throw new Error(`Thread continuation failed: ${result.output}`);
+    }
+
+    console.log(`✅ Thread continuation completed successfully`);
+  }
 }
 
 // Helper to read file synchronously
 function readFileSync(path: string, encoding: BufferEncoding): string {
-  const fs = require('fs');
   return fs.readFileSync(path, encoding);
 }

@@ -11,6 +11,8 @@ export { getCurrentAmpThreadId } from './amp-utils.js';
 export { getDbPath, getUserConfigDir } from './config.js';
 export { acquireLock, releaseLock, isLocked, getLockInfo, withLock, cleanupStaleLocks } from './lock.js';
 export { SweBenchRunner } from './swebench-runner.js';
+export { BenchmarkRunner } from './benchmark-runner.js';
+export type { BenchmarkConfig, BenchmarkResult, ModelResult, SuiteResult } from './benchmark-runner.js';
 
 // Export metrics system
 export * from './metrics/index.js';

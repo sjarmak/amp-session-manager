@@ -1,4 +1,6 @@
 import { Logger } from './logger.js';
+import { existsSync, unlinkSync, readdirSync, statSync } from 'fs';
+import { join, basename } from 'path';
 
 export interface GitRetryConfig {
   maxRetries: number;
@@ -162,27 +164,24 @@ export async function cleanupGitLocksWithRetry(
   const errors: string[] = [];
   
   try {
-    const fs = require('fs');
-    const path = require('path');
-    
     // Common git lock files to clean up
     const lockFiles = [
-      path.join(repoRoot, '.git', 'index.lock'),
-      path.join(repoRoot, '.git', 'HEAD.lock'),
-      path.join(repoRoot, '.git', 'config.lock'),
-      path.join(repoRoot, '.git', 'refs', 'heads', 'main.lock'),
-      path.join(repoRoot, '.git', 'refs', 'heads', 'master.lock')
+      join(repoRoot, '.git', 'index.lock'),
+      join(repoRoot, '.git', 'HEAD.lock'),
+      join(repoRoot, '.git', 'config.lock'),
+      join(repoRoot, '.git', 'refs', 'heads', 'main.lock'),
+      join(repoRoot, '.git', 'refs', 'heads', 'master.lock')
     ];
     
     // Also check for worktree-specific locks
     try {
-      const worktreesDir = path.join(repoRoot, '.git', 'worktrees');
-      if (fs.existsSync(worktreesDir)) {
-        const worktrees = fs.readdirSync(worktreesDir);
+      const worktreesDir = join(repoRoot, '.git', 'worktrees');
+      if (existsSync(worktreesDir)) {
+        const worktrees = readdirSync(worktreesDir);
         for (const worktree of worktrees) {
           lockFiles.push(
-            path.join(worktreesDir, worktree, 'HEAD.lock'),
-            path.join(worktreesDir, worktree, 'index.lock')
+            join(worktreesDir, worktree, 'HEAD.lock'),
+            join(worktreesDir, worktree, 'index.lock')
           );
         }
       }
@@ -192,20 +191,20 @@ export async function cleanupGitLocksWithRetry(
     
     for (const lockFile of lockFiles) {
       try {
-        if (fs.existsSync(lockFile)) {
+        if (existsSync(lockFile)) {
           // Check if lock file is stale (older than 5 minutes)
-          const stats = fs.statSync(lockFile);
+          const stats = statSync(lockFile);
           const ageMs = Date.now() - stats.mtime.getTime();
           const staleThresholdMs = 5 * 60 * 1000; // 5 minutes
           
           if (ageMs > staleThresholdMs) {
             await withGitRetry(
               async () => {
-                fs.unlinkSync(lockFile);
+                unlinkSync(lockFile);
                 return lockFile;
               },
               {
-                operation: `cleanup lock file: ${path.basename(lockFile)}`,
+                operation: `cleanup lock file: ${basename(lockFile)}`,
                 config: { maxRetries: 2, baseDelayMs: 100, maxDelayMs: 500 },
                 logger
               }

@@ -1,0 +1,8 @@
+{
+  "id": "simple#003",
+  "repo": "octocat/linguist",
+  "bugCommit": "master",
+  "testPath": "test/test_language.rb", 
+  "testCommand": "ruby test/test_language.rb",
+  "prompt": "Create a Ruby test file that validates the Language.detect functionality works for common file extensions like .js, .py, .rb. The test should assert that Language.detect returns the correct language name for each extension."
+}

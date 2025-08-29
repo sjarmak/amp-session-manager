@@ -1,0 +1,8 @@
+{
+  "id": "complex#002", 
+  "repo": "django/django",
+  "bugCommit": "main",
+  "testPath": "tests/model_fields/test_jsonfield.py",
+  "testCommand": "python -m pytest tests/model_fields/test_jsonfield.py::JSONFieldTests::test_custom_encoder -v",
+  "prompt": "Fix the JSONField custom encoder support to properly handle nested objects with custom __json__ methods. The issue occurs when a model has a JSONField containing objects that implement custom JSON serialization - the encoder should recursively apply custom serialization rules while maintaining backwards compatibility with existing Django model serialization."
+}

@@ -1,0 +1,8 @@
+{
+  "id": "simple#002",
+  "repo": "octocat/Spoon-Knife",
+  "bugCommit": "master", 
+  "testPath": "test_math.py",
+  "testCommand": "python -m pytest test_math.py -v",
+  "prompt": "Create a test_math.py file with basic arithmetic functions (add, subtract, multiply, divide) and corresponding test cases that validate each function works correctly."
+}

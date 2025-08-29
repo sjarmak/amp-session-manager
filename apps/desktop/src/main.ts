@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const { join } = require('path');
 const { homedir } = require('os');
 const { readFileSync } = require('fs');
-const { SessionStore, WorktreeManager, BatchController, SweBenchRunner, getCurrentAmpThreadId, getDbPath, Notifier, MetricsAPI, SQLiteMetricsSink, MetricsEventBus, costCalculator, Logger } = require('@ampsm/core');
+const { SessionStore, WorktreeManager, BatchController, SweBenchRunner, BenchmarkRunner, getCurrentAmpThreadId, getDbPath, Notifier, MetricsAPI, SQLiteMetricsSink, MetricsEventBus, costCalculator, Logger } = require('@ampsm/core');
 
 let mainWindow: any;
 
@@ -155,6 +155,7 @@ let store: any;
 let worktreeManager: any;
 let batchController: any;
 let sweBenchRunner: any;
+let benchmarkRunner: any;
 let notifier: any;
 let metricsAPI: any;
 let metricsEventBus: any;
@@ -176,6 +177,7 @@ async function initializeServices() {
     worktreeManager = new WorktreeManager(store, dbPath, metricsEventBus);
     batchController = new BatchController(store, dbPath, metricsEventBus);
     sweBenchRunner = new SweBenchRunner(store, dbPath);
+    benchmarkRunner = new BenchmarkRunner(store, dbPath);
     notifier = new Notifier();
 
     notifier.setCallback(async (options: any) => {
@@ -202,6 +204,9 @@ async function initializeServices() {
     sweBenchRunner.on('run-updated', forwardBenchmark('run-updated'));
     sweBenchRunner.on('run-finished', forwardBenchmark('run-finished'));
     sweBenchRunner.on('run-aborted', forwardBenchmark('run-aborted'));
+    
+    benchmarkRunner.on('benchmark-started', forwardBenchmark('run-started'));
+    benchmarkRunner.on('benchmark-finished', forwardBenchmark('run-finished'));
 
     servicesReady = true;
     console.log('Services initialized successfully');
@@ -289,11 +294,11 @@ ipcMain.handle('dialog:selectDirectory', async () => {
   return result;
 });
 
-ipcMain.handle('dialog:selectFile', async () => {
+ipcMain.handle('dialog:selectFile', async (_, options?: { filters?: { name: string; extensions: string[] }[] }) => {
   const { dialog } = require('electron');
   const result = await dialog.showOpenDialog({
     properties: ['openFile'],
-    filters: [
+    filters: options?.filters || [
       { name: 'YAML Files', extensions: ['yaml', 'yml'] },
       { name: 'All Files', extensions: ['*'] }
     ]
@@ -1292,7 +1297,7 @@ ipcMain.handle('benchmarks:listRuns', async () => {
     console.log('📊 Got sweBenchRuns:', sweBenchRuns?.length || 0, 'runs');
     
     // Transform to generic benchmark format
-    const benchmarkRuns = sweBenchRuns.map((run: any) => ({
+    const allRuns = sweBenchRuns.map((run: any) => ({
       runId: run.id, // Fix: use 'id' instead of 'runId'
       type: 'swebench' as const,
       createdAt: run.createdAt,
@@ -1303,8 +1308,11 @@ ipcMain.handle('benchmarks:listRuns', async () => {
       failedCases: run.failed, // Fix: use 'failed' instead of 'failedCases'
       status: run.status
     }));
-    console.log('📊 Transformed benchmarkRuns:', benchmarkRuns);
-    return benchmarkRuns;
+    
+    // Add YAML benchmark runs (stored separately - we'll need to implement this)
+    // For now, just return SWE-bench runs
+    console.log('📊 Transformed benchmarkRuns:', allRuns);
+    return allRuns;
   } catch (error) {
     console.error('❌ Failed to list benchmark runs:', error);
     return [];
@@ -1357,10 +1365,18 @@ ipcMain.handle('benchmarks:start', async (_, options: any) => {
         filter: options.filter
       };
       const result = await sweBenchRunner.run(runnerOptions);
-      return { success: true, runId: result.runId };
-    } else {
+      return { success: true, runId: result.id };
+    } else if (options.type === 'yaml') {
+      if (!options.yamlConfigPath) {
+        throw new Error('YAML config path is required');
+      }
+      const result = await benchmarkRunner.runBenchmark(options.yamlConfigPath);
+      return { success: true, runId: result.id };
+    } else if (options.type === 'custom') {
       // For custom benchmarks, we could extend this later
       throw new Error('Custom benchmarks not yet implemented');
+    } else {
+      throw new Error(`Unknown benchmark type: ${options.type}`);
     }
   } catch (error) {
     console.error('Failed to start benchmark:', error);

@@ -12,7 +12,13 @@
     "lint": "pnpm -r lint",
     "migrate": "node scripts/run-migration.js",
     "migrate:test": "node scripts/run-migration.js --test",
-    "migrate:dry-run": "node scripts/run-migration.js --dry-run"
+    "migrate:dry-run": "node scripts/run-migration.js --dry-run",
+    "server": "pnpm --filter @ampsm/server start",
+    "server:dev": "pnpm --filter @ampsm/server dev",
+    "mobile": "pnpm --filter @ampsm/mobile dev",
+    "mobile:build": "pnpm --filter @ampsm/mobile build",
+    "start:local": "concurrently \"pnpm server\" \"pnpm mobile\"",
+    "start:local:lan": "concurrently \"cd packages/server && pnpm dev --lan\" \"pnpm mobile\""
   },
   "dependencies": {
     "yaml": "2.8.1",

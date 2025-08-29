@@ -1,4 +1,6 @@
 import { spawn } from 'child_process';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import { withGitRetry, cleanupGitLocksWithRetry, GitRetryOptions } from './utils/git-retry.js';
 import { Logger } from './utils/logger.js';
 
@@ -17,8 +19,7 @@ export class GitOps {
       
       // Validate working directory exists
       try {
-        const fs = require('fs');
-        if (!fs.existsSync(workingDir)) {
+        if (!existsSync(workingDir)) {
           throw new Error(`Working directory does not exist: ${workingDir}`);
         }
       } catch (error) {
@@ -558,14 +559,14 @@ export class GitOps {
 
   private async cleanupGitLocks(): Promise<void> {
     try {
-      const fs = require('fs');
-      const path = require('path');
+      // Import fs dynamically since this might not be available in all environments
+      const fs = await import('fs');
       
       // Common git lock files to clean up
       const lockFiles = [
-        path.join(this.repoRoot, '.git', 'index.lock'),
-        path.join(this.repoRoot, '.git', 'HEAD.lock'),
-        path.join(this.repoRoot, '.git', 'config.lock')
+        join(this.repoRoot, '.git', 'index.lock'),
+        join(this.repoRoot, '.git', 'HEAD.lock'),
+        join(this.repoRoot, '.git', 'config.lock')
       ];
       
       for (const lockFile of lockFiles) {

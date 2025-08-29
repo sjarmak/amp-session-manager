@@ -7,8 +7,9 @@ export interface NewBenchmarkModalProps {
 }
 
 export function NewBenchmarkModal({ isOpen, onClose, onBenchmarkCreated }: NewBenchmarkModalProps) {
-  const [benchmarkType, setBenchmarkType] = useState<'swebench' | 'custom'>('swebench');
+  const [benchmarkType, setBenchmarkType] = useState<'swebench' | 'custom' | 'yaml'>('swebench');
   const [casesDir, setCasesDir] = useState('');
+  const [yamlConfigPath, setYamlConfigPath] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSelectDirectory = async () => {
@@ -27,10 +28,31 @@ export function NewBenchmarkModal({ isOpen, onClose, onBenchmarkCreated }: NewBe
     }
   };
 
+  const handleSelectYamlFile = async () => {
+    try {
+      if (!window.electronAPI?.dialog?.selectFile) {
+        alert('File selection not available');
+        return;
+      }
+      const result = await window.electronAPI.dialog.selectFile();
+      if (!result.canceled && result.filePaths.length > 0) {
+        setYamlConfigPath(result.filePaths[0]);
+      }
+    } catch (error) {
+      console.error('Failed to select file:', error);
+      alert('Failed to select file');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!casesDir.trim()) {
+    if (benchmarkType === 'yaml' && !yamlConfigPath.trim()) {
+      alert('Please select a YAML config file');
+      return;
+    }
+    
+    if (benchmarkType !== 'yaml' && !casesDir.trim()) {
       alert('Please select a cases directory');
       return;
     }
@@ -45,13 +67,15 @@ export function NewBenchmarkModal({ isOpen, onClose, onBenchmarkCreated }: NewBe
 
       const result = await window.electronAPI.benchmarks.start({
         type: benchmarkType,
-        casesDir: casesDir.trim()
+        casesDir: benchmarkType === 'yaml' ? undefined : casesDir.trim(),
+        yamlConfigPath: benchmarkType === 'yaml' ? yamlConfigPath.trim() : undefined
       });
 
       if (result.success) {
         onBenchmarkCreated();
         onClose();
         setCasesDir('');
+        setYamlConfigPath('');
         setBenchmarkType('swebench');
       } else {
         alert(`Failed to start benchmark: ${result.error}`);
@@ -107,44 +131,72 @@ export function NewBenchmarkModal({ isOpen, onClose, onBenchmarkCreated }: NewBe
             </label>
             <select
               value={benchmarkType}
-              onChange={(e) => setBenchmarkType(e.target.value as 'swebench' | 'custom')}
+              onChange={(e) => setBenchmarkType(e.target.value as 'swebench' | 'custom' | 'yaml')}
               className="w-full px-3 py-2 bg-gruvbox-bg1 border border-gruvbox-bg3 text-gruvbox-fg0 rounded-md focus:outline-none focus:ring-2 focus:ring-gruvbox-blue"
               disabled={loading}
             >
               <option value="swebench">SWE-bench</option>
               <option value="custom">Custom</option>
+              <option value="yaml">YAML Config</option>
             </select>
           </div>
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gruvbox-fg1 mb-2">
-              Cases Directory
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={casesDir}
-                onChange={(e) => setCasesDir(e.target.value)}
-                placeholder="Select directory containing benchmark cases"
-                className="flex-1 px-3 py-2 bg-gruvbox-bg1 border border-gruvbox-bg3 text-gruvbox-fg0 rounded-md focus:outline-none focus:ring-2 focus:ring-gruvbox-blue placeholder-gruvbox-fg2"
-                disabled={loading}
-              />
-              <button
-                type="button"
-                onClick={handleSelectDirectory}
-                disabled={loading}
-                className="px-4 py-2 bg-gruvbox-bg2 text-gruvbox-fg1 rounded-md hover:bg-gruvbox-bg3 transition-colors disabled:opacity-50"
-              >
-                Browse
-              </button>
+          {benchmarkType === 'yaml' ? (
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gruvbox-fg1 mb-2">
+                YAML Config File
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={yamlConfigPath}
+                  onChange={(e) => setYamlConfigPath(e.target.value)}
+                  placeholder="Select YAML benchmark configuration file"
+                  className="flex-1 px-3 py-2 bg-gruvbox-bg1 border border-gruvbox-bg3 text-gruvbox-fg0 rounded-md focus:outline-none focus:ring-2 focus:ring-gruvbox-blue placeholder-gruvbox-fg2"
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={handleSelectYamlFile}
+                  disabled={loading}
+                  className="px-4 py-2 bg-gruvbox-bg2 text-gruvbox-fg1 rounded-md hover:bg-gruvbox-bg3 transition-colors disabled:opacity-50"
+                >
+                  Browse
+                </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gruvbox-fg1 mb-2">
+                Cases Directory
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={casesDir}
+                  onChange={(e) => setCasesDir(e.target.value)}
+                  placeholder="Select directory containing benchmark cases"
+                  className="flex-1 px-3 py-2 bg-gruvbox-bg1 border border-gruvbox-bg3 text-gruvbox-fg0 rounded-md focus:outline-none focus:ring-2 focus:ring-gruvbox-blue placeholder-gruvbox-fg2"
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={handleSelectDirectory}
+                  disabled={loading}
+                  className="px-4 py-2 bg-gruvbox-bg2 text-gruvbox-fg1 rounded-md hover:bg-gruvbox-bg3 transition-colors disabled:opacity-50"
+                >
+                  Browse
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end gap-3">
             <button
               type="button"
               onClick={() => {
                 setCasesDir('');
+                setYamlConfigPath('');
                 setBenchmarkType('swebench');
                 onClose();
               }}
@@ -154,7 +206,7 @@ export function NewBenchmarkModal({ isOpen, onClose, onBenchmarkCreated }: NewBe
             </button>
             <button
               type="submit"
-              disabled={loading || !casesDir.trim()}
+              disabled={loading || (benchmarkType === 'yaml' ? !yamlConfigPath.trim() : !casesDir.trim())}
               className="px-4 py-2 bg-gruvbox-blue text-gruvbox-bg0 rounded-lg hover:bg-gruvbox-bright-blue transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Starting...' : 'Start Benchmark'}

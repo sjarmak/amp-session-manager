@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { existsSync, writeFileSync, unlinkSync, readFileSync } from 'fs';
+import { existsSync, writeFileSync, unlinkSync, readFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
@@ -12,8 +12,7 @@ class RepoLockManager {
     this.lockDir = join(homedir(), '.amp-sessions', 'repo-locks');
     // Ensure lock directory exists
     try {
-      const fs = require('fs');
-      fs.mkdirSync(this.lockDir, { recursive: true });
+      mkdirSync(this.lockDir, { recursive: true });
     } catch (error) {
       // Directory might already exist
     }

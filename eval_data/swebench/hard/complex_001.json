@@ -1,0 +1,8 @@
+{
+  "id": "complex#001",
+  "repo": "python/cpython",
+  "bugCommit": "main",
+  "testPath": "Lib/test/test_json.py",
+  "testCommand": "python -m pytest Lib/test/test_json.py::TestEncodeBasicDecimal -v",
+  "prompt": "Fix the JSON encoder to handle Decimal objects correctly when ensure_ascii=False. The encoder should preserve precision and not convert to float. This requires understanding the interaction between the C extension and Python fallback implementations."
+}

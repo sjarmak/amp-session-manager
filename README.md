@@ -22,7 +22,7 @@ A cross-platform desktop app and CLI that turns AI coding sessions into first-cl
 
 ## TL;DR Quick-Start
 
-````bash
+```bash
 # Clone and build from source
 git clone https://github.com/sjarmak/amp-session-manager.git
 cd amp-session-manager
@@ -39,7 +39,7 @@ pnpm install
 
 cd apps/desktop
 pnpm dev
-````
+```
 
 **Note**: You need Git ≥2.38, Node.js ≥18, pnpm ≥8, and authenticated Amp CLI installed first.
 
@@ -75,14 +75,15 @@ pnpm dev
 
 ### Prerequisites
 
-| Tool | Version | Purpose |
-|------|---------|---------|
-| **Node.js** | ≥18.0.0 LTS | Runtime for all components |
-| **pnpm** | ≥8.0.0 | Package manager and workspace orchestration |
-| **Git** | ≥2.38 | Worktree operations and repository management |
-| **Amp CLI** | Latest | AI coding agent integration |
+| Tool        | Version     | Purpose                                       |
+| ----------- | ----------- | --------------------------------------------- |
+| **Node.js** | ≥18.0.0 LTS | Runtime for all components                    |
+| **pnpm**    | ≥8.0.0      | Package manager and workspace orchestration   |
+| **Git**     | ≥2.38       | Worktree operations and repository management |
+| **Amp CLI** | Latest      | AI coding agent integration                   |
 
 **Platform-specific build tools**:
+
 - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
 - **Windows**: Visual Studio Build Tools or Visual Studio with C++ workload
 - **Linux**: `build-essential`, `libssl-dev`, `python3-dev`

@@ -1,0 +1,30 @@
+# Minimal test to debug thread continuation
+version: 1
+name: "Thread Debug Test"
+description: "Simple test to verify thread continuation with logging"
+
+defaults:
+  base_branch: main
+  max_iterations: 2
+  timeout_sec: 180
+  json_logs: true
+  merge_on_pass: false
+
+models:
+  default:
+    name: default
+
+metrics:
+  - success_rate
+
+suites:
+  - id: debug_thread
+    description: "Debug thread continuation behavior"
+    cases:
+      - id: simple_debug
+        repo: octocat/Hello-World
+        base_branch: master
+        prompt: "Create a file called step1.txt with the text 'first step'"
+        follow_up_prompts:
+          - "Create a file called step2.txt with the text 'second step - continuing thread'"
+        script_command: "test -f step1.txt && test -f step2.txt"

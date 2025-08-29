@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amp Session Manager - Remote Benchmarks</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background: #1d2021;
+            color: #ebdbb2;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .card {
+            background: #282828;
+            border: 1px solid #504945;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        input[type="text"], textarea, select {
+            width: 100%;
+            padding: 10px;
+            background: #3c3836;
+            border: 1px solid #504945;
+            border-radius: 4px;
+            color: #ebdbb2;
+            box-sizing: border-box;
+        }
+        button {
+            background: #458588;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #83a598;
+        }
+        button:disabled {
+            background: #665c54;
+            cursor: not-allowed;
+        }
+        .results {
+            background: #32302f;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #504945;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .error {
+            color: #fb4934;
+        }
+        .success {
+            color: #b8bb26;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-running {
+            background: #fabd2f;
+            animation: pulse 2s infinite;
+        }
+        .status-completed {
+            background: #b8bb26;
+        }
+        .status-failed {
+            background: #fb4934;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Amp Session Manager</h1>
+            <h2>Remote Benchmark Runner</h2>
+        </div>
+
+        <div class="card">
+            <h3>Run YAML Benchmark</h3>
+            <form id="benchmarkForm">
+                <div class="form-group">
+                    <label for="configPath">YAML Config Path</label>
+                    <input type="text" id="configPath" placeholder="/path/to/benchmark-config.yaml" required>
+                    <small style="color: #928374;">Enter the full path to your YAML benchmark configuration file</small>
+                </div>
+                
+                <button type="submit" id="runBtn">Start Benchmark</button>
+            </form>
+        </div>
+
+        <div class="card" id="statusCard" style="display: none;">
+            <h3>Benchmark Status</h3>
+            <div id="statusContent">
+                <span class="status-indicator" id="statusIndicator"></span>
+                <span id="statusText">Preparing...</span>
+            </div>
+        </div>
+
+        <div class="card" id="resultsCard" style="display: none;">
+            <h3>Results</h3>
+            <div id="results" class="results"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin + '/api/v1';
+        let currentBenchmarkId = null;
+        let pollInterval = null;
+
+        document.getElementById('benchmarkForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const configPath = document.getElementById('configPath').value.trim();
+            if (!configPath) {
+                alert('Please enter a config path');
+                return;
+            }
+
+            const runBtn = document.getElementById('runBtn');
+            const statusCard = document.getElementById('statusCard');
+            const resultsCard = document.getElementById('resultsCard');
+            
+            runBtn.disabled = true;
+            runBtn.textContent = 'Starting...';
+            statusCard.style.display = 'block';
+            resultsCard.style.display = 'none';
+            
+            updateStatus('running', 'Starting benchmark...');
+
+            try {
+                const token = localStorage.getItem('authToken') || prompt('Enter API token:');
+                if (token) localStorage.setItem('authToken', token);
+
+                const response = await fetch(`${API_BASE}/benchmarks/run`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ configPath })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentBenchmarkId = result.data.id;
+                    updateStatus('running', `Benchmark started (ID: ${result.data.id})`);
+                    startPolling();
+                } else {
+                    throw new Error(result.error || 'Unknown error');
+                }
+
+            } catch (error) {
+                updateStatus('failed', `Error: ${error.message}`);
+                runBtn.disabled = false;
+                runBtn.textContent = 'Start Benchmark';
+            }
+        });
+
+        function updateStatus(status, text) {
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            
+            indicator.className = `status-indicator status-${status}`;
+            statusText.textContent = text;
+        }
+
+        function startPolling() {
+            if (pollInterval) clearInterval(pollInterval);
+            
+            pollInterval = setInterval(async () => {
+                if (!currentBenchmarkId) return;
+                
+                try {
+                    const token = localStorage.getItem('authToken');
+                    const response = await fetch(`${API_BASE}/benchmarks/${currentBenchmarkId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.success && result.data.status !== 'running') {
+                            clearInterval(pollInterval);
+                            updateStatus(result.data.status, `Benchmark ${result.data.status}`);
+                            showResults(result.data);
+                            
+                            const runBtn = document.getElementById('runBtn');
+                            runBtn.disabled = false;
+                            runBtn.textContent = 'Start Benchmark';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Polling error:', error);
+                }
+            }, 3000);
+        }
+
+        function showResults(data) {
+            const resultsCard = document.getElementById('resultsCard');
+            const results = document.getElementById('results');
+            
+            resultsCard.style.display = 'block';
+            results.textContent = JSON.stringify(data, null, 2);
+        }
+    </script>
+</body>
+</html>

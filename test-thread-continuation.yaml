@@ -1,0 +1,31 @@
+# Simple test to verify thread continuation behavior
+version: 1
+name: "Thread Continuation Test"
+description: "Test that follow-up prompts continue the same thread"
+
+defaults:
+  base_branch: main
+  max_iterations: 3
+  timeout_sec: 300
+  json_logs: true
+  merge_on_pass: false
+
+models:
+  default:
+    name: default
+
+metrics:
+  - success_rate
+  - avg_iterations
+
+suites:
+  - id: thread_test
+    description: "Test thread continuation with follow-ups"
+    cases:
+      - id: simple_continuation
+        repo: octocat/Hello-World
+        prompt: "Create a file called test.txt with the text 'initial'"
+        follow_up_prompts:
+          - "Add the text ' - continued' to test.txt"
+          - "Add the text ' - final' to test.txt"
+        script_command: "grep -q 'initial - continued - final' test.txt"

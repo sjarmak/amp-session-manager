@@ -86,7 +86,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   dialog: {
     selectDirectory: () => ipcRenderer.invoke('dialog:selectDirectory') as Promise<Electron.OpenDialogReturnValue>,
-    selectFile: () => ipcRenderer.invoke('dialog:selectFile') as Promise<Electron.OpenDialogReturnValue>
+    selectFile: (options?: { filters?: { name: string; extensions: string[] }[] }) => ipcRenderer.invoke('dialog:selectFile', options) as Promise<Electron.OpenDialogReturnValue>
   },
 
   fs: {

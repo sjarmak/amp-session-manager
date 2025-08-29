@@ -328,7 +328,7 @@ export class AmpAdapter extends EventEmitter {
       // Ensure AMP_API_KEY is available - check shell environment if missing
       if (!env.AMP_API_KEY && process.env.SHELL) {
         try {
-          const { spawn } = await import('child_process');
+
           const result = await new Promise<string>((resolve) => {
             const shell = spawn(process.env.SHELL!, ['-c', 'source ~/.zshrc && echo $AMP_API_KEY'], { 
               stdio: ['pipe', 'pipe', 'pipe'] 
@@ -363,6 +363,7 @@ export class AmpAdapter extends EventEmitter {
       let streamBuffer = '';
       
       // Reset captured thread ID for this run
+      console.log(`🧵 [THREAD RESET] Clearing captured thread ID (was: ${this.capturedThreadId})`);
       this.capturedThreadId = undefined;
       
       // Real-time telemetry tracking
@@ -461,6 +462,7 @@ export class AmpAdapter extends EventEmitter {
         // Check for awaiting input condition
         const awaitingInput = this.detectAwaitingInput(fullOutput);
 
+        console.log(`🧵 [THREAD RETURN] Returning threadId: ${this.capturedThreadId} for session`);
         resolve({
           success: exitCode === 0,
           output: redactedOutput,
@@ -472,6 +474,7 @@ export class AmpAdapter extends EventEmitter {
       
       child.on('error', (error) => {
         const errorOutput = `Failed to spawn amp: ${error.message}`;
+        console.log(`🧵 [THREAD RETURN] Error case - returning threadId: ${this.capturedThreadId}`);
         resolve({
           success: false,
           output: redactSecrets(errorOutput, this.config.env),
@@ -536,7 +539,7 @@ export class AmpAdapter extends EventEmitter {
       // Ensure AMP_API_KEY is available - check shell environment if missing
       if (!env.AMP_API_KEY && process.env.SHELL) {
         try {
-          const { spawn } = await import('child_process');
+
           const result = await new Promise<string>((resolve) => {
             const shell = spawn(process.env.SHELL!, ['-c', 'source ~/.zshrc && echo $AMP_API_KEY'], { 
               stdio: ['pipe', 'pipe', 'pipe'] 
@@ -706,7 +709,7 @@ Please provide a thorough analysis and actionable recommendations.`;
       // Ensure AMP_API_KEY is available - check shell environment if missing
       if (!env.AMP_API_KEY && process.env.SHELL) {
         try {
-          const { spawn } = await import('child_process');
+
           const result = await new Promise<string>((resolve) => {
             const shell = spawn(process.env.SHELL!, ['-c', 'source ~/.zshrc && echo $AMP_API_KEY'], { 
               stdio: ['pipe', 'pipe', 'pipe'] 
@@ -1201,8 +1204,17 @@ Please provide a thorough analysis and actionable recommendations.`;
         // Capture thread ID from system init messages
         if (parsed.subtype === 'init' && (parsed.session_id || parsed.threadId)) {
           const oldThreadId = this.capturedThreadId;
-          this.capturedThreadId = parsed.session_id || parsed.threadId;
-          console.log(`[DEBUG] Captured thread ID from system init: ${oldThreadId} -> ${this.capturedThreadId}`);
+          const newThreadId = parsed.session_id || parsed.threadId;
+          this.capturedThreadId = newThreadId;
+          console.log(`🧵 [THREAD CAPTURE] System init: ${oldThreadId} -> ${newThreadId}`);
+          console.log(`🧵 [THREAD CAPTURE] Full parsed object:`, JSON.stringify(parsed, null, 2));
+        }
+        
+        // Also capture thread ID from any message that has session_id
+        if ((parsed.session_id || parsed.threadId) && !this.capturedThreadId) {
+          const threadId = parsed.session_id || parsed.threadId;
+          this.capturedThreadId = threadId;
+          console.log(`🧵 [THREAD CAPTURE] Fallback capture from ${parsed.type}/${parsed.subtype}: ${threadId}`);
         }
         return {
           type: 'system',
@@ -1857,8 +1869,7 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
   }
 
   async validateThreadExists(threadId: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      const { spawn } = require('child_process');
+    return new Promise(async (resolve) => {
       const child = spawn(this.config.ampPath!, ['threads', 'list'], {
         stdio: ['pipe', 'pipe', 'pipe']
       });

@@ -31,6 +31,8 @@ import { addRepoInfoCommand } from './commands/repo-info.js';
 import { benchCommand } from './commands/bench.js';
 import { threads } from './commands/threads.js';
 import { sweBenchCommand } from './commands/swebench.js';
+import { serverCommand } from './commands/server.js';
+import { benchmarkCommand } from './commands/benchmark.js';
 
 const program = new Command();
 
@@ -270,7 +272,7 @@ addRepoInfoCommand(program);
 // Add SWE-bench command
 program.addCommand(sweBenchCommand);
 
-// Benchmark command
+// Benchmark commands
 program
   .command('bench <suite>')
   .description('Execute benchmark suite')
@@ -280,5 +282,22 @@ program
   .option('--concurrent <n>', 'Number of concurrent executions', parseInt, 1)
   .option('--json', 'Output results as JSON')
   .action(benchCommand);
+
+program
+  .command('benchmark <config>')
+  .description('Run model performance benchmarks from YAML config')
+  .option('--output <file>', 'Output file for results')
+  .option('--format <format>', 'Output format (json|markdown)', 'json')
+  .option('--models <models>', 'Comma-separated list of models to test')
+  .option('--suites <suites>', 'Comma-separated list of suites to run')
+  .action((config, options) => benchmarkCommand({ config, ...options }));
+
+program
+  .command('server')
+  .description('Start HTTP server for remote access')
+  .option('--host <host>', 'Host to bind to (use 0.0.0.0 for remote access)', '127.0.0.1')
+  .option('--port <port>', 'Port to listen on', parseInt, 7760)
+  .option('--no-cors', 'Disable CORS middleware')
+  .action((options) => serverCommand({ ...options, cors: !options.noCors }));
 
 program.parse();

@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import { randomUUID } from 'crypto';
+import { cpus } from 'os';
 import type { SweBenchCase, SweBenchRun, SweBenchCaseResult, Session } from '@ampsm/types';
 import { SessionStore } from './store.js';
 import { WorktreeManager } from './worktree.js';
@@ -53,7 +54,7 @@ export class SweBenchRunner extends EventEmitter {
       // Mark as running
       this.runningProcesses.set(runId, true);
 
-      const parallel = options.parallel || Math.max(1, require('os').cpus().length - 1);
+      const parallel = options.parallel || Math.max(1, cpus().length - 1);
       const maxIterations = options.maxIterations || 10;
       const timeoutSec = options.timeoutSec || 300;
 

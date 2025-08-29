@@ -1,0 +1,9 @@
+{
+  "id": "simple#001",
+  "repo": "octocat/Hello-World", 
+  "bugCommit": "master",
+  "fixCommit": "master",
+  "testPath": "test_hello.py",
+  "testCommand": "python test_hello.py",
+  "prompt": "Create a simple test file test_hello.py that prints 'Hello World' and make it pass."
+}
