@@ -1,6 +1,6 @@
 # Amp Session Orchestrator
 
-[![CI Status](https://github.com/sjarmak/amp-session-manager/workflows/ci/badge.svg)](https://github.com/sjarmak/amp-session-manager/actions) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A cross-platform desktop app and CLI that turns AI coding sessions into first-class, reviewable Git branches. Create isolated sessions, chat with Amp interactively, track real-time metrics, and merge changes cleanly to your main branch.
 
