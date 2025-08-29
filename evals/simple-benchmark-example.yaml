@@ -1,0 +1,65 @@
+version: 1
+name: "Simple Benchmark Example"
+description: >
+  A minimal benchmark with basic tasks to demonstrate YAML configuration.
+  Perfect starting point for new benchmark definitions.
+
+###############################################################################
+# DEFAULTS
+###############################################################################
+defaults:
+  base_branch: main
+  parallel: 2
+  max_iterations: 5
+  timeout_sec: 300          # 5 min per case
+  json_logs: true
+  merge_on_pass: false      # don't merge - just measure
+
+###############################################################################
+# SINGLE MODEL CONFIG
+###############################################################################
+models:
+  default:
+    name: default
+
+###############################################################################
+# METRICS TO TRACK
+###############################################################################
+metrics:
+  - success_rate
+  - avg_iterations
+  - avg_total_tokens
+  - total_runtime_sec
+
+###############################################################################
+# TEST SUITES
+###############################################################################
+suites:
+  - id: basic_tasks
+    description: "Basic file operations and simple code changes"
+    cases:
+      - id: create_hello_py
+        repo: /Users/sjarmak/test-project
+        prompt: |
+          Create a hello_world.py file that:
+          1. Prints "Hello World from Default!"
+          2. Has a main function
+          3. Can be executed with python3
+        script_command: "test -f hello_world.py && python3 hello_world.py"
+
+      - id: create_simple_script
+        repo: /Users/sjarmak/test-project
+        prompt: |
+          Create a simple.py file that prints your name and the current date.
+          Make it executable and well-structured.
+        script_command: "test -f simple.py && python3 simple.py"
+
+  - id: code_tasks
+    description: "Simple coding tasks"
+    cases:
+      - id: math_calculator
+        repo: /Users/sjarmak/test-project
+        prompt: |
+          Create a calculator.py file with functions for add, subtract, multiply, divide.
+          Include a simple test that shows the functions work correctly.
+        script_command: "test -f calculator.py && python3 calculator.py"

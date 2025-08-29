@@ -31,7 +31,7 @@ import { addRepoInfoCommand } from './commands/repo-info.js';
 import { benchCommand } from './commands/bench.js';
 import { threads } from './commands/threads.js';
 import { sweBenchCommand } from './commands/swebench.js';
-import { serverCommand } from './commands/server.js';
+
 import { benchmarkCommand } from './commands/benchmark.js';
 
 const program = new Command();
@@ -300,12 +300,6 @@ program
   .option('--suites <suites>', 'Comma-separated list of suites to run')
   .action((config, options) => benchmarkCommand({ config, ...options }));
 
-program
-  .command('server')
-  .description('Start HTTP server for remote access')
-  .option('--host <host>', 'Host to bind to (use 0.0.0.0 for remote access)', '127.0.0.1')
-  .option('--port <port>', 'Port to listen on', parseInt, 7760)
-  .option('--no-cors', 'Disable CORS middleware')
-  .action((options) => serverCommand({ ...options, cors: !options.noCors }));
+
 
 program.parse();

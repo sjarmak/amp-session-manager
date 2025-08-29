@@ -255,6 +255,45 @@ export class SQLiteMetricsSink implements MetricsSink {
             });
           }
           break;
+        case 'streaming_tool_finish':
+          // Handle streaming tool finish events
+          if ((event as any).data?.tool) {
+            // Update existing tool call with finish data
+            this.handleToolCall({
+              type: 'tool_call',
+              iterationId: (event as any).iterationId || 'unknown',
+              sessionId: (event as any).sessionId || (event as any).data?.sessionId,
+              timestamp: (event as any).timestamp || new Date().toISOString(),
+              data: {
+                toolName: (event as any).data.tool,
+                args: {},
+                startTime: (event as any).timestamp || new Date().toISOString(),
+                endTime: (event as any).timestamp || new Date().toISOString(),
+                success: (event as any).data.success !== false,
+                durationMs: (event as any).data.duration || 0
+              }
+            });
+          }
+          break;
+        case 'streaming_token_usage':
+          // Convert streaming token usage to regular LLM usage format
+          if ((event as any).data?.tokens) {
+            this.handleLLMUsage({
+              type: 'llm_usage',
+              iterationId: (event as any).iterationId || 'unknown',
+              sessionId: (event as any).sessionId || (event as any).data?.sessionId,
+              timestamp: (event as any).timestamp || new Date().toISOString(),
+              data: {
+                model: (event as any).data.model || 'amp',
+                promptTokens: (event as any).data.tokens.prompt || 0,
+                completionTokens: (event as any).data.tokens.completion || 0,
+                totalTokens: (event as any).data.tokens.total || 0,
+                costUsd: 0, // Cost calculation would need to be added
+                latencyMs: 0 // Not available in streaming events
+              }
+            });
+          }
+          break;
         default:
           this.logger.warn(`Unknown metric event type: ${(event as any).type}`);
       }

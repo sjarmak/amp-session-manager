@@ -44,6 +44,77 @@ export class SessionStore {
     }
   }
 
+  private migrateAmpPromptNullable(): void {
+    // Check if ampPrompt column is already nullable
+    const columns = this.db.prepare(`PRAGMA table_info(sessions)`).all() as Array<{
+      cid: number;
+      name: string;
+      type: string;
+      notnull: number;
+      dflt_value: string | null;
+      pk: number;
+    }>;
+    const ampPromptCol = columns.find(c => c.name === 'ampPrompt');
+    
+    // If ampPrompt is already nullable (notnull = 0), migration already completed
+    if (ampPromptCol && ampPromptCol.notnull === 0) {
+      return;
+    }
+
+    try {
+      // SQLite doesn't support modifying column constraints directly
+      // We need to recreate the table with the new schema
+      this.db.exec(`
+        BEGIN TRANSACTION;
+        
+        -- Create new table with nullable ampPrompt
+        CREATE TABLE sessions_new (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          ampPrompt TEXT,
+          followUpPrompts TEXT,
+          repoRoot TEXT NOT NULL,
+          baseBranch TEXT NOT NULL,
+          branchName TEXT NOT NULL,
+          worktreePath TEXT NOT NULL,
+          status TEXT NOT NULL,
+          scriptCommand TEXT,
+          modelOverride TEXT,
+          threadId TEXT,
+          createdAt TEXT NOT NULL,
+          lastRun TEXT,
+          notes TEXT,
+          contextIncluded BOOLEAN,
+          mode TEXT DEFAULT 'async',
+          autoCommit BOOLEAN DEFAULT 0
+        );
+        
+        -- Copy existing data
+        INSERT INTO sessions_new SELECT 
+          id, name, ampPrompt, followUpPrompts, repoRoot, baseBranch, branchName, 
+          worktreePath, status, scriptCommand, modelOverride, threadId, createdAt, 
+          lastRun, notes, contextIncluded, mode,
+          COALESCE(autoCommit, 0) as autoCommit
+        FROM sessions;
+        
+        -- Drop old table and rename new one
+        DROP TABLE sessions;
+        ALTER TABLE sessions_new RENAME TO sessions;
+        
+        COMMIT;
+      `);
+    } catch (error) {
+      // Migration failed, rollback and ignore
+      try {
+        this.db.exec('ROLLBACK;');
+      } catch (rollbackError) {
+        // Ignore rollback error
+      }
+      // Re-throw the original error for debugging
+      console.error('AmpPrompt nullable migration failed:', error);
+    }
+  }
+
   private initTables() {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS sessions (
@@ -212,56 +283,7 @@ export class SessionStore {
     this.addColumn('sessions', 'autoCommit', 'BOOLEAN DEFAULT 1');
     
     // Migration: Make ampPrompt nullable for interactive sessions
-    try {
-      // SQLite doesn't support modifying column constraints directly
-      // We need to recreate the table with the new schema
-      this.db.exec(`
-        BEGIN TRANSACTION;
-        
-        -- Create new table with nullable ampPrompt
-        CREATE TABLE sessions_new (
-          id TEXT PRIMARY KEY,
-          name TEXT NOT NULL,
-          ampPrompt TEXT,
-          followUpPrompts TEXT,
-          repoRoot TEXT NOT NULL,
-          baseBranch TEXT NOT NULL,
-          branchName TEXT NOT NULL,
-          worktreePath TEXT NOT NULL,
-          status TEXT NOT NULL,
-          scriptCommand TEXT,
-          modelOverride TEXT,
-          threadId TEXT,
-          createdAt TEXT NOT NULL,
-          lastRun TEXT,
-          notes TEXT,
-          contextIncluded BOOLEAN,
-          mode TEXT DEFAULT 'async',
-          autoCommit BOOLEAN DEFAULT 0
-        );
-        
-        -- Copy existing data
-        INSERT INTO sessions_new SELECT 
-          id, name, ampPrompt, followUpPrompts, repoRoot, baseBranch, branchName, 
-          worktreePath, status, scriptCommand, modelOverride, threadId, createdAt, 
-          lastRun, notes, contextIncluded, mode,
-          COALESCE(autoCommit, 0) as autoCommit
-        FROM sessions;
-        
-        -- Drop old table and rename new one
-        DROP TABLE sessions;
-        ALTER TABLE sessions_new RENAME TO sessions;
-        
-        COMMIT;
-      `);
-    } catch (error) {
-      // Migration already applied or failed, rollback and ignore
-      try {
-        this.db.exec('ROLLBACK;');
-      } catch (rollbackError) {
-        // Ignore rollback error
-      }
-    }
+    this.migrateAmpPromptNullable();
     
     // Add indexes for thread relationship tables
     this.db.exec(`
@@ -845,31 +867,59 @@ export class SessionStore {
       throw new Error(`Session ${sessionId} not found`);
     }
 
-    // Get all iterations for this session
-    const iterations = this.getIterations(sessionId);
+    // For interactive sessions, get minimal iteration data (or none if truly interactive)
+    let iterations: any[] = [];
+    let toolCalls: any[] = [];
     
-    // Get all tool calls for this session
-    const toolCalls = this.getToolCalls(sessionId);
+    // Only include legacy iteration data for non-interactive sessions
+    if (session.mode !== 'interactive') {
+      iterations = this.getIterations(sessionId);
+      toolCalls = this.getToolCalls(sessionId);
+    }
     
     // Get merge history
     const mergeHistoryStmt = this.db.prepare('SELECT * FROM merge_history WHERE sessionId = ? ORDER BY startedAt DESC');
     const mergeHistory = mergeHistoryStmt.all(sessionId);
 
-    // Check if this session is part of a batch run
-    const batchItemStmt = this.db.prepare('SELECT * FROM batch_items WHERE sessionId = ?');
-    const batchItem = batchItemStmt.get(sessionId) as BatchItem | undefined;
+    // Get threads for this session
+    let threads: any[] = [];
+    let threadMessages: Record<string, any[]> = {};
     
-    let batchInfo = null;
-    if (batchItem) {
-      const batch = this.getBatch(batchItem.runId);
-      batchInfo = {
-        runId: batchItem.runId,
-        batchDefaults: batch ? JSON.parse(batch.defaultsJson) : null,
-        batchItem
-      };
+    try {
+      // Get all threads for this session using the session store method
+      const threadsResult = this.getSessionThreads(sessionId);
+      if (threadsResult && threadsResult.length > 0) {
+        // Filter and sort threads like the UI does
+        const validThreads = threadsResult.filter((thread: any) => {
+          const isValidId = thread.id.startsWith('T-');
+          const isNotChatName = !thread.name.startsWith('Chat ');
+          const hasMessages = thread.messageCount > 0;
+          return isValidId && (isNotChatName || hasMessages);
+        });
+        
+        threads = validThreads.sort((a: any, b: any) => 
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+        
+        // Get messages for each thread if conversation is requested
+        if (includeConversation) {
+          for (const thread of threads) {
+            try {
+              const messages = this.getThreadMessages(thread.id);
+              if (messages && messages.length > 0) {
+                threadMessages[thread.id] = messages;
+              }
+            } catch (error) {
+              console.warn(`Could not load messages for thread ${thread.id}:`, error);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(`Could not load threads for session ${sessionId}:`, error);
     }
 
-    // Get thread conversation if available and requested
+    // Get thread conversation for main thread if available and requested
     let conversation = null;
     if (includeConversation && session.threadId) {
       try {
@@ -883,6 +933,77 @@ export class SessionStore {
         console.warn(`Could not load conversation for session ${sessionId}, skipping conversation history:`, error instanceof Error ? error.message : String(error));
         conversation = { error: 'Failed to load conversation due to database schema incompatibility' };
       }
+    }
+
+    // Get git information from the worktree if it exists
+    let gitInfo = null;
+    if (session.worktreePath) {
+      try {
+        const { execSync } = await import('child_process');
+        const cwd = session.worktreePath;
+        
+        // Get current branch
+        const currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd, encoding: 'utf8' }).trim();
+        
+        // Get commit count on this branch compared to base
+        let commitCount = 0;
+        try {
+          const commits = execSync(`git rev-list --count ${session.baseBranch}..HEAD`, { cwd, encoding: 'utf8' }).trim();
+          commitCount = parseInt(commits) || 0;
+        } catch {
+          // Branch might not have commits yet
+        }
+        
+        // Get latest commit info
+        let latestCommit = null;
+        try {
+          const commitInfo = execSync('git log -1 --format="%H|%s|%an|%ad" --date=iso', { cwd, encoding: 'utf8' }).trim();
+          const [sha, message, author, date] = commitInfo.split('|');
+          latestCommit = { sha, message, author, date };
+        } catch {
+          // No commits yet
+        }
+        
+        // Get file status
+        let fileStats = { modified: 0, added: 0, deleted: 0 };
+        try {
+          const status = execSync('git diff --name-status HEAD~1 2>/dev/null || git diff --name-status --cached', { cwd, encoding: 'utf8' }).trim();
+          if (status) {
+            const lines = status.split('\n');
+            for (const line of lines) {
+              const [status] = line.split('\t');
+              if (status === 'M') fileStats.modified++;
+              else if (status === 'A') fileStats.added++;
+              else if (status === 'D') fileStats.deleted++;
+            }
+          }
+        } catch {
+          // No changes to analyze
+        }
+        
+        gitInfo = {
+          currentBranch,
+          commitCount,
+          latestCommit,
+          fileStats
+        };
+      } catch (error) {
+        console.warn(`Could not get git info for session ${sessionId}:`, error);
+      }
+    }
+
+    // Check if this session is part of a batch run
+    const batchItemStmt = this.db.prepare('SELECT * FROM batch_items WHERE sessionId = ?');
+    const batchItem = batchItemStmt.get(sessionId) as BatchItem | undefined;
+    
+    let batchInfo = null;
+    if (batchItem) {
+      const batch = this.getBatch(batchItem.runId);
+      batchInfo = {
+        runId: batchItem.runId,
+        batchDefaults: batch ? JSON.parse(batch.defaultsJson) : null,
+        batchItem
+      };
     }
 
     // Calculate aggregate metrics - use metrics API if available for more accurate data
@@ -934,8 +1055,14 @@ export class SessionStore {
 
     return {
       session,
-      iterations,
-      toolCalls,
+      // Keep iterations for backward compatibility but mark as deprecated for interactive sessions
+      iterations: session.mode === 'interactive' ? [] : iterations,
+      toolCalls: session.mode === 'interactive' ? [] : toolCalls,
+      // New thread-based data structure for interactive sessions
+      threads,
+      threadMessages: includeConversation ? threadMessages : {},
+      // Git information
+      gitInfo,
       mergeHistory,
       batchInfo,
       conversation,
@@ -1028,8 +1155,11 @@ export class SessionStore {
   }
 
   getSweBenchCaseResults(runId: string): SweBenchCaseResult[] {
+    console.log('🔍 Store: Getting SWE-bench case results for runId:', runId);
     const stmt = this.db.prepare('SELECT * FROM swebench_case_results WHERE runId = ? ORDER BY caseId ASC');
-    return stmt.all(runId) as SweBenchCaseResult[];
+    const results = stmt.all(runId) as SweBenchCaseResult[];
+    console.log('🔍 Store: Found', results.length, 'case results:', results);
+    return results;
   }
 
   deleteSweBenchRun(id: string): void {

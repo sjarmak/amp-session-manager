@@ -13,15 +13,19 @@ export function BackgroundBenchmarkBanner() {
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
+    let eventHandler: any = null;
 
     const loadRunningBenchmarks = async () => {
       try {
         const runs = await window.electronAPI.benchmarks.listRuns();
+        console.log('🔍 BackgroundBenchmarkBanner: All runs:', runs);
         const running = runs.filter((run: any) => run.status === 'running');
+        console.log('🔍 BackgroundBenchmarkBanner: Running benchmarks:', running);
         setRunningBenchmarks(running);
         
         // Reset dismissed state when new benchmarks start
         if (running.length > 0) {
+          console.log('🔍 BackgroundBenchmarkBanner: Found running benchmarks, resetting dismissed state');
           setIsDismissed(false);
         }
 
@@ -40,6 +44,7 @@ export function BackgroundBenchmarkBanner() {
     loadRunningBenchmarks();
 
     const handleBenchmarkEvent = (event: any) => {
+      console.log('🔄 BackgroundBenchmarkBanner: Got benchmark event:', event);
       if (event.type === 'run-started') {
         loadRunningBenchmarks();
       } else if (event.type === 'run-finished' || event.type === 'run-aborted') {
@@ -55,10 +60,12 @@ export function BackgroundBenchmarkBanner() {
       }
     };
 
-    window.electronAPI.benchmarks.onEvent(handleBenchmarkEvent);
+    eventHandler = window.electronAPI.benchmarks.onEvent(handleBenchmarkEvent);
     return () => {
       if (interval) clearInterval(interval);
-      window.electronAPI.benchmarks.offEvent(handleBenchmarkEvent);
+      if (eventHandler) {
+        window.electronAPI.benchmarks.offEvent(eventHandler);
+      }
     };
   }, []);
 
@@ -72,43 +79,32 @@ export function BackgroundBenchmarkBanner() {
   const completedCases = runningBenchmarks.reduce((sum, benchmark) => sum + (benchmark.completedCases || 0), 0);
 
   return (
-    <div className="fixed top-0 left-0 right-0 bg-gradient-to-r from-gruvbox-purple to-gruvbox-bright-purple text-gruvbox-bg0 px-6 py-4 shadow-lg border-b border-gruvbox-bright-purple/30 z-[59]">
+    <div className="fixed top-[2.5rem] left-0 right-0 bg-gradient-to-r from-gruvbox-purple/80 to-gruvbox-bright-purple/80 backdrop-blur-sm text-gruvbox-bg0 px-4 py-2 shadow-lg border-b border-gruvbox-bright-purple/30 z-[60]">
       <div className="flex items-center justify-between max-w-6xl mx-auto">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-gruvbox-bg0 rounded-full animate-pulse"></div>
-            <span className="font-semibold text-lg">
-              {totalBenchmarks} Benchmark{totalBenchmarks > 1 ? 's' : ''} Running in Background
+            <div className="w-2 h-2 bg-gruvbox-bg0 rounded-full animate-pulse"></div>
+            <span className="font-semibold text-base">
+              {totalBenchmarks} Benchmark{totalBenchmarks > 1 ? 's' : ''} Running
             </span>
           </div>
           
-          <div className="h-6 w-px bg-gruvbox-bg0/30"></div>
+          <div className="h-4 w-px bg-gruvbox-bg0/30"></div>
           
-          <div className="text-sm opacity-90">
-            Progress: {completedCases}/{totalCases} cases completed
+          <div className="text-xs opacity-90">
+            {completedCases}/{totalCases} completed
           </div>
         </div>
         
-        <div className="flex items-center gap-4">
-          <div className="bg-gruvbox-bg0/20 px-4 py-2 rounded-lg border border-gruvbox-bg0/30">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Safe to close window - processes continue running
-            </div>
-          </div>
-          
-          <button
-            onClick={() => setIsDismissed(true)}
-            className="p-2 hover:bg-gruvbox-bg0/20 rounded transition-colors"
-            title="Dismiss notification"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        <button
+          onClick={() => setIsDismissed(true)}
+          className="p-1 hover:bg-gruvbox-bg0/20 rounded transition-colors"
+          title="Dismiss notification"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
     </div>
   );

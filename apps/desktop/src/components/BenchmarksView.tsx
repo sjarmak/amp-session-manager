@@ -60,6 +60,8 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
     loadRuns();
 
     // Set up event listeners for real-time updates
+    let eventHandler: any = null;
+
     const handleBenchmarkEvent = (event: any) => {
       if (['run-started', 'run-finished', 'run-aborted'].includes(event.type)) {
         loadRuns();
@@ -73,10 +75,10 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
     };
 
     if (window.electronAPI?.benchmarks?.onEvent) {
-      window.electronAPI.benchmarks.onEvent(handleBenchmarkEvent);
+      eventHandler = window.electronAPI.benchmarks.onEvent(handleBenchmarkEvent);
       return () => {
-        if (window.electronAPI?.benchmarks?.offEvent) {
-          window.electronAPI.benchmarks.offEvent(handleBenchmarkEvent);
+        if (eventHandler && window.electronAPI?.benchmarks?.offEvent) {
+          window.electronAPI.benchmarks.offEvent(eventHandler);
         }
       };
     }
@@ -206,13 +208,10 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
                   <th className="w-36 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Created
                   </th>
-                  <th className="w-20 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="w-32 px-2 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                  <th className="w-48 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Source
                   </th>
-                  <th className="w-16 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                  <th className="w-24 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Total Cases
                   </th>
                   <th className="w-24 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
@@ -239,18 +238,11 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
                       </button>
                     </td>
                     <td className="px-3 py-4 text-sm text-gruvbox-fg1">
-                      <div className="truncate" title={formatDate(run.createdAt)}>
-                        {formatDate(run.createdAt)}
-                      </div>
+                    <div className="truncate" title={formatDate(run.createdAt)}>
+                    {formatDate(run.createdAt)}
+                    </div>
                     </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
-                      <span className={`inline-flex px-1 py-1 text-xs font-semibold rounded-full ${
-                        run.type === 'swebench' ? 'bg-gruvbox-purple/20 text-gruvbox-bright-purple' : 'bg-gruvbox-blue/20 text-gruvbox-bright-blue'
-                      }`}>
-                        {run.type === 'swebench' ? 'SWE' : 'Custom'}
-                      </span>
-                    </td>
-                    <td className="px-2 py-4 text-sm text-gruvbox-fg2">
+                    <td className="px-3 py-4 text-sm text-gruvbox-fg2">
                       {run.casesDir ? (
                         <div className="flex items-center gap-1">
                           <Tooltip content={run.casesDir}>

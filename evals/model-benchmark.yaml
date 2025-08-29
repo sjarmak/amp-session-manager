@@ -35,12 +35,8 @@ models:
 ###############################################################################
 metrics:
   - success_rate            # passed / total
-  - avg_iterations
-  - avg_prompt_tokens
-  - avg_completion_tokens
-  - avg_total_tokens
-  - total_cost_usd
-  - total_runtime_sec
+  - avg_iterations          # average iterations per case
+  - total_runtime_sec       # total wall clock time
 
 ###############################################################################
 # EVALUATION SUITES

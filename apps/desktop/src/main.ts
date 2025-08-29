@@ -196,9 +196,11 @@ async function initializeServices() {
     batchController.on('run-aborted', forward('run-aborted'));
 
     // Forward benchmark events to frontend
-    const forwardBenchmark = (type: string) => (payload: any) =>
-      mainWindow && !mainWindow.isDestroyed() &&
-      mainWindow.webContents.send('benchmark-event', { type, ...payload });
+    const forwardBenchmark = (type: string) => (payload: any) => {
+      console.log(`🔄 Main: Forwarding benchmark event ${type}:`, payload);
+      return mainWindow && !mainWindow.isDestroyed() &&
+        mainWindow.webContents.send('benchmark-event', { type, ...payload });
+    };
 
     sweBenchRunner.on('run-started', forwardBenchmark('run-started'));
     sweBenchRunner.on('run-updated', forwardBenchmark('run-updated'));
@@ -207,6 +209,7 @@ async function initializeServices() {
     
     benchmarkRunner.on('benchmark-started', forwardBenchmark('run-started'));
     benchmarkRunner.on('benchmark-finished', forwardBenchmark('run-finished'));
+    benchmarkRunner.on('case-finished', forwardBenchmark('case-finished'));
 
     servicesReady = true;
     console.log('Services initialized successfully');

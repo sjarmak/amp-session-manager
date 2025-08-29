@@ -26,21 +26,29 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
     loadRunDetails();
 
     // Set up event listeners for real-time updates
+    let eventHandler: any = null;
+
     const handleBenchmarkEvent = (event: any) => {
+      console.log('🔄 BenchmarkRunDetail: Got benchmark event:', event);
       if (event.runId === runId) {
         if (['run-finished', 'run-aborted'].includes(event.type)) {
+          console.log('🔄 BenchmarkRunDetail: Benchmark finished/aborted, reloading details');
+          loadRunDetails();
+        } else if (event.type === 'case-finished') {
+          console.log('🔄 BenchmarkRunDetail: Case finished, reloading results');
           loadRunDetails();
         } else if (event.type === 'run-updated' && event.run) {
+          console.log('🔄 BenchmarkRunDetail: Benchmark updated, updating run state');
           setRun((prevRun: any) => prevRun ? { ...prevRun, ...event.run } : prevRun);
         }
       }
     };
 
     if (window.electronAPI?.benchmarks?.onEvent) {
-      window.electronAPI.benchmarks.onEvent(handleBenchmarkEvent);
+      eventHandler = window.electronAPI.benchmarks.onEvent(handleBenchmarkEvent);
       return () => {
-        if (window.electronAPI?.benchmarks?.offEvent) {
-          window.electronAPI.benchmarks.offEvent(handleBenchmarkEvent);
+        if (eventHandler && window.electronAPI?.benchmarks?.offEvent) {
+          window.electronAPI.benchmarks.offEvent(eventHandler);
         }
       };
     }
@@ -56,8 +64,18 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
       ]);
       console.log('🔍 BenchmarkRunDetail: Got runData:', runData);
       console.log('🔍 BenchmarkRunDetail: Got resultsData:', resultsData);
+      console.log('🔍 BenchmarkRunDetail: Results array length:', resultsData?.length);
+      console.log('🔍 BenchmarkRunDetail: Type of resultsData:', typeof resultsData);
+      console.log('🔍 BenchmarkRunDetail: Is resultsData array?', Array.isArray(resultsData));
+      
       setRun(runData);
-      setResults(resultsData);
+      if (Array.isArray(resultsData)) {
+        console.log('🔍 BenchmarkRunDetail: Setting results array with length:', resultsData.length);
+        setResults(resultsData);
+      } else {
+        console.log('❌ BenchmarkRunDetail: resultsData is not an array, setting empty array');
+        setResults([]);
+      }
     } catch (error) {
       console.error('❌ BenchmarkRunDetail: Failed to load benchmark run details:', error);
     } finally {

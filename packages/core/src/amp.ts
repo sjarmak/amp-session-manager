@@ -1411,6 +1411,7 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
   private autoCommit?: boolean;
   private isInteractive: boolean = true;
   private metricsEventBus?: any;
+  private metricsCleanup?: () => void;
 
   constructor(
     sessionId: string,
@@ -1580,6 +1581,18 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
       this.processStreamingJSON(chunk, store, telemetryParser);
     });
 
+    // Connect metrics event bus to capture token usage and tool calls from streaming events
+    if (this.metricsEventBus) {
+      try {
+        // Create a temporary iteration ID for metrics tracking
+        const iterationId = `interactive-${Date.now()}`;
+        this.metricsCleanup = this.metricsEventBus.connectToAmpAdapter(this, this.sessionId, iterationId);
+        console.log(`[METRICS] Connected interactive session ${this.sessionId} to metrics tracking with iteration ${iterationId}`);
+      } catch (error) {
+        console.warn('Failed to connect interactive session to metrics:', error);
+      }
+    }
+
     this.child.stderr?.on('data', (data: Buffer) => {
       const chunk = data.toString();
       stderrBuffer += chunk;
@@ -1627,6 +1640,12 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
       
       this.emit('state', this.state);
       
+      // Clean up metrics connection
+      if (this.metricsCleanup) {
+        this.metricsCleanup();
+        console.log(`[METRICS] Cleaned up metrics connection for interactive session ${this.sessionId}`);
+      }
+      
       // Clean up JSON buffer
       this.jsonBuffer = '';
     });
@@ -1634,6 +1653,13 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
     this.child.on('error', (error: Error) => {
       console.error('Interactive amp process error:', error);
       this.state = 'error';
+      
+      // Clean up metrics connection on error
+      if (this.metricsCleanup) {
+        this.metricsCleanup();
+        console.log(`[METRICS] Cleaned up metrics connection for interactive session ${this.sessionId} due to error`);
+      }
+      
       this.emit('error', error);
     });
   }
@@ -1719,6 +1745,70 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
 
     switch (parsed.type) {
       case 'assistant':
+        // For assistant messages, we want to emit both the message event AND the token usage event
+        // First, emit token usage if present
+        if (parsed.message?.usage) {
+          const usage = parsed.message.usage;
+          // Emit token usage event for metrics
+          setImmediate(() => {
+            const tokenEvent = {
+              type: 'token_usage',
+              timestamp: ts,
+              data: {
+                tokens: {
+                  prompt: usage.input_tokens || usage.promptTokens || 0,
+                  completion: usage.output_tokens || usage.completionTokens || 0,
+                  total: (usage.input_tokens || 0) + (usage.output_tokens || 0) || usage.totalTokens || 0
+                },
+                model: parsed.message.model || 'amp',
+                sessionId: parsed.session_id
+              }
+            };
+            console.log(`[METRICS] Emitting token usage event:`, tokenEvent);
+            this.emit('streaming-event', tokenEvent);
+          });
+        }
+
+        // Also emit tool usage events if the message contains tool_use
+        if (parsed.message?.content && Array.isArray(parsed.message.content)) {
+          for (const contentItem of parsed.message.content) {
+            if (contentItem.type === 'tool_use') {
+              // Emit tool_start event
+              setImmediate(() => {
+                const toolStartEvent = {
+                  type: 'tool_start',
+                  timestamp: ts,
+                  data: {
+                    tool: contentItem.name,
+                    args: contentItem.input || {},
+                    sessionId: parsed.session_id
+                  }
+                };
+                console.log(`[METRICS] Emitting tool start event:`, toolStartEvent);
+                this.emit('streaming-event', toolStartEvent);
+              });
+
+              // For now, emit a corresponding tool_finish event (successful completion)
+              // In the future, this could be enhanced to track actual tool execution results
+              setImmediate(() => {
+                const toolFinishEvent = {
+                  type: 'tool_finish',
+                  timestamp: ts,
+                  data: {
+                    tool: contentItem.name,
+                    duration: 1000, // Default duration since we don't track tool execution time
+                    success: true, // Assume success for now
+                    sessionId: parsed.session_id
+                  }
+                };
+                console.log(`[METRICS] Emitting tool finish event:`, toolFinishEvent);
+                this.emit('streaming-event', toolFinishEvent);
+              });
+            }
+          }
+        }
+
+        // Return the original assistant message event
         return {
           type: 'assistant_message',
           timestamp: ts,
@@ -1910,6 +2000,13 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
     return new Promise((resolve) => {
       this.child.on('close', () => {
         this.state = 'closed';
+        
+        // Clean up metrics connection
+        if (this.metricsCleanup) {
+          this.metricsCleanup();
+          console.log(`[METRICS] Cleaned up metrics connection for interactive session ${this.sessionId} on stop`);
+        }
+        
         this.emit('state', this.state);
         resolve();
       });

@@ -13,12 +13,7 @@
     "migrate": "node scripts/run-migration.js",
     "migrate:test": "node scripts/run-migration.js --test",
     "migrate:dry-run": "node scripts/run-migration.js --dry-run",
-    "server": "pnpm --filter @ampsm/server start",
-    "server:dev": "pnpm --filter @ampsm/server dev",
-    "mobile": "pnpm --filter @ampsm/mobile dev",
-    "mobile:build": "pnpm --filter @ampsm/mobile build",
-    "start:local": "concurrently \"pnpm server\" \"pnpm mobile\"",
-    "start:local:lan": "concurrently \"cd packages/server && pnpm dev --lan\" \"pnpm mobile\""
+    "postinstall": "cd node_modules/electron && node install.js"
   },
   "dependencies": {
     "better-sqlite3": "12.2.0",
@@ -47,6 +42,10 @@
       "react-dom": "18.3.1",
       "typescript": "5.9.2",
       "better-sqlite3": "12.2.0"
-    }
+    },
+    "ignoredBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild"
+    ]
   }
 }

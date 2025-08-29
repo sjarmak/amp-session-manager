@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "main": "dist/main.js",
   "scripts": {
-    "rebuild:native": "cd ../../node_modules/.pnpm/better-sqlite3@12.2.0/node_modules/better-sqlite3 && npm run build-release -- --runtime=electron --target=32.0.0 --dist-url=https://electronjs.org/headers && mkdir -p ../../../../../../apps/desktop/lib/binding/node-v127-darwin-arm64 && cp build/Release/better_sqlite3.node ../../../../../../apps/desktop/lib/binding/node-v127-darwin-arm64/ || echo 'Native module already built'",
+    "rebuild:native": "npx electron-rebuild --force --only better-sqlite3 || echo 'Electron rebuild completed with warnings'",
     "dev": "pnpm rebuild:native && tsc && concurrently \"vite\" \"env -u ELECTRON_RUN_AS_NODE pnpm exec electron dist/main.js\"",
     "build": "pnpm rebuild:native && node build-preload.js && tsc && vite build",
     "preview": "vite preview",

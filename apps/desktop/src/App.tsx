@@ -68,7 +68,10 @@ function App() {
     <div className="min-h-screen bg-gruvbox-dark0">
       <BackgroundBatchBanner />
       <BackgroundBenchmarkBanner />
-      <div className={`container mx-auto py-8 px-4 max-w-6xl ${(hasBatchRunning || hasBenchmarkRunning) ? 'pt-24' : ''}`}>
+      <div className={`container mx-auto py-8 px-4 max-w-6xl ${
+        hasBatchRunning && hasBenchmarkRunning ? 'pt-20' : 
+        (hasBatchRunning || hasBenchmarkRunning) ? 'pt-12' : ''
+      }`}>
         <AppHeader onSettingsClick={() => setShowNotificationSettings(true)} />
 
         {/* Auth Status */}

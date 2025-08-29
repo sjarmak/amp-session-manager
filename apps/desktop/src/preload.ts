@@ -142,10 +142,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     abort: (runId: string) => ipcRenderer.invoke('benchmarks:abort', runId),
     delete: (runId: string) => ipcRenderer.invoke('benchmarks:delete', runId),
     onEvent: (callback: (event: any) => void) => {
-      ipcRenderer.on('benchmark-event', (_, event) => callback(event));
+      const handler = (_: any, event: any) => callback(event);
+      ipcRenderer.on('benchmark-event', handler);
+      return handler;
     },
-    offEvent: (callback: (event: any) => void) => {
-      ipcRenderer.removeListener('benchmark-event', callback);
+    offEvent: (handler?: any) => {
+      if (handler) {
+        ipcRenderer.removeListener('benchmark-event', handler);
+      } else {
+        ipcRenderer.removeAllListeners('benchmark-event');
+      }
     }
   },
 

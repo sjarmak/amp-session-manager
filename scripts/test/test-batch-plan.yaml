@@ -1,16 +1,28 @@
 concurrency: 3
 defaults:
   baseBranch: main
-  scriptCommand: "echo 'Running tests...' && exit 0"
+  scriptCommand: "test -f hello_world.py && python3 hello_world.py"
   timeoutSec: 300
   mergeOnPass: false
 matrix:
   - repo: /Users/sjarmak/test-project
-    prompt: "Add a simple README.md file with project description"
+    prompt: |
+      Create a Python file called hello_world.py that:
+      1. Prints "Hello World from Default Model!"
+      2. Has a main function
+      3. Uses proper Python conventions
+    # Uses default model
   - repo: /Users/sjarmak/test-project
-    prompt: "Create a basic package.json with common scripts"
-    scriptCommand: "ls -la && echo 'Package.json created successfully'"
+    prompt: |
+      Create a Python file called hello_world.py that:
+      1. Prints "Hello World from GPT-5!"
+      2. Has a main function
+      3. Uses proper Python conventions
     model: gpt-5      # Use GPT-5 model
   - repo: /Users/sjarmak/test-project
-    prompt: "Add a python script that says hello world"
+    prompt: |
+      Create a Python file called hello_world.py that:
+      1. Prints "Hello World from Alloy!"
+      2. Has a main function
+      3. Uses proper Python conventions
     model: alloy      # Use --blend alloy-random mode

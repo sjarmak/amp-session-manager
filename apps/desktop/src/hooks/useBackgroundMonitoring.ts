@@ -33,6 +33,8 @@ export function useBackgroundMonitoring() {
 
   // Monitor benchmark running state
   useEffect(() => {
+    let eventHandler: any = null;
+
     const checkBenchmarkStatus = async () => {
       try {
         const runs = await window.electronAPI.benchmarks.listRuns();
@@ -55,10 +57,10 @@ export function useBackgroundMonitoring() {
     };
 
     if (window.electronAPI?.benchmarks?.onEvent) {
-      window.electronAPI.benchmarks.onEvent(handleBenchmarkEvent);
+      eventHandler = window.electronAPI.benchmarks.onEvent(handleBenchmarkEvent);
       return () => {
-        if (window.electronAPI?.benchmarks?.offEvent) {
-          window.electronAPI.benchmarks.offEvent(handleBenchmarkEvent);
+        if (eventHandler && window.electronAPI?.benchmarks?.offEvent) {
+          window.electronAPI.benchmarks.offEvent(eventHandler);
         }
       };
     }

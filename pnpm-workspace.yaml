@@ -12,5 +12,4 @@ publicHoistPattern:
 
 ignoredBuiltDependencies:
   - better-sqlite3
-  - electron
   - esbuild

@@ -125,7 +125,8 @@ export class BenchmarkRunner extends EventEmitter {
     try {
       // Run evaluation for each model IN PARALLEL
       const modelPromises = Object.entries(config.models).map(async ([modelKey, modelConfig]) => {
-        if (!this.runningBenchmarks.get(benchmarkId)) return;
+        const sweBenchRun = this.store.getSweBenchRun(benchmarkId);
+        if (!this.runningBenchmarks.get(benchmarkId) || sweBenchRun?.status === 'aborted') return;
         
         console.log(`🤖 Testing model: ${modelKey} (${modelConfig.name})`);
         
@@ -137,11 +138,12 @@ export class BenchmarkRunner extends EventEmitter {
 
         // Run each suite for this model
         for (const suite of config.suites) {
-          if (!this.runningBenchmarks.get(benchmarkId)) break;
+          const currentSweBenchRun = this.store.getSweBenchRun(benchmarkId);
+          if (!this.runningBenchmarks.get(benchmarkId) || currentSweBenchRun?.status === 'aborted') break;
           
           console.log(`📊 Running suite: ${suite.id} for model: ${modelKey}`);
           try {
-            const suiteResult = await this.runSuite(suite, modelConfig, config.defaults);
+            const suiteResult = await this.runSuite(suite, modelConfig, config.defaults, benchmarkId);
             modelResult.suites[suite.id] = suiteResult;
             
             // Update progress after each suite completion
@@ -236,7 +238,8 @@ export class BenchmarkRunner extends EventEmitter {
   private async runSuite(
     suite: any, 
     modelConfig: any, 
-    defaults: any
+    defaults: any,
+    runId: string
   ): Promise<SuiteResult> {
     const result: SuiteResult = {
       suite: suite.id,
@@ -253,7 +256,7 @@ export class BenchmarkRunner extends EventEmitter {
     // Handle regular cases
     if (suite.cases) {
       for (const caseConfig of suite.cases) {
-        const caseResult = await this.runCase(caseConfig, modelConfig, defaults, suite);
+        const caseResult = await this.runCase(caseConfig, modelConfig, defaults, suite, runId);
         result.cases.push(caseResult);
       }
     }
@@ -330,7 +333,8 @@ export class BenchmarkRunner extends EventEmitter {
     caseConfig: any,
     modelConfig: any,
     defaults: any,
-    suite: any
+    suite: any,
+    runId: string
   ): Promise<any> {
     const startTime = Date.now();
     
@@ -341,6 +345,7 @@ export class BenchmarkRunner extends EventEmitter {
     }
 
     try {
+      console.log(`🔧 Creating benchmark session for ${caseConfig.id} with script: ${caseConfig.script_command}`);
       // Create session
       const session = await this.worktreeManager.createSession({
         name: `Benchmark-${suite.id}-${caseConfig.id}`,
@@ -350,6 +355,7 @@ export class BenchmarkRunner extends EventEmitter {
         scriptCommand: caseConfig.script_command,
         modelOverride: modelConfig.name === 'default' ? undefined : modelConfig.name
       });
+      console.log(`✅ Session created: ${session.id}, scriptCommand: ${session.scriptCommand}`);
 
       // Run setup script if provided
       if (caseConfig.setup_script) {
@@ -403,26 +409,47 @@ export class BenchmarkRunner extends EventEmitter {
       }
 
       // Check if test passes
+      console.log(`🧪 Testing case ${caseConfig.id} with command: ${session.scriptCommand}`);
       const success = await this.checkTestSuccess(session);
+      console.log(`📊 Test result for ${caseConfig.id}: ${success ? 'PASS' : 'FAIL'}`);
       const wallTimeSec = (Date.now() - startTime) / 1000;
       const iterations = this.store.getIterations(session.id).length;
 
-      return {
+      const caseResult = {
+        runId,
         caseId: caseConfig.id,
         sessionId: session.id,
-        status: success ? 'pass' : 'fail',
+        status: success ? 'pass' as const : 'fail' as const,
         iterations,
         wallTimeSec
       };
 
+      // Save the case result to the database
+      this.store.saveSweBenchCaseResult(caseResult);
+
+      // Emit an event to notify the UI of the case completion
+      console.log('🔄 BenchmarkRunner: Emitting case-finished event');
+      this.emit('case-finished', { runId, caseId: caseConfig.id, result: caseResult });
+
+      return caseResult;
+
     } catch (error) {
+      console.error(`❌ Benchmark case ${caseConfig.id} failed:`, error);
       const wallTimeSec = (Date.now() - startTime) / 1000;
-      return {
+      
+      const caseResult = {
+        runId,
         caseId: caseConfig.id,
-        status: 'error',
+        sessionId: '',
+        status: 'fail' as const,
         iterations: 0,
         wallTimeSec
       };
+
+      // Save the error case result to the database
+      this.store.saveSweBenchCaseResult(caseResult);
+
+      return caseResult;
     } finally {
       // Restore original environment
       process.env = originalEnv;
@@ -430,7 +457,15 @@ export class BenchmarkRunner extends EventEmitter {
   }
 
   private async ensureTestRepo(repo: string): Promise<string> {
-    // Simple implementation - could be enhanced
+    // Handle absolute paths directly
+    if (path.isAbsolute(repo)) {
+      if (!fs.existsSync(repo)) {
+        throw new Error(`Repository path does not exist: ${repo}`);
+      }
+      return repo;
+    }
+    
+    // Handle GitHub repos (org/repo format)
     const repoName = repo.replace('/', '_');
     const repoPath = path.join(process.env.HOME || '~', '.amp-repos', repoName);
     

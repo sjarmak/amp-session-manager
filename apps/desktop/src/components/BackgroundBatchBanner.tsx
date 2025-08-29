@@ -3,8 +3,13 @@ import React, { useState, useEffect } from 'react';
 interface RunningBatch {
   runId: string;
   status: string;
-  totalItems?: number;
-  items?: Array<{ status: string }>;
+  totalItems: number;
+  queuedCount?: number;
+  runningCount?: number;
+  successCount?: number;
+  failCount?: number;
+  errorCount?: number;
+  timeoutCount?: number;
 }
 
 export function BackgroundBatchBanner() {
@@ -61,47 +66,38 @@ export function BackgroundBatchBanner() {
   const totalBatches = runningBatches.length;
   const totalItems = runningBatches.reduce((sum, batch) => sum + (batch.totalItems || 0), 0);
   const completedItems = runningBatches.reduce((sum, batch) => {
-    return sum + (Array.isArray(batch.items) ? batch.items.filter(item => item.status === 'completed').length : 0);
+    // Use the aggregated counts instead of trying to access individual items
+    const completed = (batch.successCount || 0) + (batch.failCount || 0) + (batch.errorCount || 0) + (batch.timeoutCount || 0);
+    return sum + completed;
   }, 0);
 
   return (
-    <div className="fixed top-0 left-0 right-0 bg-gradient-to-r from-gruvbox-blue to-gruvbox-bright-blue text-gruvbox-bg0 px-6 py-4 shadow-lg border-b border-gruvbox-bright-blue/30 z-[60]">
+    <div className="fixed top-0 left-0 right-0 bg-gradient-to-r from-gruvbox-blue/80 to-gruvbox-bright-blue/80 backdrop-blur-sm text-gruvbox-bg0 px-4 py-2 shadow-lg border-b border-gruvbox-bright-blue/30 z-[61]">
       <div className="flex items-center justify-between max-w-6xl mx-auto">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-gruvbox-bg0 rounded-full animate-pulse"></div>
-            <span className="font-semibold text-lg">
-              {totalBatches} Batch{totalBatches > 1 ? 'es' : ''} Running in Background
+            <div className="w-2 h-2 bg-gruvbox-bg0 rounded-full animate-pulse"></div>
+            <span className="font-semibold text-base">
+              {totalBatches} Batch{totalBatches > 1 ? 'es' : ''} Running
             </span>
           </div>
           
-          <div className="h-6 w-px bg-gruvbox-bg0/30"></div>
+          <div className="h-4 w-px bg-gruvbox-bg0/30"></div>
           
-          <div className="text-sm opacity-90">
-            Progress: {completedItems}/{totalItems} items completed
+          <div className="text-xs opacity-90">
+            {completedItems}/{totalItems} completed
           </div>
         </div>
         
-        <div className="flex items-center gap-4">
-          <div className="bg-gruvbox-bg0/20 px-4 py-2 rounded-lg border border-gruvbox-bg0/30">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Safe to close window - processes continue running
-            </div>
-          </div>
-          
-          <button
-            onClick={() => setIsDismissed(true)}
-            className="p-2 hover:bg-gruvbox-bg0/20 rounded transition-colors"
-            title="Dismiss notification"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        <button
+          onClick={() => setIsDismissed(true)}
+          className="p-1 hover:bg-gruvbox-bg0/20 rounded transition-colors"
+          title="Dismiss notification"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
     </div>
   );

@@ -201,7 +201,9 @@ export class SweBenchRunner extends EventEmitter {
         wallTimeSec
       };
 
+      console.log('💾 SweBenchRunner: About to save case result:', caseResult);
       this.store.saveSweBenchCaseResult(caseResult);
+      console.log('💾 SweBenchRunner: Successfully saved case result');
       
       // Update run counters
       this.updateRunCounters(runId, result.success);
@@ -220,7 +222,9 @@ export class SweBenchRunner extends EventEmitter {
         wallTimeSec
       };
 
+      console.log('💾 SweBenchRunner: About to save ERROR case result:', caseResult);
       this.store.saveSweBenchCaseResult(caseResult);
+      console.log('💾 SweBenchRunner: Successfully saved ERROR case result');
       this.updateRunCounters(runId, false);
       
       const errorMessage = error instanceof Error ? error.message : String(error);
