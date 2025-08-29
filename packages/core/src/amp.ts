@@ -1,5 +1,4 @@
 import { spawn } from 'child_process';
-import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { EventEmitter } from 'events';
@@ -105,7 +104,7 @@ export class AmpAdapter extends EventEmitter {
     if (prompt) {
       const existingThreads = this.store.findThreadByFirstUserMessage(prompt);
       if (existingThreads.length > 0) {
-        console.log(`[DEBUG] Found existing thread with matching prompt: ${existingThreads[0].id}`);
+        // Found existing thread with matching prompt
         return existingThreads[0].id;
       }
     }
@@ -160,7 +159,7 @@ export class AmpAdapter extends EventEmitter {
       const existingIterations = await this.getIterationCount(sessionId);
       const useGpt5 = existingIterations % 2 === 1; // Odd iterations (2nd, 4th, etc.) use GPT-5
       
-      console.log(`🔄 Continuing thread ${threadId}: existingIterations=${existingIterations}, useGpt5=${useGpt5}, model=${useGpt5 ? 'gpt-5' : 'default'}`);
+      // Continuing thread with existing iterations
       
       // Use proper thread continuation command
       const alternatingModel = useGpt5 ? 'gpt-5' : undefined; // undefined = default model
@@ -187,11 +186,7 @@ export class AmpAdapter extends EventEmitter {
     // Use prompt as-is
     let finalPrompt = prompt;
 
-    console.log('Thread continue command:', {
-      threadId,
-      workingDir,
-      promptLength: finalPrompt.length
-    });
+    // Executing thread continue command
 
     // For thread continuation, use --execute mode with the message
     // Format: amp threads continue <threadId> --execute "message" [options]
@@ -224,9 +219,9 @@ export class AmpAdapter extends EventEmitter {
       
       // If test succeeded, use debug logging
       args.push('--log-level', 'debug', '--log-file', tempLogFile);
-      console.log('Debug logging enabled for thread continuation');
-    } catch (debugSetupError) {
-      console.warn('Debug logging unavailable for thread continuation:', (debugSetupError as Error).message);
+      // Debug logging enabled for thread continuation
+      } catch (debugSetupError) {
+      // Debug logging unavailable for thread continuation
     }
 
     return this.executeAmpCommandNoStdin(args, workingDir, modelOverride, sessionId, threadId);
@@ -305,9 +300,9 @@ export class AmpAdapter extends EventEmitter {
         // If test succeeded, use debug logging
         debugLogFile = tempLogFile;
         args.push('--log-level', 'debug', '--log-file', debugLogFile);
-        console.log('Debug logging enabled for metrics parsing');
+        // Debug logging enabled for metrics parsing
       } catch (debugSetupError) {
-        console.warn('Debug logging unavailable, will use text parsing fallback:', (debugSetupError as Error).message);
+        // Debug logging unavailable, will use text parsing fallback
         debugLogFile = null;
       }
       
@@ -320,13 +315,7 @@ export class AmpAdapter extends EventEmitter {
       }
 
       // Add the prompt (use stdin for long prompts)
-      console.log('Amp environment check:', {
-        AMP_API_KEY: process.env.AMP_API_KEY ? '***exists***' : 'MISSING',
-        ampPath: this.config.ampPath,
-        sessionId,
-        args,
-        workingDir
-      });
+      // Checking Amp environment configuration
       
       const ampStartTime = Date.now();
       
@@ -351,10 +340,10 @@ export class AmpAdapter extends EventEmitter {
           
           if (result && result !== 'your-actual-api-key-here') {
             env.AMP_API_KEY = result;
-            console.log('AMP_API_KEY sourced from shell environment');
+            // AMP_API_KEY sourced from shell environment
           }
         } catch (error) {
-          console.warn('Failed to source AMP_API_KEY from shell:', error);
+          // Failed to source AMP_API_KEY from shell
         }
       }
       
@@ -418,7 +407,7 @@ export class AmpAdapter extends EventEmitter {
       
       // Send prompt via stdin only if needed (not for --execute commands)
       if (useStdin && child.stdin && finalPrompt) {
-        console.log('Sending prompt to Amp (first 200 chars):', finalPrompt.slice(0, 200));
+        // Sending prompt to Amp
         child.stdin.write(finalPrompt);
         child.stdin.end();
       } else if (child.stdin) {
@@ -642,7 +631,7 @@ export class AmpAdapter extends EventEmitter {
             const { unlink } = await import('fs/promises');
             await unlink(debugLogFile);
           } catch (cleanupError) {
-            console.warn('Failed to clean up oracle debug log file:', cleanupError);
+            // Failed to clean up oracle debug log file
           }
         }
 
@@ -685,13 +674,7 @@ ${context ? `Additional Context:\n${context}\n` : ''}
 Please provide a thorough analysis and actionable recommendations.`;
   }
 
-  private async safeReadFile(path: string): Promise<string> {
-    try {
-      return await readFile(path, 'utf-8');
-    } catch {
-      return '';
-    }
-  }
+
 
   private detectAwaitingInput(output: string): boolean {
     const awaitingPatterns = [
@@ -705,19 +688,7 @@ Please provide a thorough analysis and actionable recommendations.`;
     return awaitingPatterns.some(pattern => pattern.test(output));
   }
 
-  // Legacy method for backward compatibility
-  async runIterationLegacy(prompt: string, workingDir: string, modelOverride?: string): Promise<{
-    success: boolean;
-    output: string;
-    tokenUsage?: number;
-  }> {
-    const result = await this.runIteration(prompt, workingDir, modelOverride);
-    return {
-      success: result.success,
-      output: result.output,
-      tokenUsage: result.telemetry.totalTokens
-    };
-  }
+
 
   /**
    * Validate Amp CLI authentication and return detailed status
@@ -747,10 +718,10 @@ Please provide a thorough analysis and actionable recommendations.`;
           
           if (result && result !== 'your-actual-api-key-here') {
             env.AMP_API_KEY = result;
-            console.log('AMP_API_KEY sourced from shell environment for auth validation');
+            // AMP_API_KEY sourced from shell environment for auth validation
           }
         } catch (error) {
-          console.warn('Failed to source AMP_API_KEY from shell for auth validation:', error);
+          // Failed to source AMP_API_KEY from shell for auth validation
         }
       }
       

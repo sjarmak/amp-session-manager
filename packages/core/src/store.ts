@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import type { Session, IterationRecord, ToolCall, SessionCreateOptions, AmpTelemetry, BatchRecord, BatchItem, ExportOptions, SweBenchRun, SweBenchCaseResult } from '@ampsm/types';
 import { randomUUID } from 'crypto';
 import { getDbPath } from './config.js';
+import { createTimestampId, getCurrentISOString } from './utils/date.js';
 
 export class SessionStore {
   public readonly db: Database.Database;
@@ -32,6 +33,13 @@ export class SessionStore {
     } catch (error) {
       console.error('Failed to initialize SQLite database:', error);
       throw new Error(`Database initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  private addColumn(table: string, column: string, definition: string = 'TEXT'): void {
+    const columns = this.db.prepare(`PRAGMA table_info(${table})`).all();
+    if (!columns.some((r: any) => r.name === column)) {
+      this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
     }
   }
 
@@ -189,78 +197,18 @@ export class SessionStore {
       );
     `);
     
-    // Migration: Add threadId column if it doesn't exist
-    try {
-      this.db.exec(`ALTER TABLE sessions ADD COLUMN threadId TEXT;`);
-    } catch (error) {
-      // Column already exists, ignore error
-    }
-    
-    // Migration: Add threadId column to batch_items if it doesn't exist
-    try {
-      this.db.exec(`ALTER TABLE batch_items ADD COLUMN threadId TEXT;`);
-    } catch (error) {
-      // Column already exists, ignore error
-    }
-    
-    // Migration: Add ampArgs column if it doesn't exist
-    try {
-      this.db.exec(`ALTER TABLE iterations ADD COLUMN ampArgs TEXT;`);
-    } catch (error) {
-      // Column already exists, ignore error
-    }
-    
-    // Migration: Add followUpPrompts column if it doesn't exist
-    try {
-      this.db.exec(`ALTER TABLE sessions ADD COLUMN followUpPrompts TEXT;`);
-    } catch (error) {
-      // Column already exists, ignore error
-    }
-    
-    // Migration: Add output column to iterations if it doesn't exist
-    try {
-      this.db.exec(`ALTER TABLE iterations ADD COLUMN output TEXT;`);
-    } catch (error) {
-      // Column already exists, ignore error
-    }
-    
-    // Migration: Add CLI metrics columns to iterations if they don't exist
-    try {
-      this.db.exec(`ALTER TABLE iterations ADD COLUMN cliToolUsageCount INTEGER;`);
-    } catch (error) {
-      // Column already exists, ignore error
-    }
-    try {
-      this.db.exec(`ALTER TABLE iterations ADD COLUMN cliErrorCount INTEGER;`);
-    } catch (error) {
-      // Column already exists, ignore error
-    }
-    try {
-      this.db.exec(`ALTER TABLE iterations ADD COLUMN cliLogDurationMs INTEGER;`);
-    } catch (error) {
-      // Column already exists, ignore error
-    }
-    
-    // Migration: Add contextIncluded column if it doesn't exist
-    try {
-      this.db.exec(`ALTER TABLE sessions ADD COLUMN contextIncluded BOOLEAN;`);
-    } catch (error) {
-      // Column already exists, ignore error
-    }
-    
-    // Migration: Add mode column if it doesn't exist
-    try {
-      this.db.exec(`ALTER TABLE sessions ADD COLUMN mode TEXT DEFAULT 'async';`);
-    } catch (error) {
-      // Column already exists, ignore error
-    }
-
-    // Migration: Add autoCommit column if it doesn't exist
-    try {
-      this.db.exec(`ALTER TABLE sessions ADD COLUMN autoCommit BOOLEAN DEFAULT 1;`);
-    } catch (error) {
-      // Column already exists, ignore error
-    }
+    // Apply column migrations using helper
+    this.addColumn('sessions', 'threadId');
+    this.addColumn('batch_items', 'threadId');
+    this.addColumn('iterations', 'ampArgs');
+    this.addColumn('sessions', 'followUpPrompts');
+    this.addColumn('iterations', 'output');
+    this.addColumn('iterations', 'cliToolUsageCount', 'INTEGER');
+    this.addColumn('iterations', 'cliErrorCount', 'INTEGER');
+    this.addColumn('iterations', 'cliLogDurationMs', 'INTEGER');
+    this.addColumn('sessions', 'contextIncluded', 'BOOLEAN');
+    this.addColumn('sessions', 'mode', "TEXT DEFAULT 'async'");
+    this.addColumn('sessions', 'autoCommit', 'BOOLEAN DEFAULT 1');
     
     // Migration: Make ampPrompt nullable for interactive sessions
     try {
@@ -332,7 +280,7 @@ export class SessionStore {
 
   createSession(options: SessionCreateOptions): Session {
     const id = randomUUID();
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const timestamp = createTimestampId();
     const slug = options.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
     
     const session: Session = {

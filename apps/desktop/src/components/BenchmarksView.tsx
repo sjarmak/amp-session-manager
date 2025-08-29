@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
+import { getStatusColor, getStatusBgColor } from '../utils/status';
 
 interface TooltipProps {
   children: React.ReactNode;
@@ -103,18 +105,7 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
     }
   };
 
-  const formatDate = (isoString: string) => {
-    return new Date(isoString).toLocaleString();
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'running': return 'text-gruvbox-bright-blue bg-gruvbox-blue/20';
-      case 'completed': return 'text-gruvbox-bright-green bg-gruvbox-green/20';
-      case 'failed': return 'text-gruvbox-bright-red bg-gruvbox-red/20';
-      default: return 'text-gruvbox-fg2 bg-gruvbox-bg3';
-    }
-  };
+  // Utility functions moved to shared utils
 
   const handleDelete = async (runId: string) => {
     if (deleting || !confirm('Are you sure you want to delete this benchmark run? This cannot be undone.')) {
@@ -290,7 +281,7 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-1">
-                        <span className={`inline-flex px-1 py-1 text-xs font-semibold rounded-full ${getStatusColor(run.status)}`}>
+                        <span className={`inline-flex px-1 py-1 text-xs font-semibold rounded-full ${getStatusColor(run.status as any)} ${getStatusBgColor(run.status as any)}`}>
                           {run.status}
                         </span>
                         {run.status === 'running' && (

@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
+import { getStatusColor, getStatusBgColor } from '../utils/status';
 
 export interface BatchRun {
   runId: string;
@@ -61,19 +63,7 @@ export function BatchesView({ onRunSelect, onNewBatch }: BatchesViewProps) {
     }
   };
 
-  const formatDate = (isoString: string) => {
-    return new Date(isoString).toLocaleString();
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'running': return 'text-gruvbox-bright-blue bg-gruvbox-blue/20';
-      case 'completed': return 'text-gruvbox-bright-green bg-gruvbox-green/20';
-      case 'aborted': return 'text-gruvbox-bright-yellow bg-gruvbox-yellow/20';
-      case 'error': return 'text-gruvbox-bright-red bg-gruvbox-red/20';
-      default: return 'text-gruvbox-fg2 bg-gruvbox-bg3';
-    }
-  };
+  // Utility functions moved to shared utils
 
 
 
@@ -159,7 +149,7 @@ export function BatchesView({ onRunSelect, onNewBatch }: BatchesViewProps) {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(run.status)}`}>
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(run.status as any)} ${getStatusBgColor(run.status as any)}`}>
                           {run.status}
                         </span>
                         {run.status === 'running' && (
