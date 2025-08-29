@@ -24,8 +24,8 @@ A cross-platform desktop app and CLI that turns AI coding sessions into first-cl
 
 ```bash
 # Clone and build from source
-git clone https://github.com/sjarmak/amp-session-manager.git
-cd amp-session-manager
+git clone https://github.com/sjarmak/amp-session-orchestrator.git
+cd amp-session-orchestrator
 pnpm install && pnpm build
 
 cd apps/desktop
@@ -92,8 +92,8 @@ pnpm dev
 
 ```bash
 # Clone repository
-git clone https://github.com/sjarmak/amp-session-manager.git
-cd amp-session-manager
+git clone https://github.com/sjarmak/amp-session-orchestrator.git
+cd amp-session-orchestrator
 
 # Install dependencies (includes native compilation)
 pnpm install
@@ -480,8 +480,8 @@ export AMPSM_LOG_LEVEL=debug
 
 ```bash
 # Clone and setup development environment
-git clone https://github.com/sjarmak/amp-session-manager.git
-cd amp-session-manager
+git clone https://github.com/sjarmak/amp-session-orchestrator.git
+cd amp-session-orchestrator
 pnpm install
 
 # Run tests across all packages
@@ -545,4 +545,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**Questions or Issues?** Open a [GitHub issue](https://github.com/sjarmak/amp-session-manager/issues) or check the [Discussions](https://github.com/sjarmak/amp-session-manager/discussions) for community support.
+**Questions or Issues?** Open a [GitHub issue](https://github.com/sjarmak/amp-session-orchestrator/issues) or check the [Discussions](https://github.com/sjarmak/amp-session-manager/discussions) for community support.
