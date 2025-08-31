@@ -71,8 +71,7 @@ You can switch between production and local development modes at any time:
    - **Configure Session**:
      - Session name (descriptive identifier)
      - Base branch (default: `main`)
-     - Model selection (GPT-5, Alloy, Claude Sonnet 4)
-     - Optional test script for validation
+     - Model selection (Default currently Claude Sonnet 4, GPT-5, Alloy)
    - Click "Create" to initialize the session worktree and branch
 
 ### Amp Chat Interface
