@@ -5,9 +5,9 @@
 A cross-platform desktop app and CLI that turns AI coding sessions into first-class, reviewable Git branches. Create isolated sessions, chat with Amp interactively, track real-time metrics, and merge changes cleanly to your main branch.
 
 **Key Features:**
-- 🎯 **Production & Development Support**: Switch between production Amp and local development environments
-- 🔄 **Live Mode Switching**: Change Amp configurations without restarting the application
-- 📊 **Comprehensive Testing**: Run evaluations and benchmarks against both environments
+- **Production & Development Support**: Switch between production Amp and local development environments
+- **Live Mode Switching**: Change Amp configurations without restarting the application
+- **Comprehensive Testing**: Run evaluations and benchmarks against both environments
 
 ## Quick Start
 
@@ -42,10 +42,10 @@ If you have a local Amp development environment:
 
 You can switch between production and local development modes at any time:
 
-1. **Open Settings**: Click the ⚙️ icon in the app header
+1. **Open Settings**: Click the lefthand grid icon in the app header
 2. **Change Mode**: Select your desired Amp environment
-3. **Update Paths**: Adjust CLI paths or server URLs as needed
-4. **Apply**: Settings take effect immediately without restarting
+3. **Update Paths**: Adjust CLI path to your local Amp CLI path (e.g, /Users/username/amp/cli/dist/main.js)
+4. **Apply**: Settings take effect immediately without restarting and you can swap between production and development without restarting the app
 
 ### Development Workflow
 
