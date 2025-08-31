@@ -14,6 +14,8 @@ defaults:
   timeout_sec: 300          # 5 min per case
   json_logs: true
   merge_on_pass: false      # don't merge - just measure
+  amp_cli_path: "production"  # "production" | "/abs/path/to/amp"
+  # amp_server_url: "https://localhost:7002"  # For local development server
 
 ###############################################################################
 # SINGLE MODEL CONFIG

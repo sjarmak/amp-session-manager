@@ -39,7 +39,9 @@ const program = new Command();
 program
   .name('amp-sessions')
   .description('Amp Session Orchestrator CLI')
-  .version('0.1.0');
+  .version('0.1.0')
+  .option('--amp-path <path>', 'Path to Amp CLI binary (defaults to "amp" from PATH)')
+  .option('--amp-server <url>', 'URL to local Amp development server (e.g., http://localhost:7002)');
 
 program
   .command('list')
@@ -58,7 +60,7 @@ program
   .option('--gpt5', 'Use GPT-5 model (equivalent to --model gpt-5)')
   .option('--blend <mode>', 'Use blended model mode (e.g., --blend alloy-random sets amp.internal.alloy.enable=true)')
   .option('--run', 'Automatically run first iteration after creating session')
-  .action(newCommand);
+  .action((options) => newCommand(options, program));
 
 program
   .command('status <sessionId>')
@@ -77,7 +79,7 @@ program
   .description('Run an iteration on a session')
   .option('--notes <notes>', 'Notes for this iteration')
   .option('--metrics-file <path>', 'Export detailed metrics to JSONL file')
-  .action(iterateCommand);
+  .action((sessionId, options) => iterateCommand(sessionId, options, program));
 
 program
   .command('run <sessionId>')
@@ -298,7 +300,9 @@ program
   .option('--format <format>', 'Output format (json|markdown)', 'json')
   .option('--models <models>', 'Comma-separated list of models to test')
   .option('--suites <suites>', 'Comma-separated list of suites to run')
-  .action((config, options) => benchmarkCommand({ config, ...options }));
+  .option('--amp <path>', 'Amp CLI path ("production" or absolute path)')
+  .option('--amp-server <url>', 'Amp development server URL (e.g., http://localhost:7002)')
+  .action((config, options) => benchmarkCommand({ config, ...options }, program));
 
 
 

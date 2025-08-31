@@ -1,0 +1,56 @@
+version: 1
+name: "Local Development Testing Example"
+description: >
+  Example configuration for testing with local development version of Amp.
+  Demonstrates how to use localhost:7002 development server.
+
+###############################################################################
+# DEFAULTS - Using local development server
+###############################################################################
+defaults:
+  base_branch: main
+  parallel: 1
+  max_iterations: 3
+  timeout_sec: 180
+  json_logs: true
+  merge_on_pass: false
+  amp_server_url: "https://localhost:7002"  # Local development server
+
+###############################################################################
+# SINGLE MODEL CONFIG
+###############################################################################
+models:
+  default:
+    name: default
+
+###############################################################################
+# METRICS TO TRACK
+###############################################################################
+metrics:
+  - success_rate
+  - avg_iterations
+  - avg_total_tokens
+  - total_runtime_sec
+
+###############################################################################
+# TEST SUITES
+###############################################################################
+suites:
+  - id: dev_testing
+    description: "Test basic functionality with development Amp version"
+    cases:
+      - id: create_hello_dev
+        repo: /Users/sjarmak/test-project
+        prompt: |
+          Create a hello_dev.py file that:
+          1. Prints "Hello from Local Development Amp!"
+          2. Includes the current timestamp
+          3. Can be executed with python3
+        script_command: "test -f hello_dev.py && python3 hello_dev.py"
+
+      - id: compare_versions
+        repo: /Users/sjarmak/test-project
+        amp_cli_path: "production"  # Override to use production for comparison
+        prompt: |
+          Create a version_test.py file that prints "Production Amp Version".
+        script_command: "test -f version_test.py && python3 version_test.py"

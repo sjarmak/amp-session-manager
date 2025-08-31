@@ -325,3 +325,8 @@ export interface SessionThreadMessage {
   createdAt: string;
   idx: number;
 }
+
+export interface AmpRuntimeConfig {
+  ampCliPath?: string;
+  ampServerUrl?: string; // e.g., "http://localhost:7002"
+}

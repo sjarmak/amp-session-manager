@@ -2,7 +2,7 @@ import { SessionStore } from './store.js';
 import { GitOps } from './git.js';
 import { AmpAdapter, type AmpAdapterConfig } from './amp.js';
 // import { getCurrentAmpThreadId } from './amp-utils.js'; // Removed - we now capture thread IDs directly from Amp output
-import type { Session, SessionCreateOptions, IterationRecord, PreflightResult, SquashOptions, RebaseResult, MergeOptions } from '@ampsm/types';
+import type { Session, SessionCreateOptions, IterationRecord, PreflightResult, SquashOptions, RebaseResult, MergeOptions, AmpRuntimeConfig } from '@ampsm/types';
 import { mkdir, writeFile, readFile } from 'fs/promises';
 import * as fs from 'fs';
 import { join } from 'path';
@@ -25,7 +25,8 @@ export class WorktreeManager {
     private store: SessionStore,
     private dbPath?: string,
     metricsEventBus?: MetricsEventBus,
-    private metricsJsonlPath?: string
+    private metricsJsonlPath?: string,
+    private runtimeConfig?: AmpRuntimeConfig
   ) {
     this.logger = new Logger('WorktreeManager');
     
@@ -65,7 +66,7 @@ export class WorktreeManager {
       }
     }
     
-    this.ampAdapter = new AmpAdapter(this.loadAmpConfig(), this.store, this.metricsEventBus);
+    this.ampAdapter = new AmpAdapter({...this.loadAmpConfig(), runtimeConfig: this.runtimeConfig}, this.store, this.metricsEventBus);
   }
 
   async createSession(options: SessionCreateOptions): Promise<Session> {

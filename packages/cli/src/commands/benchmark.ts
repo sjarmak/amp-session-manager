@@ -8,7 +8,8 @@ export async function benchmarkCommand(options: {
   models?: string;
   suites?: string; 
   format?: 'json' | 'markdown';
-}): Promise<void> {
+  amp?: string;
+}, program?: any): Promise<void> {
   const configPath = path.resolve(options.config);
   
   if (!fs.existsSync(configPath)) {
@@ -17,7 +18,15 @@ export async function benchmarkCommand(options: {
 
   const dbPath = getDbPath();
   const store = new SessionStore(dbPath);
-  const runner = new BenchmarkRunner(store, dbPath);
+  
+  // Determine amp configuration from options hierarchy
+  const ampCliPath = options.amp || program?.opts().ampPath;
+  const ampServerUrl = program?.opts().ampServer;
+  const runtimeConfig = (ampCliPath || ampServerUrl) ? {
+    ampCliPath: ampCliPath === 'production' ? undefined : ampCliPath,
+    ampServerUrl: ampServerUrl
+  } : undefined;
+  const runner = new BenchmarkRunner(store, dbPath, runtimeConfig);
 
   // Set up event listeners for progress
   runner.on('benchmark-started', (result: BenchmarkResult) => {

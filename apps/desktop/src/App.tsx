@@ -14,6 +14,7 @@ import { NewBenchmarkModal } from './components/NewBenchmarkModal';
 import { BackgroundBatchBanner } from './components/BackgroundBatchBanner';
 import { BackgroundBenchmarkBanner } from './components/BackgroundBenchmarkBanner';
 import NotificationSettingsModal from './components/NotificationSettingsModal';
+import AmpSettingsModal from './components/AmpSettingsModal';
 import { AuthStatus } from './components/AuthStatus';
 import './App.css';
 
@@ -23,6 +24,7 @@ function App() {
   const [showNewBatchModal, setShowNewBatchModal] = useState(false);
   const [showNewBenchmarkModal, setShowNewBenchmarkModal] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
+  const [showAmpSettings, setShowAmpSettings] = useState(false);
 
   // Custom hooks
   const navigation = useNavigation();
@@ -72,7 +74,10 @@ function App() {
         hasBatchRunning && hasBenchmarkRunning ? 'pt-20' : 
         (hasBatchRunning || hasBenchmarkRunning) ? 'pt-12' : ''
       }`}>
-        <AppHeader onSettingsClick={() => setShowNotificationSettings(true)} />
+        <AppHeader 
+          onSettingsClick={() => setShowNotificationSettings(true)}
+          onAmpSettingsClick={() => setShowAmpSettings(true)}
+        />
 
         {/* Auth Status */}
         <div className="mb-6">
@@ -128,6 +133,11 @@ function App() {
         <NotificationSettingsModal
           isOpen={showNotificationSettings}
           onClose={() => setShowNotificationSettings(false)}
+        />
+
+        <AmpSettingsModal
+          isOpen={showAmpSettings}
+          onClose={() => setShowAmpSettings(false)}
         />
       </div>
     </div>

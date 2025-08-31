@@ -126,6 +126,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   },
 
+  amp: {
+    getSettings: () => ipcRenderer.invoke('amp:getSettings'),
+    updateSettings: (settings: any) => ipcRenderer.invoke('amp:updateSettings', settings)
+  },
+
   metrics: {
     getSessionSummary: (sessionId: string) => ipcRenderer.invoke('metrics:getSessionSummary', sessionId),
     getIterationMetrics: (sessionId: string) => ipcRenderer.invoke('metrics:getIterationMetrics', sessionId),

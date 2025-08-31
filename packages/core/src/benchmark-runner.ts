@@ -4,7 +4,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { parse } from 'yaml';
-import type { Session, SweBenchCase } from '@ampsm/types';
+import type { Session, SweBenchCase, AmpRuntimeConfig } from '@ampsm/types';
 import { SessionStore } from './store.js';
 import { WorktreeManager } from './worktree.js';
 import { SweBenchRunner } from './swebench-runner.js';
@@ -20,6 +20,8 @@ export interface BenchmarkConfig {
     timeout_sec: number;
     json_logs: boolean;
     merge_on_pass: boolean;
+    amp_cli_path?: string;
+    amp_server_url?: string;
   };
   models: Record<string, {
     name: string;
@@ -37,10 +39,14 @@ export interface BenchmarkConfig {
       follow_up_prompts?: string[];
       script_command?: string;
       setup_script?: string;
+      amp_cli_path?: string;
+      amp_server_url?: string;
     }>;
     swebench_cases_dir?: string;
     max_iterations?: number;
     timeout_sec?: number;
+    amp_cli_path?: string;
+    amp_server_url?: string;
   }>;
 }
 
@@ -86,10 +92,10 @@ export class BenchmarkRunner extends EventEmitter {
   private sweBenchRunner: SweBenchRunner;
   private runningBenchmarks: Map<string, boolean> = new Map();
 
-  constructor(store: SessionStore, dbPath: string) {
+  constructor(store: SessionStore, dbPath: string, private runtimeConfig?: AmpRuntimeConfig) {
     super();
     this.store = store;
-    this.worktreeManager = new WorktreeManager(store, dbPath);
+    this.worktreeManager = new WorktreeManager(store, dbPath, undefined, undefined, runtimeConfig);
     this.sweBenchRunner = new SweBenchRunner(store, dbPath);
   }
 
@@ -241,6 +247,18 @@ export class BenchmarkRunner extends EventEmitter {
     defaults: any,
     runId: string
   ): Promise<SuiteResult> {
+    // Create suite-specific WorktreeManager if amp configuration is set
+    const suiteAmpPath = suite.amp_cli_path ?? defaults.amp_cli_path;
+    const suiteAmpServer = suite.amp_server_url ?? defaults.amp_server_url;
+    let suiteWorktreeManager = this.worktreeManager;
+    
+    if ((suiteAmpPath && suiteAmpPath !== 'production') || suiteAmpServer) {
+      const runtimeConfig: AmpRuntimeConfig = { 
+        ampCliPath: suiteAmpPath === 'production' ? undefined : suiteAmpPath,
+        ampServerUrl: suiteAmpServer
+      };
+      suiteWorktreeManager = new WorktreeManager(this.store, '', undefined, undefined, runtimeConfig);
+    }
     const result: SuiteResult = {
       suite: suite.id,
       cases: [],
@@ -256,7 +274,23 @@ export class BenchmarkRunner extends EventEmitter {
     // Handle regular cases
     if (suite.cases) {
       for (const caseConfig of suite.cases) {
-        const caseResult = await this.runCase(caseConfig, modelConfig, defaults, suite, runId);
+        // Handle case-level amp configuration override
+        let caseWorktreeManager = suiteWorktreeManager;
+        const caseAmpPath = caseConfig.amp_cli_path ?? suite.amp_cli_path ?? defaults.amp_cli_path;
+        const caseAmpServer = caseConfig.amp_server_url ?? suite.amp_server_url ?? defaults.amp_server_url;
+        
+        const currentSuiteAmpPath = suite.amp_cli_path ?? defaults.amp_cli_path;
+        const currentSuiteAmpServer = suite.amp_server_url ?? defaults.amp_server_url;
+        
+        if (caseAmpPath !== currentSuiteAmpPath || caseAmpServer !== currentSuiteAmpServer) {
+          const runtimeConfig: AmpRuntimeConfig = { 
+            ampCliPath: caseAmpPath === 'production' ? undefined : caseAmpPath,
+            ampServerUrl: caseAmpServer
+          };
+          caseWorktreeManager = new WorktreeManager(this.store, '', undefined, undefined, runtimeConfig);
+        }
+        
+        const caseResult = await this.runCase(caseConfig, modelConfig, defaults, suite, runId, caseWorktreeManager);
         result.cases.push(caseResult);
       }
     }
@@ -334,7 +368,8 @@ export class BenchmarkRunner extends EventEmitter {
     modelConfig: any,
     defaults: any,
     suite: any,
-    runId: string
+    runId: string,
+    worktreeManager?: WorktreeManager
   ): Promise<any> {
     const startTime = Date.now();
     
@@ -347,7 +382,8 @@ export class BenchmarkRunner extends EventEmitter {
     try {
       console.log(`🔧 Creating benchmark session for ${caseConfig.id} with script: ${caseConfig.script_command}`);
       // Create session
-      const session = await this.worktreeManager.createSession({
+      const manager = worktreeManager || this.worktreeManager;
+      const session = await manager.createSession({
         name: `Benchmark-${suite.id}-${caseConfig.id}`,
         ampPrompt: caseConfig.prompt,
         repoRoot: await this.ensureTestRepo(caseConfig.repo),
@@ -389,7 +425,7 @@ export class BenchmarkRunner extends EventEmitter {
           
           // Use direct thread continuation like interactive mode (bypass worktreeManager.iterate)
           // This ensures we use the same logic that works in interactive mode
-          await this.worktreeManager.continueThreadDirectly(
+          await manager.continueThreadDirectly(
             session.id,
             currentSession.threadId,
             followUpPrompt,

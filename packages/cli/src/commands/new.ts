@@ -11,11 +11,16 @@ export async function newCommand(options: {
   gpt5?: boolean;
   blend?: string;
   run?: boolean;  // New flag to optionally run first iteration
-}): Promise<void> {
+}, program?: any): Promise<void> {
   try {
     const dbPath = process.env.AMPSM_DB_PATH || getDbPath();
     const store = new SessionStore(dbPath);
-    const manager = new WorktreeManager(store);
+    const opts = program?.opts() || {};
+    const runtimeConfig = opts.ampPath || opts.ampServer ? {
+      ampCliPath: opts.ampPath,
+      ampServerUrl: opts.ampServer
+    } : undefined;
+    const manager = new WorktreeManager(store, dbPath, undefined, undefined, runtimeConfig);
 
     const threadId = await getCurrentAmpThreadId();
     

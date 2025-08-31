@@ -2,9 +2,10 @@ import { spawn } from 'child_process';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { EventEmitter } from 'events';
-import type { AmpTelemetry } from '@ampsm/types';
+import type { AmpTelemetry, AmpRuntimeConfig } from '@ampsm/types';
 import { TelemetryParser } from './telemetry-parser.js';
 import { GitOps } from './git.js';
+import { getAmpCliPath, getAmpExtraArgs, getAmpEnvironment } from './amp/AmpAdapter.js';
 
 
 /**
@@ -29,6 +30,7 @@ export interface AmpAdapterConfig {
   enableJSONLogs?: boolean;
   env?: Record<string, string>;
   extraArgs?: string[];
+  runtimeConfig?: AmpRuntimeConfig;
 }
 
 export interface AmpIterationResult {
@@ -69,11 +71,12 @@ export class AmpAdapter extends EventEmitter {
   constructor(config: AmpAdapterConfig = {}, store?: any, metricsEventBus?: any) {
     super();
     this.config = {
-      ampPath: config.ampPath || process.env.AMP_BIN || 'amp',
+      ampPath: getAmpCliPath(config.runtimeConfig || {}) || config.ampPath || process.env.AMP_BIN || 'amp',
       ampArgs: config.ampArgs || [],
       enableJSONLogs: config.enableJSONLogs !== false, // Default to true for streaming
       env: config.env,
-      extraArgs: config.extraArgs || []
+      extraArgs: [...(config.extraArgs || []), ...getAmpExtraArgs(config.runtimeConfig || {})],
+      runtimeConfig: config.runtimeConfig
     };
     this.store = store;
     this.metricsEventBus = metricsEventBus;
@@ -323,7 +326,11 @@ export class AmpAdapter extends EventEmitter {
       this.lastUsedArgs = args;
       
       // Use environment variables for authentication
-      const env = this.config.env ? { ...process.env, ...this.config.env } : { ...process.env };
+      const env = { 
+        ...process.env, 
+        ...(this.config.env || {}),
+        ...getAmpEnvironment(this.config.runtimeConfig || {})
+      };
       
       // Ensure AMP_API_KEY is available - check shell environment if missing
       if (!env.AMP_API_KEY && process.env.SHELL) {
@@ -351,6 +358,13 @@ export class AmpAdapter extends EventEmitter {
       if (modelOverride === 'alloy') {
         env['amp.internal.alloy.enable'] = 'true';
       }
+      
+      console.log(`🚀 [AMP EXEC] Spawning amp with:`);
+      console.log(`   Command: ${this.config.ampPath}`);
+      console.log(`   Args: ${JSON.stringify(args)}`);
+      console.log(`   Working dir: ${workingDir}`);
+      console.log(`   Extra args: ${JSON.stringify(this.config.extraArgs)}`);
+      console.log(`   Runtime config: ${JSON.stringify(this.config.runtimeConfig)}`);
       
       const child = spawn(this.config.ampPath!, args, {
         cwd: workingDir,
@@ -534,7 +548,11 @@ export class AmpAdapter extends EventEmitter {
         args.push('--stream-json');
       }
       
-      const env = this.config.env ? { ...process.env, ...this.config.env } : { ...process.env };
+      const env = { 
+        ...process.env, 
+        ...(this.config.env || {}),
+        ...getAmpEnvironment(this.config.runtimeConfig || {})
+      };
       
       // Ensure AMP_API_KEY is available - check shell environment if missing
       if (!env.AMP_API_KEY && process.env.SHELL) {
@@ -704,7 +722,11 @@ Please provide a thorough analysis and actionable recommendations.`;
   }> {
     return new Promise(async (resolve) => {
       const testPrompt = 'echo "auth test"';
-      const env = this.config.env ? { ...process.env, ...this.config.env } : { ...process.env };
+      const env = { 
+        ...process.env, 
+        ...(this.config.env || {}),
+        ...getAmpEnvironment(this.config.runtimeConfig || {})
+      };
       
       // Ensure AMP_API_KEY is available - check shell environment if missing
       if (!env.AMP_API_KEY && process.env.SHELL) {
@@ -1304,8 +1326,15 @@ Please provide a thorough analysis and actionable recommendations.`;
    */
   async checkAuthentication(): Promise<boolean> {
     return new Promise((resolve) => {
+      const env = { 
+        ...process.env, 
+        ...(this.config.env || {}),
+        ...getAmpEnvironment(this.config.runtimeConfig || {})
+      };
+      
       const child = spawn(this.config.ampPath!, ['threads', 'list'], {
-        stdio: ['pipe', 'pipe', 'pipe']
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env
       });
       
       let stderr = '';
@@ -1325,8 +1354,15 @@ Please provide a thorough analysis and actionable recommendations.`;
 
   async validateThreadExists(threadId: string): Promise<boolean> {
     return new Promise((resolve) => {
+      const env = { 
+        ...process.env, 
+        ...(this.config.env || {}),
+        ...getAmpEnvironment(this.config.runtimeConfig || {})
+      };
+      
       const child = spawn(this.config.ampPath!, ['threads', 'list'], {
-        stdio: ['pipe', 'pipe', 'pipe']
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env
       });
       
       let stdout = '';
@@ -1429,7 +1465,17 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
     // Don't set threadId to 'new' - wait for amp CLI to provide the real thread ID
     this.threadId = (threadId === 'new') ? undefined : threadId;
     this.store = store;
-    this.config = config;
+    
+    // Process config like main AmpAdapter constructor
+    this.config = {
+      ampPath: getAmpCliPath(config.runtimeConfig || {}) || config.ampPath || process.env.AMP_BIN || 'amp',
+      ampArgs: config.ampArgs || [],
+      enableJSONLogs: config.enableJSONLogs !== false,
+      env: config.env,
+      extraArgs: [...(config.extraArgs || []), ...getAmpExtraArgs(config.runtimeConfig || {})],
+      runtimeConfig: config.runtimeConfig
+    };
+    
     this.workingDir = workingDir;
     this.autoCommit = autoCommit;
     this.metricsEventBus = metricsEventBus;
@@ -1522,17 +1568,25 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
         console.warn(`Model override '${modelOverride}' may not be supported by amp CLI`);
       }
 
-      // Add extra args
+      // Add extra args (from both config parameter and this.config)
       if (config.extraArgs?.length) {
         args.push(...config.extraArgs);
       }
-
-      console.log('Starting interactive amp process:', config.ampPath, args);
-      console.log('Working directory:', workingDir);
-      console.log('Thread ID:', threadId);
+      if (this.config.extraArgs?.length) {
+        args.push(...this.config.extraArgs);
+      }
 
       // Set up environment
-      const env = { ...process.env, ...config.env };
+      const env = { 
+        ...process.env, 
+        ...config.env, 
+        ...getAmpEnvironment(this.config.runtimeConfig || {})
+      };
+
+      console.log('Starting interactive amp process:', this.config.ampPath, args);
+      console.log('Working directory:', workingDir);
+      console.log('Thread ID:', threadId);
+      console.log('Environment variables:', { AMP_URL: env.AMP_URL, NODE_TLS_REJECT_UNAUTHORIZED: env.NODE_TLS_REJECT_UNAUTHORIZED });
       
       // Set working directory for Amp tools
       env['PWD'] = workingDir;
@@ -1544,7 +1598,7 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
       }
 
       // Spawn the amp process
-      this.child = spawn(config.ampPath!, args, {
+      this.child = spawn(this.config.ampPath!, args, {
         cwd: workingDir,
         stdio: ['pipe', 'pipe', 'pipe'],
         env

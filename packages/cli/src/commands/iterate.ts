@@ -1,10 +1,15 @@
 import { SessionStore, WorktreeManager, getDbPath } from '@ampsm/core';
 
-export async function iterateCommand(sessionId: string, options: { notes?: string; metricsFile?: string }) {
+export async function iterateCommand(sessionId: string, options: { notes?: string; metricsFile?: string }, program?: any) {
   try {
     const dbPath = process.env.AMPSM_DB_PATH || getDbPath();
     const store = new SessionStore(dbPath);
-    const manager = new WorktreeManager(store, dbPath, undefined, options.metricsFile);
+    const opts = program?.opts() || {};
+    const runtimeConfig = opts.ampPath || opts.ampServer ? {
+      ampCliPath: opts.ampPath,
+      ampServerUrl: opts.ampServer
+    } : undefined;
+    const manager = new WorktreeManager(store, dbPath, undefined, options.metricsFile, runtimeConfig);
 
     const session = store.getSession(sessionId);
     if (!session) {

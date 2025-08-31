@@ -95,6 +95,10 @@ declare global {
         onAction: (callback: (action: string) => void) => void;
         offAction: (callback: (action: string) => void) => void;
       };
+      amp: {
+        getSettings: () => Promise<any>;
+        updateSettings: (settings: any) => Promise<{ success: boolean; error?: string }>;
+      };
       metrics: {
         getSessionSummary: (sessionId: string) => Promise<{ success: boolean; summary?: any; error?: string }>;
         getIterationMetrics: (sessionId: string) => Promise<{ success: boolean; iterations?: any[]; error?: string }>;

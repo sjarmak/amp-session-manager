@@ -6,6 +6,32 @@ const { SessionStore, WorktreeManager, BatchController, SweBenchRunner, Benchmar
 
 let mainWindow: any;
 
+// Load amp runtime configuration for version selection
+function loadAmpRuntimeConfig() {
+  try {
+    const configPath = join(homedir(), '.amp-session-manager', 'amp-settings.json');
+    const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+    
+    console.log(`🔧 [AMP CONFIG] Loaded settings from ${configPath}:`, config);
+    
+    const runtimeConfig: any = {};
+    if (config.mode === 'local-cli' && config.localCliPath) {
+      runtimeConfig.ampCliPath = config.localCliPath;
+      console.log(`🔧 [AMP CONFIG] Using local CLI path: ${config.localCliPath}`);
+    } else if (config.mode === 'local-server' && config.localServerUrl) {
+      runtimeConfig.ampServerUrl = config.localServerUrl;
+      console.log(`🔧 [AMP CONFIG] Using local server URL: ${config.localServerUrl}`);
+    } else {
+      console.log(`🔧 [AMP CONFIG] Using production mode (default)`);
+    }
+    
+    return Object.keys(runtimeConfig).length > 0 ? runtimeConfig : undefined;
+  } catch (error) {
+    console.log(`🔧 [AMP CONFIG] No config file found or error loading, using production:`, error.message);
+    return undefined;
+  }
+}
+
 // Load amp configuration - same logic as in worktree.ts
 function loadAmpConfig() {
   try {
@@ -20,23 +46,60 @@ function loadAmpConfig() {
       env.AMP_API_KEY = process.env.AMP_API_KEY;
     }
     
+    // Load Amp settings for runtime configuration
+    const ampSettings = loadAmpSettings();
+    const runtimeConfig = convertSettingsToRuntimeConfig(ampSettings);
+    
     return {
       ampPath: config.ampPath,
       ampArgs: config.ampArgs ? config.ampArgs.split(' ') : undefined,
       enableJSONLogs: config.enableJSONLogs !== false,
       env: Object.keys(env).length > 0 ? env : undefined,
-      extraArgs: config.ampEnv?.AMP_ARGS ? config.ampEnv.AMP_ARGS.split(/\s+/).filter(Boolean) : undefined
+      extraArgs: config.ampEnv?.AMP_ARGS ? config.ampEnv.AMP_ARGS.split(/\s+/).filter(Boolean) : undefined,
+      runtimeConfig
     };
   } catch {
-    // If no config file, still pass through AMP_API_KEY
+    // If no config file, still pass through AMP_API_KEY and load Amp settings
     const env: Record<string, string> = {};
     if (process.env.AMP_API_KEY) {
       env.AMP_API_KEY = process.env.AMP_API_KEY;
     }
+    
+    // Load Amp settings for runtime configuration
+    const ampSettings = loadAmpSettings();
+    const runtimeConfig = convertSettingsToRuntimeConfig(ampSettings);
+    
     return {
-      env: Object.keys(env).length > 0 ? env : undefined
+      env: Object.keys(env).length > 0 ? env : undefined,
+      runtimeConfig
     };
   }
+}
+
+function loadAmpSettings() {
+  try {
+    const ampConfigPath = join(homedir(), '.amp-session-manager', 'amp-settings.json');
+    return JSON.parse(readFileSync(ampConfigPath, 'utf-8'));
+  } catch {
+    return {
+      mode: 'production',
+      localCliPath: '/Users/sjarmak/amp/cli/dist/main.js',
+      localServerUrl: 'https://localhost:7002'
+    };
+  }
+}
+
+function convertSettingsToRuntimeConfig(settings: any) {
+  if (settings.mode === 'local-cli' && settings.localCliPath) {
+    return {
+      ampCliPath: settings.localCliPath
+    };
+  } else if (settings.mode === 'local-server' && settings.localServerUrl) {
+    return {
+      ampServerUrl: settings.localServerUrl
+    };
+  }
+  return {};
 }
 
 function createWindow() {
@@ -173,11 +236,14 @@ async function initializeServices() {
     metricsEventBus.addSink(sqliteSink);
     metricsAPI = new MetricsAPI(sqliteSink, store, logger);
     
-    // Pass shared metrics bus to WorktreeManager and BatchController
-    worktreeManager = new WorktreeManager(store, dbPath, metricsEventBus);
+    // Load runtime config for Amp version selection
+    const runtimeConfig = loadAmpRuntimeConfig();
+    
+    // Pass shared metrics bus and runtime config to WorktreeManager and BatchController
+    worktreeManager = new WorktreeManager(store, dbPath, metricsEventBus, undefined, runtimeConfig);
     batchController = new BatchController(store, dbPath, metricsEventBus);
     sweBenchRunner = new SweBenchRunner(store, dbPath);
-    benchmarkRunner = new BenchmarkRunner(store, dbPath);
+    benchmarkRunner = new BenchmarkRunner(store, dbPath, runtimeConfig);
     notifier = new Notifier();
 
     notifier.setCallback(async (options: any) => {
@@ -1119,6 +1185,60 @@ ipcMain.handle('shell:openExternal', async (_, url: string) => {
 ipcMain.handle('shell:openPath', async (_, path: string) => {
   const { shell } = require('electron');
   return await shell.openPath(path);
+});
+
+// Amp settings handlers
+ipcMain.handle('amp:getSettings', async () => {
+  try {
+    const { writeFileSync, existsSync, mkdirSync } = require('fs');
+    const configPath = join(homedir(), '.amp-session-manager', 'amp-settings.json');
+    const configDir = join(homedir(), '.amp-session-manager');
+    
+    if (!existsSync(configPath)) {
+      if (!existsSync(configDir)) {
+        mkdirSync(configDir, { recursive: true });
+      }
+      const defaultSettings = {
+        mode: 'production',
+        localCliPath: '/Users/sjarmak/amp/cli/dist/main.js',
+        localServerUrl: 'https://localhost:7002'
+      };
+      writeFileSync(configPath, JSON.stringify(defaultSettings, null, 2));
+      return defaultSettings;
+    }
+    
+    const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+    return config;
+  } catch (error) {
+    console.error('Failed to get Amp settings:', error);
+    return {
+      mode: 'production',
+      localCliPath: '/Users/sjarmak/amp/cli/dist/main.js',
+      localServerUrl: 'https://localhost:7002'
+    };
+  }
+});
+
+ipcMain.handle('amp:updateSettings', async (_, settings: any) => {
+  try {
+    const { writeFileSync, existsSync, mkdirSync } = require('fs');
+    const configPath = join(homedir(), '.amp-session-manager', 'amp-settings.json');
+    const configDir = join(homedir(), '.amp-session-manager');
+    
+    if (!existsSync(configDir)) {
+      mkdirSync(configDir, { recursive: true });
+    }
+    
+    writeFileSync(configPath, JSON.stringify(settings, null, 2));
+    
+    // Reinitialize services with new settings
+    await initializeServices();
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update Amp settings:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to update Amp settings' };
+  }
 });
 
 ipcMain.handle('get-amp-thread-id', async () => {
