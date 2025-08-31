@@ -28,12 +28,12 @@ The Amp Session Orchestrator supports both production and local development Amp 
 
 If you have a local Amp development environment:
 
-1. **Configure Local Mode**: Click the settings icon (⚙️) in the desktop app header
+1. **Configure Local Mode**: Click the lefthand grid icon in the desktop app header
 2. **Select Amp Mode**:
    - **Production**: Use the standard Amp service (default)
    - **Local CLI**: Use a local Amp CLI binary for development
    - **Local Server**: Connect to your local Amp development server
-3. **Set Paths**: Configure paths to your local Amp CLI and server URLs
+3. **Set Paths**: Configure CLI path to your local Amp CLI path (e.g, /Users/username/amp/cli/dist/main.js)
 4. **Authentication**: 
    - **Production**: Ensure `amp login` is authenticated in your terminal
    - **Local**: Set up your local development environment authentication
