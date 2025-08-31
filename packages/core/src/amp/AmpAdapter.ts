@@ -1,6 +1,11 @@
 import type { AmpRuntimeConfig } from '@ampsm/types';
 
 export function getAmpCliPath(cfg: AmpRuntimeConfig = {}): string {
+  // Explicit "production" CLI path always takes precedence
+  if (cfg.ampCliPath === 'production') {
+    return 'amp';
+  }
+  
   // If server URL is configured, use 'amp' with --server flag
   if (cfg.ampServerUrl) {
     return 'amp';
@@ -21,6 +26,13 @@ export function getAmpExtraArgs(cfg: AmpRuntimeConfig = {}): string[] {
 
 export function getAmpEnvironment(cfg: AmpRuntimeConfig = {}): Record<string, string> {
   const env: Record<string, string> = {};
+  
+  // Explicit "production" CLI path should use default production server
+  if (cfg.ampCliPath === 'production') {
+    // Don't set AMP_URL - let production amp use its default server
+    return env;
+  }
+  
   if (cfg.ampServerUrl) {
     env.AMP_URL = cfg.ampServerUrl;
     // Disable TLS verification for local development servers

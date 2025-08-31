@@ -285,7 +285,7 @@ export class BenchmarkRunner extends EventEmitter {
         if (caseAmpPath !== currentSuiteAmpPath || caseAmpServer !== currentSuiteAmpServer) {
           const runtimeConfig: AmpRuntimeConfig = { 
             ampCliPath: caseAmpPath === 'production' ? undefined : caseAmpPath,
-            ampServerUrl: caseAmpServer
+            ampServerUrl: caseAmpPath === 'production' ? undefined : caseAmpServer
           };
           caseWorktreeManager = new WorktreeManager(this.store, '', undefined, undefined, runtimeConfig, this.ampSettings);
         }
@@ -383,6 +383,13 @@ export class BenchmarkRunner extends EventEmitter {
       console.log(`🔧 Creating benchmark session for ${caseConfig.id} with script: ${caseConfig.script_command}`);
       // Create session
       const manager = worktreeManager || this.worktreeManager;
+      // Determine ampMode based on runtime config 
+      let ampMode: 'production' | 'local-cli' = 'production';
+      const runtimeConfig = manager.getRuntimeConfig();
+      if (runtimeConfig?.ampCliPath || runtimeConfig?.ampServerUrl) {
+        ampMode = this.ampSettings?.mode || 'local-cli';
+      }
+      
       const session = await manager.createSession({
         name: `Benchmark-${suite.id}-${caseConfig.id}`,
         ampPrompt: caseConfig.prompt,
@@ -390,7 +397,7 @@ export class BenchmarkRunner extends EventEmitter {
         baseBranch: defaults.base_branch,
         scriptCommand: caseConfig.script_command,
         modelOverride: modelConfig.name === 'default' ? undefined : modelConfig.name,
-        ampMode: this.ampSettings?.mode || 'production'
+        ampMode: ampMode
       });
       console.log(`✅ Session created: ${session.id}, scriptCommand: ${session.scriptCommand}`);
 

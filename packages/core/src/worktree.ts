@@ -70,6 +70,10 @@ export class WorktreeManager {
     this.ampAdapter = new AmpAdapter({...this.loadAmpConfig(), runtimeConfig: this.runtimeConfig}, this.store, this.metricsEventBus);
   }
 
+  public getRuntimeConfig(): AmpRuntimeConfig | undefined {
+    return this.runtimeConfig;
+  }
+
   private sessionAmpModeToRuntimeConfig(session: Session): AmpRuntimeConfig {
     console.log(`🔧 Session ${session.id} ampMode: ${session.ampMode}, ampSettings: ${JSON.stringify(this.ampSettings)}`);
     if (session.ampMode === 'local-cli') {

@@ -390,23 +390,64 @@ Fix the code to make the test pass while maintaining compatibility with existing
   }
 
   async deleteRun(runId: string): Promise<void> {
+    console.log(`🗑️ Deleting benchmark run: ${runId}`);
+    
     // Get all case results to find associated sessions
     const caseResults = this.store.getSweBenchCaseResults(runId);
+    console.log(`🗑️ Found ${caseResults.length} case results for benchmark run ${runId}`);
     
-    // Clean up associated sessions
-    for (const result of caseResults) {
-      if (result.sessionId) {
-        try {
-          console.log(`🗑️ Cleaning up session ${result.sessionId} for deleted benchmark run`);
-          await this.worktreeManager.cleanup(result.sessionId);
-        } catch (error) {
-          console.warn(`⚠️ Failed to cleanup session ${result.sessionId}:`, error);
-        }
+    // Get session IDs from case results
+    const sessionIdsFromResults = caseResults
+      .filter(result => result.sessionId && result.sessionId !== '')
+      .map(result => result.sessionId);
+    
+    // Also find orphaned sessions that might have been created but not properly linked
+    // Look for sessions with the runId in their notes (set on line 183-185)
+    const allSessions = this.store.getAllSessions();
+    const orphanedSessions = allSessions.filter(session => {
+      if (!session.notes) return false;
+      try {
+        const notes = JSON.parse(session.notes);
+        return notes.sweBenchRunId === runId;
+      } catch {
+        return false;
+      }
+    });
+    
+    const sessionIdsFromOrphans = orphanedSessions.map(s => s.id);
+    const allSessionIds = [...new Set([...sessionIdsFromResults, ...sessionIdsFromOrphans])];
+    
+    console.log(`🗑️ Found ${sessionIdsFromResults.length} sessions from case results and ${sessionIdsFromOrphans.length} orphaned sessions`);
+    console.log(`🗑️ Total ${allSessionIds.length} unique sessions to clean up`);
+    
+    // Clean up worktrees first
+    for (const sessionId of allSessionIds) {
+      try {
+        console.log(`🗑️ Cleaning up worktree for session ${sessionId}`);
+        await this.worktreeManager.cleanup(sessionId);
+        console.log(`🗑️ Worktree cleanup complete for session ${sessionId}`);
+      } catch (error) {
+        console.warn(`⚠️ Failed to cleanup worktree for session ${sessionId}:`, error);
       }
     }
     
-    // Delete the benchmark run and its results
+    // Delete the benchmark run and its results from database first (removes foreign key constraints)
+    console.log(`🗑️ Deleting benchmark run ${runId} and its results from database`);
     this.store.deleteSweBenchRun(runId);
+    console.log(`🗑️ Database records deleted for benchmark run ${runId}`);
+    
+    // Now delete sessions from database (no longer constrained by foreign keys)
+    for (const sessionId of allSessionIds) {
+      try {
+        console.log(`🗑️ Deleting session ${sessionId} from database`);
+        this.store.deleteSession(sessionId);
+        console.log(`🗑️ Session ${sessionId} deleted from database`);
+      } catch (error) {
+        console.warn(`⚠️ Failed to delete session ${sessionId} from database:`, error);
+      }
+    }
+    
+    console.log(`🗑️ Benchmark run ${runId} deletion complete`);
   }
 
   async abortRun(runId: string): Promise<void> {

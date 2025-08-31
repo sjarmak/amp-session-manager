@@ -454,6 +454,8 @@ ipcMain.handle('sessions:diff', async (_, sessionId: string) => {
 ipcMain.handle('sessions:cleanup', async (_, sessionId: string, force?: boolean) => {
   try {
     await worktreeManager.cleanup(sessionId, force);
+    // Delete session record from database after successful worktree cleanup
+    store.deleteSession(sessionId);
     return { success: true };
   } catch (error) {
     console.error('Failed to cleanup session:', error);
