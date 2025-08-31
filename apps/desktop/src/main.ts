@@ -238,12 +238,13 @@ async function initializeServices() {
     
     // Load runtime config for Amp version selection
     const runtimeConfig = loadAmpRuntimeConfig();
+    const ampSettings = loadAmpSettings();
     
     // Pass shared metrics bus and runtime config to WorktreeManager and BatchController
-    worktreeManager = new WorktreeManager(store, dbPath, metricsEventBus, undefined, runtimeConfig);
-    batchController = new BatchController(store, dbPath, metricsEventBus);
+    worktreeManager = new WorktreeManager(store, dbPath, metricsEventBus, undefined, runtimeConfig, ampSettings);
+    batchController = new BatchController(store, dbPath, metricsEventBus, ampSettings);
     sweBenchRunner = new SweBenchRunner(store, dbPath);
-    benchmarkRunner = new BenchmarkRunner(store, dbPath, runtimeConfig);
+    benchmarkRunner = new BenchmarkRunner(store, dbPath, runtimeConfig, ampSettings);
     notifier = new Notifier();
 
     notifier.setCallback(async (options: any) => {
@@ -399,7 +400,14 @@ ipcMain.handle('get-session', async (_, sessionId: string) => {
 
 ipcMain.handle('sessions:create', async (_, options: any) => {
   try {
-    const session = await worktreeManager.createSession(options);
+    // Include current amp mode setting if not explicitly provided
+    const ampSettings = loadAmpSettings();
+    const sessionOptions = {
+      ...options,
+      ampMode: options.ampMode || ampSettings.mode
+    };
+    
+    const session = await worktreeManager.createSession(sessionOptions);
     
     // Interactive sessions will be started manually when user clicks "start chat"
     // Removed auto-start to prevent double session creation
@@ -1230,13 +1238,41 @@ ipcMain.handle('amp:updateSettings', async (_, settings: any) => {
     }
     
     writeFileSync(configPath, JSON.stringify(settings, null, 2));
+    console.log('🔄 [AMP CONFIG] Settings updated, reinitializing services...');
     
     // Reinitialize services with new settings
     await initializeServices();
     
+    // Update amp settings on existing controllers
+    const newAmpSettings = loadAmpSettings();
+    batchController?.updateAmpSettings(newAmpSettings);
+    benchmarkRunner?.updateAmpSettings(newAmpSettings);
+    
+    console.log('✅ [AMP CONFIG] Services reinitialized with new settings');
+    
+    // Test authentication with new settings
+    try {
+      const { AmpAdapter } = require('@ampsm/core');
+      const testConfig = loadAmpConfig();
+      console.log('🔍 [AMP CONFIG] Testing authentication with new config:', {
+        ampPath: testConfig.ampPath,
+        runtimeConfig: testConfig.runtimeConfig
+      });
+      
+      const testAdapter = new AmpAdapter(testConfig);
+      const isAuth = await testAdapter.checkAuthentication();
+      console.log(`🔍 [AMP CONFIG] Authentication test result: ${isAuth}`);
+      
+      if (!isAuth) {
+        console.warn('⚠️  [AMP CONFIG] Authentication failed after switching modes - may need to run "amp login"');
+      }
+    } catch (error) {
+      console.error('❌ [AMP CONFIG] Error testing authentication:', error);
+    }
+    
     return { success: true };
   } catch (error) {
-    console.error('Failed to update Amp settings:', error);
+    console.error('❌ [AMP CONFIG] Failed to update Amp settings:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Failed to update Amp settings' };
   }
 });
@@ -1485,13 +1521,17 @@ ipcMain.handle('benchmarks:getResults', async (_, runId: string) => {
     console.log('📊 benchmarks:getResults result:', result?.length || 0, 'results');
     
     // Transform database results to UI format
-    const transformed = result.map(r => ({
-      instanceId: r.caseId,
-      sessionId: r.sessionId,
-      passed: r.status === 'pass',
-      completedAt: null, // Could add this if needed
-      error: r.status === 'fail' ? 'Test failed' : null
-    }));
+    const transformed = result.map(r => {
+      const session = store.getSession(r.sessionId);
+      return {
+        instanceId: r.caseId,
+        sessionId: r.sessionId,
+        passed: r.status === 'pass',
+        completedAt: null, // Could add this if needed
+        error: r.status === 'fail' ? 'Test failed' : null,
+        ampMode: session?.ampMode || 'production'
+      };
+    });
     
     return transformed;
   } catch (error) {
@@ -1578,10 +1618,19 @@ ipcMain.handle('interactive:start', async (_, sessionId: string, threadId?: stri
     }
 
     const { AmpAdapter } = require('@ampsm/core');
-    const ampAdapter = new AmpAdapter(loadAmpConfig(), store, metricsEventBus);
+    const ampConfig = loadAmpConfig();
+    console.log(`[DEBUG] Interactive session using config:`, {
+      ampPath: ampConfig.ampPath,
+      runtimeConfig: ampConfig.runtimeConfig
+    });
+    
+    const ampAdapter = new AmpAdapter(ampConfig, store, metricsEventBus);
     
     // Check authentication first
+    console.log(`[DEBUG] Checking authentication for interactive session...`);
     const isAuthenticated = await ampAdapter.checkAuthentication();
+    console.log(`[DEBUG] Authentication result: ${isAuthenticated}`);
+    
     if (!isAuthenticated) {
       return { 
         success: false, 

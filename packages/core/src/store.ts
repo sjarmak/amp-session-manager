@@ -25,6 +25,7 @@ export class SessionStore {
       this.migrateThreadIds();
       this.migrateAutoCommitDefault();
       this.migrateSessionThreads();
+      this.migrateAmpMode();
       
       // Clean up legacy Chat-named threads
       const cleanedCount = this.cleanupLegacyChatThreads();
@@ -135,7 +136,8 @@ export class SessionStore {
         notes TEXT,
         contextIncluded BOOLEAN,
         mode TEXT DEFAULT 'async',
-        autoCommit BOOLEAN DEFAULT 0
+        autoCommit BOOLEAN DEFAULT 0,
+        ampMode TEXT DEFAULT 'production'
       );
 
       CREATE TABLE IF NOT EXISTS iterations (
@@ -319,13 +321,14 @@ export class SessionStore {
       modelOverride: options.modelOverride,
       threadId: options.threadId,
       createdAt: new Date().toISOString(),
-      mode: options.mode || 'async'
+      mode: options.mode || 'async',
+      ampMode: options.ampMode || 'production'
     };
 
     const stmt = this.db.prepare(`
       INSERT INTO sessions (id, name, ampPrompt, followUpPrompts, repoRoot, baseBranch, branchName, 
-        worktreePath, status, scriptCommand, modelOverride, threadId, createdAt, mode, autoCommit)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        worktreePath, status, scriptCommand, modelOverride, threadId, createdAt, mode, autoCommit, ampMode)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -333,7 +336,8 @@ export class SessionStore {
       session.repoRoot, session.baseBranch, session.branchName, session.worktreePath,
       session.status, session.scriptCommand ?? null, session.modelOverride ?? null,
       session.threadId ?? null, session.createdAt, session.mode ?? 'async',
-      options.autoCommit !== undefined ? (options.autoCommit ? 1 : 0) : null
+      options.autoCommit !== undefined ? (options.autoCommit ? 1 : 0) : null,
+      session.ampMode ?? 'production'
     );
 
     return session;
@@ -414,6 +418,10 @@ export class SessionStore {
     }
     
     console.log('Thread migration completed');
+  }
+
+  private migrateAmpMode(): void {
+    this.addColumn('sessions', 'ampMode', "TEXT DEFAULT 'production'");
   }
 
   async syncAllSessionThreadIds() {

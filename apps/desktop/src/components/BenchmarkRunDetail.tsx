@@ -7,6 +7,7 @@ export interface BenchmarkResult {
   passed: boolean | null;
   completedAt?: string;
   error?: string;
+  ampMode?: 'production' | 'local-cli';
 }
 
 export interface BenchmarkRunDetailProps {
@@ -256,6 +257,9 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                  Amp Mode
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                   Completed At
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
@@ -288,6 +292,15 @@ export function BenchmarkRunDetail({ runId, type, onBack, onSessionSelect }: Ben
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(result.passed)}`}>
                       {getStatusText(result.passed)}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      result.ampMode === 'local-cli' 
+                        ? 'bg-gruvbox-bright-yellow/20 text-gruvbox-bright-yellow' 
+                        : 'bg-gruvbox-blue/20 text-gruvbox-bright-blue'
+                    }`}>
+                      {result.ampMode || 'production'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">

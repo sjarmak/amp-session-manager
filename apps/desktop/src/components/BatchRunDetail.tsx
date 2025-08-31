@@ -15,6 +15,7 @@ export interface BatchItem {
   tokensTotal?: number;
   toolCalls?: number;
   duration?: number;
+  ampMode?: 'production' | 'local-cli';
 }
 
 export interface BatchRun {
@@ -323,6 +324,9 @@ const exportMenuRef = useRef<HTMLDivElement>(null);
                 Status
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                Amp Mode
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                 Duration
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
@@ -355,6 +359,15 @@ const exportMenuRef = useRef<HTMLDivElement>(null);
                       {item.error}
                     </div>
                   )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    item.ampMode === 'local-cli' 
+                      ? 'bg-gruvbox-bright-yellow/20 text-gruvbox-bright-yellow' 
+                      : 'bg-gruvbox-blue/20 text-gruvbox-bright-blue'
+                  }`}>
+                    {item.ampMode || 'production'}
+                  </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
                   {formatDuration(item.duration)}

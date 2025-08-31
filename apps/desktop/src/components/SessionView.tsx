@@ -355,6 +355,20 @@ export function SessionView({
               </div>
               <div>
                 <dt className="text-sm font-medium text-gruvbox-fg2">
+                  Amp Mode
+                </dt>
+                <dd className="mt-1 text-sm text-gruvbox-fg1">
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    session.ampMode === 'local-cli' 
+                      ? 'bg-gruvbox-bright-yellow/20 text-gruvbox-bright-yellow' 
+                      : 'bg-gruvbox-blue/20 text-gruvbox-bright-blue'
+                  }`}>
+                    {session.ampMode || 'production'}
+                  </span>
+                </dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gruvbox-fg2">
                   Worktree Path
                 </dt>
                 <dd className="mt-1 text-sm text-gruvbox-fg1 font-mono">

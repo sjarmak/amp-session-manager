@@ -4,6 +4,11 @@
 
 A cross-platform desktop app and CLI that turns AI coding sessions into first-class, reviewable Git branches. Create isolated sessions, chat with Amp interactively, track real-time metrics, and merge changes cleanly to your main branch.
 
+**Key Features:**
+- 🎯 **Production & Development Support**: Switch between production Amp and local development environments
+- 🔄 **Live Mode Switching**: Change Amp configurations without restarting the application
+- 📊 **Comprehensive Testing**: Run evaluations and benchmarks against both environments
+
 ## Quick Start
 
 ```bash
@@ -14,6 +19,45 @@ cd apps/desktop && pnpm dev
 ```
 
 **Prerequisites**: Git ≥2.38, Node.js ≥18, pnpm ≥8, authenticated Amp CLI
+
+## Local Development Support
+
+The Amp Session Orchestrator supports both production and local development Amp environments, allowing you to test changes and run evaluations against your development setup.
+
+### Setup for Local Development
+
+If you have a local Amp development environment:
+
+1. **Configure Local Mode**: Click the settings icon (⚙️) in the desktop app header
+2. **Select Amp Mode**:
+   - **Production**: Use the standard Amp service (default)
+   - **Local CLI**: Use a local Amp CLI binary for development
+   - **Local Server**: Connect to your local Amp development server
+3. **Set Paths**: Configure paths to your local Amp CLI and server URLs
+4. **Authentication**: 
+   - **Production**: Ensure `amp login` is authenticated in your terminal
+   - **Local**: Set up your local development environment authentication
+
+### Switching Between Modes
+
+You can switch between production and local development modes at any time:
+
+1. **Open Settings**: Click the ⚙️ icon in the app header
+2. **Change Mode**: Select your desired Amp environment
+3. **Update Paths**: Adjust CLI paths or server URLs as needed
+4. **Apply**: Settings take effect immediately without restarting
+
+### Development Workflow
+
+**Testing Local Changes:**
+- Switch to local mode to test your Amp modifications
+- Run sessions and benchmarks against your development environment
+- Switch back to production for normal usage
+
+**Evaluation and Testing:**
+- Use local mode for extensive testing without production usage limits
+- Run benchmarks against your local development setup
+- Compare results between local and production environments
 
 ## Desktop App Workflow
 
@@ -114,14 +158,35 @@ The Git tab provides full version control operations:
 ### CLI Batch Operations
 
 ```bash
-# Execute batch
+# Execute batch (production)
 pnpm cli batch start --file batch-config.yaml
+
+# Execute batch (local development)
+pnpm cli batch start --file batch-config.yaml --amp-server https://localhost:7002
 
 # Monitor progress
 pnpm cli batch status batch-123 --follow
 
 # Export results
 pnpm cli batch export batch-123 --format csv
+```
+
+#### Local Development CLI Support
+
+All CLI commands support local Amp development environments:
+
+```bash
+# Session commands with local Amp
+pnpm cli new --repo ./my-project --name "test" --prompt "Hello" --amp-server https://localhost:7002
+pnpm cli iterate session-id --amp-cli /path/to/local/amp/cli/dist/main.js
+
+# Benchmark commands with local Amp
+pnpm cli benchmark eval.yaml --amp-server https://localhost:7002
+
+# Use environment variables
+export AMP_SERVER_URL="https://localhost:7002"
+export AMP_CLI_PATH="/path/to/local/amp/cli/dist/main.js"
+pnpm cli benchmark eval.yaml
 ```
 
 #### Batch Configuration Schema

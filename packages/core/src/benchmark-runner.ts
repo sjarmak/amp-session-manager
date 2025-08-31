@@ -4,7 +4,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { parse } from 'yaml';
-import type { Session, SweBenchCase, AmpRuntimeConfig } from '@ampsm/types';
+import type { Session, SweBenchCase, AmpRuntimeConfig, AmpSettings } from '@ampsm/types';
 import { SessionStore } from './store.js';
 import { WorktreeManager } from './worktree.js';
 import { SweBenchRunner } from './swebench-runner.js';
@@ -92,10 +92,10 @@ export class BenchmarkRunner extends EventEmitter {
   private sweBenchRunner: SweBenchRunner;
   private runningBenchmarks: Map<string, boolean> = new Map();
 
-  constructor(store: SessionStore, dbPath: string, private runtimeConfig?: AmpRuntimeConfig) {
+  constructor(store: SessionStore, dbPath: string, private runtimeConfig?: AmpRuntimeConfig, private ampSettings?: AmpSettings) {
     super();
     this.store = store;
-    this.worktreeManager = new WorktreeManager(store, dbPath, undefined, undefined, runtimeConfig);
+    this.worktreeManager = new WorktreeManager(store, dbPath, undefined, undefined, runtimeConfig, ampSettings);
     this.sweBenchRunner = new SweBenchRunner(store, dbPath);
   }
 
@@ -257,7 +257,7 @@ export class BenchmarkRunner extends EventEmitter {
         ampCliPath: suiteAmpPath === 'production' ? undefined : suiteAmpPath,
         ampServerUrl: suiteAmpServer
       };
-      suiteWorktreeManager = new WorktreeManager(this.store, '', undefined, undefined, runtimeConfig);
+      suiteWorktreeManager = new WorktreeManager(this.store, '', undefined, undefined, runtimeConfig, this.ampSettings);
     }
     const result: SuiteResult = {
       suite: suite.id,
@@ -287,7 +287,7 @@ export class BenchmarkRunner extends EventEmitter {
             ampCliPath: caseAmpPath === 'production' ? undefined : caseAmpPath,
             ampServerUrl: caseAmpServer
           };
-          caseWorktreeManager = new WorktreeManager(this.store, '', undefined, undefined, runtimeConfig);
+          caseWorktreeManager = new WorktreeManager(this.store, '', undefined, undefined, runtimeConfig, this.ampSettings);
         }
         
         const caseResult = await this.runCase(caseConfig, modelConfig, defaults, suite, runId, caseWorktreeManager);
@@ -389,7 +389,8 @@ export class BenchmarkRunner extends EventEmitter {
         repoRoot: await this.ensureTestRepo(caseConfig.repo),
         baseBranch: defaults.base_branch,
         scriptCommand: caseConfig.script_command,
-        modelOverride: modelConfig.name === 'default' ? undefined : modelConfig.name
+        modelOverride: modelConfig.name === 'default' ? undefined : modelConfig.name,
+        ampMode: this.ampSettings?.mode || 'production'
       });
       console.log(`✅ Session created: ${session.id}, scriptCommand: ${session.scriptCommand}`);
 
@@ -615,5 +616,10 @@ export class BenchmarkRunner extends EventEmitter {
         }
       });
     });
+  }
+
+  updateAmpSettings(ampSettings: AmpSettings) {
+    this.ampSettings = ampSettings;
+    // Note: We don't need to recreate worktreeManager since it uses runtime config passed via createSession
   }
 }

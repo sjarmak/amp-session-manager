@@ -242,15 +242,16 @@ export function SessionList({ onSessionSelect, onNewSession }: SessionListProps)
                     {session.ampPrompt}
                   </p>
                   <div className="space-y-1 mt-2 text-xs text-gruvbox-light4">
-                    <div>Repository: {session.repoRoot}</div>
-                    <div className="flex items-center gap-4">
-                      <span>Branch: {session.branchName}</span>
-                      <span>Created: {new Date(session.createdAt).toLocaleDateString()}</span>
-                      {session.lastRun && (
-                        <span>Last Run: {new Date(session.lastRun).toLocaleDateString()}</span>
-                      )}
+                  <div>Repository: {session.repoRoot}</div>
+                  <div className="flex items-center gap-4">
+                  <span>Branch: {session.branchName}</span>
+                  <span>Amp: {session.ampMode || 'production'}</span>
+                  <span>Created: {new Date(session.createdAt).toLocaleDateString()}</span>
+                  {session.lastRun && (
+                    <span>Last Run: {new Date(session.lastRun).toLocaleDateString()}</span>
+                    )}
                     </div>
-                  </div>
+                   </div>
                 </div>
               </div>
             </div>

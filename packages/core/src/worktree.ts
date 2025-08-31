@@ -2,7 +2,7 @@ import { SessionStore } from './store.js';
 import { GitOps } from './git.js';
 import { AmpAdapter, type AmpAdapterConfig } from './amp.js';
 // import { getCurrentAmpThreadId } from './amp-utils.js'; // Removed - we now capture thread IDs directly from Amp output
-import type { Session, SessionCreateOptions, IterationRecord, PreflightResult, SquashOptions, RebaseResult, MergeOptions, AmpRuntimeConfig } from '@ampsm/types';
+import type { Session, SessionCreateOptions, IterationRecord, PreflightResult, SquashOptions, RebaseResult, MergeOptions, AmpRuntimeConfig, AmpSettings } from '@ampsm/types';
 import { mkdir, writeFile, readFile } from 'fs/promises';
 import * as fs from 'fs';
 import { join } from 'path';
@@ -26,7 +26,8 @@ export class WorktreeManager {
     private dbPath?: string,
     metricsEventBus?: MetricsEventBus,
     private metricsJsonlPath?: string,
-    private runtimeConfig?: AmpRuntimeConfig
+    private runtimeConfig?: AmpRuntimeConfig,
+    private ampSettings?: AmpSettings
   ) {
     this.logger = new Logger('WorktreeManager');
     
@@ -67,6 +68,19 @@ export class WorktreeManager {
     }
     
     this.ampAdapter = new AmpAdapter({...this.loadAmpConfig(), runtimeConfig: this.runtimeConfig}, this.store, this.metricsEventBus);
+  }
+
+  private sessionAmpModeToRuntimeConfig(session: Session): AmpRuntimeConfig {
+    console.log(`🔧 Session ${session.id} ampMode: ${session.ampMode}, ampSettings: ${JSON.stringify(this.ampSettings)}`);
+    if (session.ampMode === 'local-cli') {
+      const config = {
+        ampCliPath: this.ampSettings?.localCliPath || '/Users/sjarmak/amp/cli/dist/main.js'
+      };
+      console.log(`🔧 Using local CLI config for session: ${JSON.stringify(config)}`);
+      return config;
+    }
+    console.log(`🔧 Using production mode for session ${session.id}`);
+    return {}; // Production mode uses default amp CLI
   }
 
   async createSession(options: SessionCreateOptions): Promise<Session> {
@@ -291,7 +305,18 @@ export class WorktreeManager {
       
       let result;
       try {
-        result = await this.ampAdapter.runIteration(
+        // Create session-specific amp adapter if needed
+        let sessionAmpAdapter = this.ampAdapter;
+        if (session.ampMode && session.ampMode !== 'production') {
+          const sessionRuntimeConfig = this.sessionAmpModeToRuntimeConfig(session);
+          sessionAmpAdapter = new AmpAdapter(
+            {...this.loadAmpConfig(), runtimeConfig: sessionRuntimeConfig}, 
+            this.store, 
+            this.metricsEventBus
+          );
+        }
+        
+        result = await sessionAmpAdapter.runIteration(
           iterationPrompt!, 
           session.worktreePath, 
           session.modelOverride,

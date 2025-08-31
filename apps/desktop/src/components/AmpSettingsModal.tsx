@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 
 interface AmpSettings {
-  mode: 'production' | 'local-cli' | 'local-server';
+  mode: 'production' | 'local-cli';
   localCliPath?: string;
-  localServerUrl?: string;
 }
 
 interface AmpSettingsModalProps {
@@ -15,7 +14,6 @@ export default function AmpSettingsModal({ isOpen, onClose }: AmpSettingsModalPr
   const [settings, setSettings] = useState<AmpSettings>({
     mode: 'production',
     localCliPath: '/Users/sjarmak/amp/cli/dist/main.js',
-    localServerUrl: 'https://localhost:7002',
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -81,30 +79,7 @@ export default function AmpSettingsModal({ isOpen, onClose }: AmpSettingsModalPr
                 <span className="text-sm text-gruvbox-light2">Production (ampcode.com)</span>
               </label>
               
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="ampMode"
-                  value="local-server"
-                  checked={settings.mode === 'local-server'}
-                  onChange={(e) => setSettings({ ...settings, mode: e.target.value as any })}
-                  className="mr-3 accent-gruvbox-bright-blue"
-                />
-                <span className="text-sm text-gruvbox-light2">Local Development Server</span>
-              </label>
-              
-              {settings.mode === 'local-server' && (
-                <div className="ml-6">
-                  <input
-                    type="text"
-                    value={settings.localServerUrl}
-                    onChange={(e) => setSettings({ ...settings, localServerUrl: e.target.value })}
-                    placeholder="https://localhost:7002"
-                    className="w-full px-3 py-2 bg-gruvbox-dark0 border border-gruvbox-dark3 rounded-md text-gruvbox-light1 placeholder-gruvbox-light4 focus:outline-none focus:ring-2 focus:ring-gruvbox-bright-blue focus:border-gruvbox-bright-blue"
-                  />
-                </div>
-              )}
-              
+
               <label className="flex items-center">
                 <input
                   type="radio"
@@ -135,9 +110,6 @@ export default function AmpSettingsModal({ isOpen, onClose }: AmpSettingsModalPr
             <h4 className="text-sm font-medium text-gruvbox-light2 mb-2">Current Configuration</h4>
             <div className="text-xs text-gruvbox-light3 space-y-1">
               <div>Mode: <span className="font-mono text-gruvbox-bright-aqua">{settings.mode}</span></div>
-              {settings.mode === 'local-server' && (
-                <div>Server: <span className="font-mono text-gruvbox-bright-aqua">{settings.localServerUrl}</span></div>
-              )}
               {settings.mode === 'local-cli' && (
                 <div>Path: <span className="font-mono text-gruvbox-bright-aqua">{settings.localCliPath}</span></div>
               )}

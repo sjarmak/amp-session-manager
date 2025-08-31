@@ -5,7 +5,7 @@ import { Exporter } from './exporter.js';
 import { WorktreeManager } from './worktree.js';
 import { GitOps } from './git.js';
 import { MetricsEventBus } from './metrics/index.js';
-import type { Plan, BatchRecord, BatchItem, ExportOptions, ReportOptions } from '@ampsm/types';
+import type { Plan, BatchRecord, BatchItem, ExportOptions, ReportOptions, AmpSettings } from '@ampsm/types';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 
@@ -50,6 +50,7 @@ export interface BatchRunSummary {
 
 export interface BatchItemDetails extends BatchItem {
   duration?: number;
+  ampMode?: 'production' | 'local-cli';
 }
 
 export interface BatchListItemsOptions {
@@ -88,9 +89,14 @@ export class BatchController extends EventEmitter {
   private exporter: Exporter;
   private activeRuns = new Map<string, BatchRunner>();
 
-  constructor(private store: SessionStore, private dbPath?: string, private metricsEventBus?: MetricsEventBus) {
+  constructor(
+    private store: SessionStore, 
+    private dbPath?: string, 
+    private metricsEventBus?: MetricsEventBus,
+    private ampSettings?: AmpSettings
+  ) {
     super();
-    this.batchRunner = new BatchRunner(store, dbPath, metricsEventBus);
+    this.batchRunner = new BatchRunner(store, dbPath, metricsEventBus, ampSettings);
     this.exporter = new Exporter(store, dbPath);
   }
 
@@ -162,13 +168,20 @@ export class BatchController extends EventEmitter {
       items = items.slice(0, options.limit);
     }
 
-    // Calculate duration for each item
+    // Calculate duration and get ampMode for each item
     const itemsWithDetails: BatchItemDetails[] = items.map(item => {
       let duration: number | undefined;
       if (item.startedAt && item.finishedAt) {
         duration = new Date(item.finishedAt).getTime() - new Date(item.startedAt).getTime();
       }
-      return { ...item, duration };
+      
+      let ampMode: 'production' | 'local-cli' | undefined;
+      if (item.sessionId) {
+        const session = this.store.getSession(item.sessionId);
+        ampMode = session?.ampMode;
+      }
+      
+      return { ...item, duration, ampMode };
     });
 
     return { items: itemsWithDetails, total };
@@ -383,6 +396,11 @@ export class BatchController extends EventEmitter {
       files.push(`${options.outDir}/${filename}`);
     }
     return files;
+  }
+
+  updateAmpSettings(ampSettings: AmpSettings) {
+    this.ampSettings = ampSettings;
+    this.batchRunner = new BatchRunner(this.store, this.dbPath, this.metricsEventBus, ampSettings);
   }
 
   async report(options: BatchReportOptions): Promise<string> {

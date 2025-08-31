@@ -1,7 +1,7 @@
 import { SessionStore } from './store.js';
 import { WorktreeManager } from './worktree.js';
 import { MetricsEventBus } from './metrics/index.js';
-import type { Plan, PlanItem, BatchRecord, BatchItem } from '@ampsm/types';
+import type { Plan, PlanItem, BatchRecord, BatchItem, AmpSettings } from '@ampsm/types';
 import { randomUUID } from 'crypto';
 import { readFile } from 'fs/promises';
 import { parse as parseYAML } from 'yaml';
@@ -37,7 +37,8 @@ export class BatchRunner {
   constructor(
     private store: SessionStore,
     private dbPath?: string,
-    private metricsEventBus?: MetricsEventBus
+    private metricsEventBus?: MetricsEventBus,
+    private ampSettings?: AmpSettings
   ) {}
 
   async parsePlan(planPath: string): Promise<Plan> {
@@ -168,7 +169,10 @@ export class BatchRunner {
       const planItem = plan.matrix.find(p => p.repo === item.repo && p.prompt === item.prompt)!;
       
       // Create session
-      const worktreeManager = new WorktreeManager(this.store, this.dbPath, this.metricsEventBus);
+      const worktreeManager = new WorktreeManager(this.store, this.dbPath, this.metricsEventBus, undefined, undefined, this.ampSettings);
+      const ampMode = this.ampSettings?.mode || 'production';
+      console.log(`🔧 Creating batch session with ampMode: ${ampMode}, ampSettings: ${JSON.stringify(this.ampSettings)}`);
+      
       const session = await worktreeManager.createSession({
         name: this.generateSessionName(item.prompt, item.id),
         ampPrompt: item.prompt,
@@ -178,6 +182,7 @@ export class BatchRunner {
         modelOverride: planItem.model || plan.defaults.model,
         // Set autoCommit to false for batch sessions so changes remain staged for review
         autoCommit: false,
+        ampMode
       });
 
       // Update batch item with session ID

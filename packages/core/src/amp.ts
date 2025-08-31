@@ -365,6 +365,8 @@ export class AmpAdapter extends EventEmitter {
       console.log(`   Working dir: ${workingDir}`);
       console.log(`   Extra args: ${JSON.stringify(this.config.extraArgs)}`);
       console.log(`   Runtime config: ${JSON.stringify(this.config.runtimeConfig)}`);
+      console.log(`   Amp path: ${this.config.ampPath}`);
+      console.log(`   Environment: ${JSON.stringify(env)}`);
       
       const child = spawn(this.config.ampPath!, args, {
         cwd: workingDir,

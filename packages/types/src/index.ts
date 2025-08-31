@@ -16,6 +16,7 @@ export interface Session {
   notes?: string;
   mode?: 'async' | 'interactive';
   autoCommit?: boolean; // If false, stage changes instead of committing them
+  ampMode?: 'production' | 'local-cli';
 }
 
 export interface IterationRecord {
@@ -79,6 +80,7 @@ export interface SessionCreateOptions {
   threadId?: string;
   mode?: "async" | "interactive";
   autoCommit?: boolean;
+  ampMode?: 'production' | 'local-cli';
 }
 
 export interface PreflightResult {
@@ -329,4 +331,9 @@ export interface SessionThreadMessage {
 export interface AmpRuntimeConfig {
   ampCliPath?: string;
   ampServerUrl?: string; // e.g., "http://localhost:7002"
+}
+
+export interface AmpSettings {
+  mode: 'production' | 'local-cli';
+  localCliPath?: string;
 }
