@@ -154,14 +154,21 @@ export function ThreadsView({ currentSessionId }: ThreadsViewProps) {
               )}
               
               <div className="mt-2">
-                <a 
-                  href={threadInfo.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-gruvbox-bright-blue hover:text-gruvbox-blue text-xs"
-                >
-                  View Thread on Amp →
-                </a>
+                {session.ampMode === 'production' && (
+                  <a 
+                    href={threadInfo.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gruvbox-bright-blue hover:text-gruvbox-blue text-xs"
+                  >
+                    View Thread on Amp →
+                  </a>
+                )}
+                {session.ampMode === 'local-cli' && (
+                  <span className="text-gruvbox-fg2 text-xs italic">
+                    Local dev thread
+                  </span>
+                )}
               </div>
             </div>
           );

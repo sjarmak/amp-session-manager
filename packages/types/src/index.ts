@@ -229,6 +229,7 @@ export interface NormalizedThread {
   updated_at: string;
   last_sync_at: string | null;
   source: 'web' | 'cache' | 'logs' | 'git' | 'mixed';
+  ampMode?: 'production' | 'local-cli';
   messages: ThreadMessage[];
   tool_calls: ThreadToolCall[];
   diffs: ThreadDiff[];
@@ -317,6 +318,7 @@ export interface SessionThread {
   updatedAt: string;
   status: 'active' | 'archived' | 'completed';
   messageCount?: number;
+  ampMode?: 'production' | 'local-cli';
 }
 
 export interface SessionThreadMessage {

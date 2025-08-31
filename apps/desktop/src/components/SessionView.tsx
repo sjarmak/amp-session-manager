@@ -62,6 +62,7 @@ export function SessionView({
     updatedAt: string;
     status: string;
     messageCount: number;
+    ampMode?: string;
   }>>([]);
   
   const [threadMessages, setThreadMessages] = useState<Record<string, Array<{
@@ -426,14 +427,21 @@ export function SessionView({
                       <span className="font-mono bg-gruvbox-bg2 px-2 py-1 rounded">
                         {session.threadId}
                       </span>
-                      <a 
-                        href={`https://ampcode.com/threads/${session.threadId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-gruvbox-bright-blue hover:text-gruvbox-blue text-sm font-medium transition-colors"
-                      >
-                        View on Amp →
-                      </a>
+                      {session.ampMode === 'production' && (
+                        <a 
+                          href={`https://ampcode.com/threads/${session.threadId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gruvbox-bright-blue hover:text-gruvbox-blue text-sm font-medium transition-colors"
+                        >
+                          View on Amp →
+                        </a>
+                      )}
+                      {session.ampMode === 'local-cli' && (
+                        <span className="text-gruvbox-fg2 text-sm italic">
+                          (local dev thread)
+                        </span>
+                      )}
                     </div>
                   </dd>
                 </div>
@@ -485,14 +493,21 @@ export function SessionView({
                       >
                         Continue Thread →
                       </button>
-                      <a 
-                        href={`https://ampcode.com/threads/${thread.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-gruvbox-bright-blue hover:text-gruvbox-blue text-sm font-medium bg-gruvbox-bg2 px-3 py-1 rounded transition-colors"
-                      >
-                        View on Amp →
-                      </a>
+                      {thread.ampMode === 'production' && (
+                        <a 
+                          href={`https://ampcode.com/threads/${thread.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gruvbox-bright-blue hover:text-gruvbox-blue text-sm font-medium bg-gruvbox-bg2 px-3 py-1 rounded transition-colors"
+                        >
+                          View on Amp →
+                        </a>
+                      )}
+                      {thread.ampMode === 'local-cli' && (
+                        <span className="text-gruvbox-fg2 text-sm italic bg-gruvbox-bg2 px-3 py-1 rounded">
+                          (local dev thread)
+                        </span>
+                      )}
                     </div>
                   </div>
                   

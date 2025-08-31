@@ -256,6 +256,7 @@ export class SessionStore {
         createdAt TEXT NOT NULL,
         updatedAt TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'active',
+        ampMode TEXT CHECK(ampMode IN ('production', 'local-cli')),
         FOREIGN KEY(sessionId) REFERENCES sessions(id) ON DELETE CASCADE
       );
 
@@ -422,6 +423,7 @@ export class SessionStore {
 
   private migrateAmpMode(): void {
     this.addColumn('sessions', 'ampMode', "TEXT DEFAULT 'production'");
+    this.addColumn('threads', 'ampMode', "TEXT CHECK(ampMode IN ('production', 'local-cli'))");
   }
 
   async syncAllSessionThreadIds() {
@@ -1270,15 +1272,19 @@ export class SessionStore {
     const id = providedId || `T-${randomUUID()}`;
     const now = new Date().toISOString();
     
-    console.log(`[DEBUG] createThread - sessionId: ${sessionId}, name: "${name}", id: ${id}`);
+    // Get the session's ampMode to apply to the thread
+    const session = this.getSession(sessionId);
+    const ampMode = session?.ampMode || 'production';
+    
+    console.log(`[DEBUG] createThread - sessionId: ${sessionId}, name: "${name}", id: ${id}, ampMode: ${ampMode}`);
     
     const stmt = this.db.prepare(`
-      INSERT INTO threads (id, sessionId, name, createdAt, updatedAt, status)
-      VALUES (?, ?, ?, ?, ?, 'active')
+      INSERT INTO threads (id, sessionId, name, createdAt, updatedAt, status, ampMode)
+      VALUES (?, ?, ?, ?, ?, 'active', ?)
     `);
     
-    stmt.run(id, sessionId, name, now, now);
-    console.log(`[DEBUG] createThread - successfully created thread ${id} with name "${name}"`);
+    stmt.run(id, sessionId, name, now, now, ampMode);
+    console.log(`[DEBUG] createThread - successfully created thread ${id} with name "${name}" in ${ampMode} mode`);
     return id;
   }
 
@@ -1295,15 +1301,16 @@ export class SessionStore {
     updatedAt: string;
     status: string;
     messageCount: number;
+    ampMode?: string;
   }> {
     const stmt = this.db.prepare(`
       SELECT 
-        t.id, t.sessionId, t.name, t.createdAt, t.updatedAt, t.status,
+        t.id, t.sessionId, t.name, t.createdAt, t.updatedAt, t.status, t.ampMode,
         COUNT(tm.id) as messageCount
       FROM threads t
       LEFT JOIN thread_messages tm ON t.id = tm.threadId
       WHERE t.sessionId = ?
-      GROUP BY t.id, t.sessionId, t.name, t.createdAt, t.updatedAt, t.status
+      GROUP BY t.id, t.sessionId, t.name, t.createdAt, t.updatedAt, t.status, t.ampMode
       ORDER BY t.updatedAt DESC
     `);
     
@@ -1315,6 +1322,7 @@ export class SessionStore {
       updatedAt: string;
       status: string;
       messageCount: number;
+      ampMode?: string;
     }>;
     
     console.log(`[DEBUG] getSessionThreads for ${sessionId}:`, threads);

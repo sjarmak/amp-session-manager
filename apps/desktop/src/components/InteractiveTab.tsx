@@ -713,6 +713,13 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected, onT
         <div className="flex items-center gap-3">
           <h3 className="text-lg font-semibold text-gruvbox-fg0">Interactive Chat</h3>
           {getConnectionBadge()}
+          <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+            session?.ampMode === 'local-cli' 
+              ? 'bg-gruvbox-bright-orange text-gruvbox-bg0' 
+              : 'bg-gruvbox-bright-green text-gruvbox-bg0'
+          }`}>
+            {session?.ampMode === 'local-cli' ? 'LOCAL DEV' : 'PRODUCTION'}
+          </span>
         </div>
         
         <div className="flex gap-2 items-center">
