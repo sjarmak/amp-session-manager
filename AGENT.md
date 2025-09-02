@@ -30,6 +30,7 @@ Non-goals: modifying Amp source, introducing external services, or leaking secre
 - **Plain Git first**. Prefer `git` subcommands over custom logic.
 - **Security**. Never read `.env` without explicit user instruction. Do not log secrets.
 - **Transparency**. Summarize diffs and decisions in commit messages and logs.
+- **No emojis in UI**. Absolutely no emojis should be used anywhere in the user interface - use text labels only.
 
 ---
 

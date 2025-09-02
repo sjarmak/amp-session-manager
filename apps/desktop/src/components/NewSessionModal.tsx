@@ -19,11 +19,7 @@ export function NewSessionModal({
     baseBranch: "main",
     scriptCommand: "",
     modelOverride: "",
-    // SDLC Agent fields
-    agentId: "",
-    autoRoute: false,
-    alloyMode: false,
-    multiProvider: false,
+
   });
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,11 +57,6 @@ export function NewSessionModal({
       baseBranch: "main",
       scriptCommand: "",
       modelOverride: "",
-      // SDLC Agent fields
-      agentId: "",
-      autoRoute: false,
-      alloyMode: false,
-      multiProvider: false,
     });
     setError(null);
     setCreating(false);
@@ -117,12 +108,7 @@ export function NewSessionModal({
       baseBranch: formData.baseBranch.trim() || "main",
       modelOverride: formData.modelOverride.trim() || undefined,
       mode: 'interactive',
-      // SDLC Agent options
-      agentId: formData.agentId.trim() || undefined,
-      agentMode: formData.agentId ? 'explicit' : 'auto',
-      autoRoute: formData.autoRoute,
-      alloyMode: formData.alloyMode,
-      multiProvider: formData.multiProvider,
+
     };
 
     try {
@@ -255,55 +241,7 @@ export function NewSessionModal({
 
 
 
-          {ampMode === 'local-cli' && (
-            <div>
-              <label className="block text-sm font-medium text-gruvbox-light2 mb-1">
-                SDLC Agent (optional)
-              </label>
-              <div className="relative">
-                <select
-                  value={formData.agentId}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, agentId: e.target.value }))
-                  }
-                  className="w-full px-3 py-2 bg-gruvbox-dark0 border border-gruvbox-dark3/50 rounded-md text-gruvbox-light1 focus:outline-none focus:ring-2 focus:ring-gruvbox-aqua focus:border-gruvbox-aqua"
-                >
-                  <option value="" className="bg-gruvbox-dark0 text-gruvbox-light1">
-                    Auto-detect from prompt
-                  </option>
-                  <option value="planning" className="bg-gruvbox-dark0 text-gruvbox-light1">
-                    Planning - Architecture & Design
-                  </option>
-                  <option value="testing" className="bg-gruvbox-dark0 text-gruvbox-light1">
-                    Testing - Quality Assurance
-                  </option>
-                  <option value="devops" className="bg-gruvbox-dark0 text-gruvbox-light1">
-                    DevOps - Deployment & Infrastructure
-                  </option>
-                  <option value="compliance" className="bg-gruvbox-dark0 text-gruvbox-light1">
-                    Compliance - Security & Audits
-                  </option>
-                  <option value="docs" className="bg-gruvbox-dark0 text-gruvbox-light1">
-                    Documentation - Guides & API Docs
-                  </option>
-                  <option value="autonomy" className="bg-gruvbox-dark0 text-gruvbox-light1">
-                    Autonomy - Task Breakdown
-                  </option>
-                </select>
-                <div className="mt-2 text-xs text-gruvbox-light4 bg-gruvbox-dark0/50 p-2 rounded border border-gruvbox-dark3/30">
-                  <div className="mb-1 font-medium">Auto-detection keywords:</div>
-                  <div className="space-y-1">
-                    <div><span className="text-gruvbox-light3">Planning:</span> plan, design, architect, specification, requirements</div>
-                    <div><span className="text-gruvbox-light3">Testing:</span> test, unit test, qa, quality, coverage, validation</div>
-                    <div><span className="text-gruvbox-light3">DevOps:</span> deploy, ci/cd, infrastructure, docker, pipeline, monitoring</div>
-                    <div><span className="text-gruvbox-light3">Compliance:</span> security, compliance, audit, vulnerability</div>
-                    <div><span className="text-gruvbox-light3">Documentation:</span> doc, readme, guide, manual, tutorial, example</div>
-                    <div><span className="text-gruvbox-light3">Autonomy:</span> break down, subtask, workflow, orchestration</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+
 
           <div>
             <label className="block text-sm font-medium text-gruvbox-light2 mb-1">
@@ -337,48 +275,7 @@ export function NewSessionModal({
             </select>
           </div>
 
-          {ampMode === 'local-cli' && (
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gruvbox-light2">
-                Advanced Options
-              </label>
-              <div className="space-y-2">
-                <label className="flex items-center text-sm text-gruvbox-light3">
-                  <input
-                    type="checkbox"
-                    checked={formData.autoRoute}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, autoRoute: e.target.checked }))
-                    }
-                    className="mr-2 rounded border-gruvbox-light2/30 bg-gruvbox-dark0 text-gruvbox-aqua focus:ring-gruvbox-aqua"
-                  />
-                  Enable Auto-routing (automatically select best agent)
-                </label>
-                <label className="flex items-center text-sm text-gruvbox-light3">
-                  <input
-                    type="checkbox"
-                    checked={formData.alloyMode}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, alloyMode: e.target.checked }))
-                    }
-                    className="mr-2 rounded border-gruvbox-light2/30 bg-gruvbox-dark0 text-gruvbox-aqua focus:ring-gruvbox-aqua"
-                  />
-                  Enable Alloy Mode (primary + validator models)
-                </label>
-                <label className="flex items-center text-sm text-gruvbox-light3">
-                  <input
-                    type="checkbox"
-                    checked={formData.multiProvider}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, multiProvider: e.target.checked }))
-                    }
-                    className="mr-2 rounded border-gruvbox-light2/30 bg-gruvbox-dark0 text-gruvbox-aqua focus:ring-gruvbox-aqua"
-                  />
-                  Enable Multi-provider Models
-                </label>
-              </div>
-            </div>
-          )}
+
 
 
 

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { SDLCAgentOutputView } from './SDLCAgentOutputView';
 
 interface ToolCall {
   id: string;
@@ -12,6 +13,7 @@ interface ToolCall {
 interface ToolCallDisplayProps {
   toolCall: ToolCall;
   className?: string;
+  streamingEvents?: any[]; // Array of streaming events for this tool
 }
 
 // Helper function to extract filename from path
@@ -87,43 +89,7 @@ const formatToolInput = (toolName: string, input: any) => {
 };
 
 const getToolIcon = (toolName: string) => {
-  switch (toolName) {
-    case 'create_file':
-      return '[+]';
-    case 'edit_file':
-      return '[~]';
-    case 'read':
-    case 'Read':
-      return '[R]';
-    case 'bash':
-    case 'Bash':
-      return '[$]';
-    case 'grep':
-    case 'Grep':
-      return '[?]';
-    case 'list_directory':
-      return '[D]';
-    case 'glob':
-      return '[G]';
-    case 'todo_write':
-      return '[T]';
-    case 'oracle':
-      return '🔮';
-    case 'agent_planning':
-      return '📋';
-    case 'agent_testing':
-      return '🧪';
-    case 'agent_devops':
-      return '⚙️';
-    case 'agent_compliance':
-      return '🛡️';
-    case 'agent_docs':
-      return '📖';
-    case 'agent_autonomy':
-      return '🤖';
-    default:
-      return '[X]';
-  }
+  return '';
 };
 
 const getToolColor = (toolName: string) => {
@@ -155,11 +121,21 @@ const getToolColor = (toolName: string) => {
   }
 };
 
-export function ToolCallDisplay({ toolCall, className = '' }: ToolCallDisplayProps) {
+export function ToolCallDisplay({ toolCall, className = '', streamingEvents = [] }: ToolCallDisplayProps) {
   const [expanded, setExpanded] = useState(false);
   const formatted = formatToolInput(toolCall.name, toolCall.input);
   const icon = getToolIcon(toolCall.name);
   const colorClass = getToolColor(toolCall.name);
+  
+  // Dispatch todo updates when todo_write tool is used
+  useEffect(() => {
+    if (toolCall.name === 'todo_write' && Array.isArray(toolCall.input.todos)) {
+      const event = new CustomEvent('todoUpdate', {
+        detail: { todos: toolCall.input.todos }
+      });
+      window.dispatchEvent(event);
+    }
+  }, [toolCall.name, toolCall.input]);
   
   const statusColors = {
     pending: 'bg-gruvbox-yellow/20 border-gruvbox-yellow',
@@ -168,12 +144,20 @@ export function ToolCallDisplay({ toolCall, className = '' }: ToolCallDisplayPro
   };
   
   const statusColor = statusColors[toolCall.status || 'success'];
+  
+  // Debug logging for SDLC agent detection
+  console.log('ToolCallDisplay - toolCall.name:', toolCall.name, 'toolCall:', toolCall);
+  
+  // Use enhanced SDLC agent view for agent tools
+  if (['agent_planning', 'agent_testing', 'agent_devops', 'agent_compliance', 'agent_docs', 'agent_autonomy'].includes(toolCall.name)) {
+    console.log('Using SDLCAgentOutputView for tool:', toolCall.name);
+    return <SDLCAgentOutputView toolCall={toolCall} streamingEvents={streamingEvents} className={className} />;
+  }
 
   return (
     <div className={`border rounded-lg p-3 ${statusColor} ${className}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 flex-1">
-          <span className="text-lg">{icon}</span>
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <span className={`font-semibold capitalize ${colorClass}`}>
@@ -245,13 +229,13 @@ export function ToolCallDisplay({ toolCall, className = '' }: ToolCallDisplayPro
               
               {toolCall.name === 'todo_write' && (
                 <>
-                  <div className="text-gruvbox-cyan">
-                    Updated {formatted.todoCount} todo items
+                  <div className="text-gruvbox-aqua">
+                  Updated {formatted.todoCount} todo items
                   </div>
                   {formatted.todos && formatted.todos.length > 0 && (
                     <div className="space-y-1 mt-2">
                       {formatted.todos.map((todo: any, idx: number) => (
-                        <div key={idx} className="text-xs bg-gruvbox-bg2 p-2 rounded border-l-2 border-gruvbox-cyan/40">
+                        <div key={idx} className="text-xs bg-gruvbox-bg2 p-2 rounded border-l-2 border-gruvbox-aqua/40">
                           <div className="flex items-center gap-2">
                             <span className={`w-2 h-2 rounded-full ${
                               todo.status === 'completed' ? 'bg-gruvbox-green' :
@@ -294,7 +278,7 @@ export function ToolCallDisplay({ toolCall, className = '' }: ToolCallDisplayPro
                     </div>
                   )}
                   {formatted.fileCount > 0 && (
-                    <div className="text-gruvbox-fg2 text-xs mt-1">📁 Analyzing {formatted.fileCount} files</div>
+                  <div className="text-gruvbox-fg2 text-xs mt-1">Files: {formatted.fileCount}</div>
                   )}
                 </>
               )}
@@ -321,7 +305,7 @@ export function ToolCallDisplay({ toolCall, className = '' }: ToolCallDisplayPro
                     </div>
                   )}
                   {formatted.fileCount > 0 && (
-                    <div className="text-gruvbox-fg2 text-xs mt-1">📁 Analyzing {formatted.fileCount} files</div>
+                  <div className="text-gruvbox-fg2 text-xs mt-1">Files: {formatted.fileCount}</div>
                   )}
                 </>
               )}
@@ -373,11 +357,11 @@ export function ToolCallDisplay({ toolCall, className = '' }: ToolCallDisplayPro
               <div>
                 <div className="font-semibold text-gruvbox-fg0 mb-2">Files Being Analyzed:</div>
                 <div className="bg-gruvbox-bg2 text-gruvbox-fg1 p-2 rounded">
-                  {toolCall.input.files.map((file: string, idx: number) => (
-                    <div key={idx} className="font-mono text-xs text-gruvbox-fg2 truncate">
-                      📄 {file}
-                    </div>
-                  ))}
+                {toolCall.input.files.map((file: string, idx: number) => (
+                <div key={idx} className="font-mono text-xs text-gruvbox-fg2 truncate">
+                {file}
+                </div>
+                ))}
                 </div>
               </div>
             )}
@@ -385,9 +369,40 @@ export function ToolCallDisplay({ toolCall, className = '' }: ToolCallDisplayPro
             {toolCall.result && (
               <div>
                 <div className="font-semibold text-gruvbox-fg0 mb-2">Result:</div>
-                <pre className="bg-gruvbox-bg2 text-gruvbox-fg1 p-2 rounded overflow-auto text-xs max-h-32">
-                  {typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result, null, 2)}
-                </pre>
+                <div className="bg-gruvbox-bg2 text-gruvbox-fg1 p-3 rounded overflow-auto text-sm max-h-96 leading-relaxed">
+                  {(() => {
+                    const result = typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result, null, 2);
+                    
+                    // Clean up verbose alloy mode responses from SDLC agents
+                    if ((toolCall.name.startsWith('agent_') || toolCall.name === 'oracle') && result.includes('Alloy Mode:')) {
+                      // Try to extract the clean final recommendation
+                      const finalSectionMatch = result.match(/────────────────────────\n3\. Recommended, polished response to the user\n────────────────────────\n(.*?)(?=\n---|\n<details>|$)/s);
+                      if (finalSectionMatch) {
+                        return <div className="whitespace-pre-wrap">{finalSectionMatch[1].trim()}</div>;
+                      }
+                      
+                      // Fallback: try to extract content between code blocks
+                      const codeBlockMatch = result.match(/```text\n(.*?)\n```/s);
+                      if (codeBlockMatch) {
+                        return <div className="whitespace-pre-wrap">{codeBlockMatch[1].trim()}</div>;
+                      }
+                      
+                      // If no clean section found, remove the validation sections
+                      const cleanedResult = result
+                        .replace(/## PLANNING Agent Response \(Alloy Mode:.*?\)[\s\S]*?────────────────────────\n2\. Improvements & additional insights\n────────────────────────/, '')
+                        .replace(/────────────────────────\n1\. Validation of the primary response\n────────────────────────[\s\S]*?────────────────────────\n2\. Improvements & additional insights\n────────────────────────[\s\S]*?────────────────────────\n3\. Recommended, polished response to the user\n────────────────────────/, '')
+                        .replace(/\n---\n<details>[\s\S]*?<\/details>/, '')
+                        .trim();
+                      
+                      if (cleanedResult && cleanedResult !== result) {
+                        return <div className="whitespace-pre-wrap">{cleanedResult}</div>;
+                      }
+                    }
+                    
+                    // Default rendering for regular responses
+                    return <pre className="whitespace-pre-wrap">{result}</pre>;
+                  })()}
+                </div>
               </div>
             )}
           </div>

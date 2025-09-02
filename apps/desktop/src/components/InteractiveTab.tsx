@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { Session } from '@ampsm/types';
 import { StreamMessageDisplay } from './StreamMessageDisplay';
 import { ToolCallDisplay } from './ToolCallDisplay';
+import { TodoAnchor } from './TodoAnchor';
 import { RenderMarkdownContent } from '../utils/renderMarkdown';
 
 interface ChatMessage {
@@ -52,6 +53,7 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected, onT
   const [isStartingNewThread, setIsStartingNewThread] = useState(false);
   const [handleId, setHandleId] = useState<string | null>(null);
   const [userScrolledUp, setUserScrolledUp] = useState(false);
+  const [streamingEvents, setStreamingEvents] = useState<any[]>([]); // Track all streaming events for SDLC agents
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -157,6 +159,7 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected, onT
           // Don't call onThreadSelected here - it would trigger switchToThread and cause a double startInteractiveSession call
           // Clear messages to ensure fresh start for new thread
           setMessages([]);
+          setStreamingEvents([]); // Clear streaming events for new thread
           // Reload threads to include the new one
           loadAvailableThreads(true);
           // Notify parent that threads have been updated
@@ -197,6 +200,9 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected, onT
       
       // Handle tool_start events (new streaming format)
       if (event.type === 'tool_start' && event.data) {
+        // Store streaming event for SDLC agents
+        setStreamingEvents(prev => [...prev, { ...event, timestamp: new Date().toISOString() }]);
+        
         // Create a consistent ID based on tool name and timestamp for deduplication
         const toolId = `${event.data.tool}_${event.data.timestamp || Date.now()}`;
         addToolMessage({
@@ -210,6 +216,9 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected, onT
       
       // Handle tool_finish events (new streaming format)
       if (event.type === 'tool_finish' && event.data) {
+        // Store streaming event for SDLC agents
+        setStreamingEvents(prev => [...prev, { ...event, timestamp: new Date().toISOString() }]);
+        
         // Try to match by consistent ID first, then fall back to name matching
         const toolId = `${event.data.tool}_${event.data.timestamp || ''}`;
         
@@ -253,9 +262,19 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected, onT
         return;
       }
 
+      // Handle model_change events for SDLC agents
+      if (event.type === 'model_change' && event.data) {
+        // Store streaming event for SDLC agents
+        setStreamingEvents(prev => [...prev, { ...event, timestamp: new Date().toISOString() }]);
+        return;
+      }
+      
       // Legacy tool_use events are deprecated - use tool_start/tool_finish instead
       
       if (event.type === 'assistant_message' && event.data?.content) {
+        // Store streaming event for SDLC agents
+        setStreamingEvents(prev => [...prev, { ...event, timestamp: new Date().toISOString() }]);
+        
         // Extract text content only - tool calls are handled by tool_start/tool_finish events
         const textContent = event.data.content
           .filter((c: any) => c.type === 'text')
@@ -781,7 +800,10 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected, onT
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
+      {/* TODO Anchor - positioned at bottom right */}
+      <TodoAnchor />
+      
       {/* Header with connection status */}
       <div className="flex items-center justify-between p-4 border-b border-gruvbox-bg3">
         <div className="flex items-center gap-3">
@@ -925,9 +947,13 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected, onT
                 if (message.sender === 'tool' && message.toolCall) {
                   return (
                     <ToolCallDisplay 
-                      toolCall={message.toolCall}
-                      className="mb-3"
-                    />
+                    toolCall={message.toolCall}
+                    streamingEvents={streamingEvents.filter(e => 
+                        e.data?.tool === message.toolCall?.name ||
+                         e.data?.sessionId === session.id
+                       )}
+                       className="mb-3"
+                     />
                   );
                 }
                 
