@@ -28,13 +28,13 @@ export function SDLCAgentOutputView({ toolCall, streamingEvents = [], className 
   
   const agentType = toolCall.name.replace('agent_', '');
   const agentIcon = {
-    planning: '[P]',
-    testing: '[T]', 
-    devops: '[D]',
-    compliance: '[C]',
-    docs: '[M]',
-    autonomy: '[A]'
-  }[agentType] || '[X]';
+    planning: 'Planning',
+    testing: 'Testing', 
+    devops: 'DevOps',
+    compliance: 'Compliance',
+    docs: 'Documentation',
+    autonomy: 'Autonomy'
+  }[agentType] || 'Agent';
 
   useEffect(() => {
     // Process streaming events to build agent steps timeline
@@ -237,7 +237,7 @@ export function SDLCAgentOutputView({ toolCall, streamingEvents = [], className 
           {sections.validation && (
             <div className="bg-gruvbox-bg2 rounded-lg p-3 border-l-4 border-gruvbox-purple">
               <div className="font-semibold text-gruvbox-purple text-sm mb-2 flex items-center gap-2">
-              <span>[V]</span>
+              <span>Validation</span>
               Validation Process (Validator Model Analysis)
               </div>
               <div className="text-xs text-gruvbox-fg1 whitespace-pre-wrap leading-relaxed">
@@ -249,7 +249,7 @@ export function SDLCAgentOutputView({ toolCall, streamingEvents = [], className 
           {sections.improvements && (
             <div className="bg-gruvbox-bg2 rounded-lg p-3 border-l-4 border-gruvbox-blue">
               <div className="font-semibold text-gruvbox-blue text-sm mb-2 flex items-center gap-2">
-              <span>[I]</span>
+              <span>Insights</span>
               Improvements & Insights (Validator Recommendations)
               </div>
               <div className="text-xs text-gruvbox-fg1 whitespace-pre-wrap leading-relaxed">
@@ -261,7 +261,7 @@ export function SDLCAgentOutputView({ toolCall, streamingEvents = [], className 
           {sections.final && (
             <div className="bg-gruvbox-bg2 rounded-lg p-3 border-l-4 border-gruvbox-green">
               <div className="font-semibold text-gruvbox-green text-sm mb-2 flex items-center gap-2">
-                <span>[F]</span>
+                <span>Final</span>
                 Final Polished Output
               </div>
               <div className="text-xs text-gruvbox-fg1 whitespace-pre-wrap leading-relaxed">
@@ -279,7 +279,7 @@ export function SDLCAgentOutputView({ toolCall, streamingEvents = [], className 
           {agentSteps.length > 0 && (
             <div>
               <div className="font-semibold text-gruvbox-fg0 text-sm mb-3 flex items-center gap-2">
-                <span>[LOG]</span>
+                <span>Output</span>
               Agent Communication Timeline
               </div>
               <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -323,7 +323,7 @@ export function SDLCAgentOutputView({ toolCall, streamingEvents = [], className 
           {/* Full Input Details */}
           <div>
             <div className="font-semibold text-gruvbox-fg0 text-sm mb-2 flex items-center gap-2">
-               <span>[IN]</span>
+               <span>Input</span>
             Full Task Input
             </div>
             <div className="bg-gruvbox-bg2 text-gruvbox-fg1 p-3 rounded text-sm leading-relaxed">
