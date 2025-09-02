@@ -17,6 +17,12 @@ export interface Session {
   mode?: 'async' | 'interactive';
   autoCommit?: boolean; // If false, stage changes instead of committing them
   ampMode?: 'production' | 'local-cli';
+  // SDLC Agent support
+  agentId?: string;           // Selected SDLC agent (planning, testing, devops, compliance, docs, autonomy)
+  agentMode?: 'explicit' | 'auto'; // How agent was selected
+  multiProvider?: boolean;     // Enable multi-provider models
+  alloyMode?: boolean;        // Enable primary + validator collaboration
+  autoRoute?: boolean;        // Enable auto-invocation routing
 }
 
 export interface IterationRecord {
@@ -68,6 +74,16 @@ export interface AmpTelemetry {
     durationMs?: number;
     timestamp: string;
   }>;
+  // Agent-specific telemetry
+  agentMetrics?: {
+    agentId: string | null;           // Which agent was used
+    agentMode: 'explicit' | 'auto';   // How agent was selected
+    alloyMode: boolean;               // Whether alloy mode was used
+    primaryModel: string | null;      // Primary model used
+    validatorModel: string | null;    // Validator model (if alloy mode)
+    autoRouted: boolean;              // Whether auto-routing occurred
+    routingConfidence: number;        // Confidence score for auto-routing
+  };
 }
 
 export interface SessionCreateOptions {
@@ -81,6 +97,12 @@ export interface SessionCreateOptions {
   mode?: "async" | "interactive";
   autoCommit?: boolean;
   ampMode?: 'production' | 'local-cli';
+  // SDLC Agent support
+  agentId?: string;           // Selected SDLC agent
+  agentMode?: 'explicit' | 'auto'; // How agent was selected
+  multiProvider?: boolean;     // Enable multi-provider models
+  alloyMode?: boolean;        // Enable primary + validator collaboration
+  autoRoute?: boolean;        // Enable auto-invocation routing
 }
 
 export interface PreflightResult {

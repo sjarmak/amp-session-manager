@@ -60,6 +60,27 @@ const formatToolInput = (toolName: string, input: any) => {
         todoCount: Array.isArray(input.todos) ? input.todos.length : 'N/A',
         todos: Array.isArray(input.todos) ? input.todos.slice(0, 3) : []
       };
+    case 'oracle':
+      return {
+        task: input.task || 'Oracle consultation',
+        taskPreview: input.task ? `${input.task.slice(0, 150)}${input.task.length > 150 ? '...' : ''}` : 'Oracle consultation',
+        context: input.context || '',
+        contextPreview: input.context ? `${input.context.slice(0, 120)}${input.context.length > 120 ? '...' : ''}` : '',
+        fileCount: Array.isArray(input.files) ? input.files.length : 0
+      };
+    case 'agent_planning':
+    case 'agent_testing':
+    case 'agent_devops':
+    case 'agent_compliance':
+    case 'agent_docs':
+    case 'agent_autonomy':
+      return {
+        task: input.task || 'SDLC agent task',
+        taskPreview: input.task ? `${input.task.slice(0, 150)}${input.task.length > 150 ? '...' : ''}` : 'SDLC agent task',
+        context: input.context || '',
+        contextPreview: input.context ? `${input.context.slice(0, 120)}${input.context.length > 120 ? '...' : ''}` : '',
+        fileCount: Array.isArray(input.files) ? input.files.length : 0
+      };
     default:
       return input;
   }
@@ -86,6 +107,20 @@ const getToolIcon = (toolName: string) => {
       return '[G]';
     case 'todo_write':
       return '[T]';
+    case 'oracle':
+      return '🔮';
+    case 'agent_planning':
+      return '📋';
+    case 'agent_testing':
+      return '🧪';
+    case 'agent_devops':
+      return '⚙️';
+    case 'agent_compliance':
+      return '🛡️';
+    case 'agent_docs':
+      return '📖';
+    case 'agent_autonomy':
+      return '🤖';
     default:
       return '[X]';
   }
@@ -106,6 +141,15 @@ const getToolColor = (toolName: string) => {
     case 'grep':
     case 'Grep':
       return 'text-gruvbox-yellow';
+    case 'oracle':
+      return 'text-gruvbox-purple';
+    case 'agent_planning':
+    case 'agent_testing':
+    case 'agent_devops':
+    case 'agent_compliance':
+    case 'agent_docs':
+    case 'agent_autonomy':
+      return 'text-gruvbox-aqua';
     default:
       return 'text-gruvbox-fg1';
   }
@@ -227,8 +271,62 @@ export function ToolCallDisplay({ toolCall, className = '' }: ToolCallDisplayPro
                   )}
                 </>
               )}
+
+              {toolCall.name === 'oracle' && (
+                <>
+                  <div className="text-gruvbox-purple">
+                    {toolCall.status === 'pending' ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin w-3 h-3 border border-gruvbox-purple border-t-transparent rounded-full"></div>
+                        Oracle thinking...
+                      </div>
+                    ) : (
+                      'Oracle consultation completed'
+                    )}
+                  </div>
+                  <div className="text-gruvbox-fg1 text-sm mt-1 font-medium">
+                    Task: {formatted.taskPreview}
+                  </div>
+                  {formatted.contextPreview && (
+                    <div className="text-gruvbox-fg2 text-xs mt-1 bg-gruvbox-bg2/50 p-2 rounded border-l-2 border-gruvbox-purple/40">
+                      <div className="font-medium text-gruvbox-fg1 mb-1">Context:</div>
+                      {formatted.contextPreview}
+                    </div>
+                  )}
+                  {formatted.fileCount > 0 && (
+                    <div className="text-gruvbox-fg2 text-xs mt-1">📁 Analyzing {formatted.fileCount} files</div>
+                  )}
+                </>
+              )}
+
+              {['agent_planning', 'agent_testing', 'agent_devops', 'agent_compliance', 'agent_docs', 'agent_autonomy'].includes(toolCall.name) && (
+                <>
+                  <div className="text-gruvbox-aqua">
+                    {toolCall.status === 'pending' ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin w-3 h-3 border border-gruvbox-aqua border-t-transparent rounded-full"></div>
+                        {toolCall.name.replace('agent_', '').charAt(0).toUpperCase() + toolCall.name.replace('agent_', '').slice(1)} agent working...
+                      </div>
+                    ) : (
+                      `${toolCall.name.replace('agent_', '').charAt(0).toUpperCase() + toolCall.name.replace('agent_', '').slice(1)} agent completed`
+                    )}
+                  </div>
+                  <div className="text-gruvbox-fg1 text-sm mt-1 font-medium">
+                    Task: {formatted.taskPreview}
+                  </div>
+                  {formatted.contextPreview && (
+                    <div className="text-gruvbox-fg2 text-xs mt-1 bg-gruvbox-bg2/50 p-2 rounded border-l-2 border-gruvbox-aqua/40">
+                      <div className="font-medium text-gruvbox-fg1 mb-1">Context:</div>
+                      {formatted.contextPreview}
+                    </div>
+                  )}
+                  {formatted.fileCount > 0 && (
+                    <div className="text-gruvbox-fg2 text-xs mt-1">📁 Analyzing {formatted.fileCount} files</div>
+                  )}
+                </>
+              )}
               
-              {!['create_file', 'edit_file', 'read', 'Read', 'bash', 'Bash', 'grep', 'Grep', 'todo_write'].includes(toolCall.name) && (
+              {!['create_file', 'edit_file', 'read', 'Read', 'bash', 'Bash', 'grep', 'Grep', 'todo_write', 'oracle', 'agent_planning', 'agent_testing', 'agent_devops', 'agent_compliance', 'agent_docs', 'agent_autonomy'].includes(toolCall.name) && (
                 <div className="font-mono text-gruvbox-fg2">
                   {Object.entries(formatted).map(([key, value]) => (
                     <div key={key} className="flex gap-2">
@@ -251,8 +349,53 @@ export function ToolCallDisplay({ toolCall, className = '' }: ToolCallDisplayPro
         </button>
       </div>
       
-      {/* Raw JSON details (collapsible) */}
-      {expanded && (
+      {/* Enhanced details for oracle and agent tools */}
+      {expanded && (toolCall.name === 'oracle' || toolCall.name.startsWith('agent_')) && (
+        <div className="mt-3 pt-3 border-t border-gruvbox-bg4">
+          <div className="text-xs space-y-3">
+            <div>
+              <div className="font-semibold text-gruvbox-fg0 mb-2">Full Task:</div>
+              <div className="bg-gruvbox-bg2 text-gruvbox-fg1 p-3 rounded text-sm leading-relaxed">
+                {formatted.task}
+              </div>
+            </div>
+            
+            {formatted.context && (
+              <div>
+                <div className="font-semibold text-gruvbox-fg0 mb-2">Full Context:</div>
+                <div className="bg-gruvbox-bg2 text-gruvbox-fg1 p-3 rounded text-sm leading-relaxed">
+                  {formatted.context}
+                </div>
+              </div>
+            )}
+            
+            {Array.isArray(toolCall.input.files) && toolCall.input.files.length > 0 && (
+              <div>
+                <div className="font-semibold text-gruvbox-fg0 mb-2">Files Being Analyzed:</div>
+                <div className="bg-gruvbox-bg2 text-gruvbox-fg1 p-2 rounded">
+                  {toolCall.input.files.map((file: string, idx: number) => (
+                    <div key={idx} className="font-mono text-xs text-gruvbox-fg2 truncate">
+                      📄 {file}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {toolCall.result && (
+              <div>
+                <div className="font-semibold text-gruvbox-fg0 mb-2">Result:</div>
+                <pre className="bg-gruvbox-bg2 text-gruvbox-fg1 p-2 rounded overflow-auto text-xs max-h-32">
+                  {typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* Raw JSON details (collapsible) - for other tools */}
+      {expanded && !(toolCall.name === 'oracle' || toolCall.name.startsWith('agent_')) && (
         <div className="mt-3 pt-3 border-t border-gruvbox-bg4">
           <div className="text-xs">
             <div className="font-semibold text-gruvbox-fg0 mb-2">Raw Input:</div>

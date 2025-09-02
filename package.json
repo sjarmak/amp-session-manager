@@ -16,6 +16,7 @@
     "postinstall": "cd node_modules/electron && node install.js"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.4",
     "better-sqlite3": "12.2.0",
     "electron": "32.0.0",
     "react": "18.3.1",

@@ -95,6 +95,8 @@ export interface StreamingToolFinishEvent extends MetricEvent {
     toolName: string;
     durationMs?: number;
     success: boolean;
+    result?: string;
+    output?: string;
   };
 }
 

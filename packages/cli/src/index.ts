@@ -59,6 +59,10 @@ program
   .option('--model <model>', 'Override Amp model')
   .option('--gpt5', 'Use GPT-5 model (equivalent to --model gpt-5)')
   .option('--blend <mode>', 'Use blended model mode (e.g., --blend alloy-random sets amp.internal.alloy.enable=true)')
+  .option('--agent <agent>', 'Use specific SDLC agent (planning, testing, devops, compliance, docs, autonomy)')
+  .option('--auto-route', 'Enable auto-routing to select best agent based on prompt')
+  .option('--alloy', 'Enable alloy mode (primary + validator model collaboration)')
+  .option('--multi-provider', 'Enable multi-provider model support')
   .option('--run', 'Automatically run first iteration after creating session')
   .action((options) => newCommand(options, program));
 

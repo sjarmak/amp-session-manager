@@ -116,6 +116,38 @@ export class SessionStore {
     }
   }
 
+  private migrateAgentColumns() {
+    // Check if agentId column already exists
+    const columns = this.db.prepare(`PRAGMA table_info(sessions)`).all() as Array<{name: string}>;
+    const hasAgentId = columns.some(col => col.name === 'agentId');
+    
+    if (hasAgentId) {
+      return; // Migration already completed
+    }
+
+    try {
+      this.db.exec(`
+        BEGIN TRANSACTION;
+        
+        -- Add agent-related columns to existing sessions table
+        ALTER TABLE sessions ADD COLUMN agentId TEXT;
+        ALTER TABLE sessions ADD COLUMN agentMode TEXT DEFAULT 'auto';
+        ALTER TABLE sessions ADD COLUMN multiProvider BOOLEAN DEFAULT 0;
+        ALTER TABLE sessions ADD COLUMN alloyMode BOOLEAN DEFAULT 0;
+        ALTER TABLE sessions ADD COLUMN autoRoute BOOLEAN DEFAULT 0;
+        
+        COMMIT;
+      `);
+    } catch (error) {
+      try {
+        this.db.exec('ROLLBACK;');
+      } catch (rollbackError) {
+        // Ignore rollback error
+      }
+      console.error('Agent columns migration failed:', error);
+    }
+  }
+
   private initTables() {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS sessions (
@@ -137,7 +169,12 @@ export class SessionStore {
         contextIncluded BOOLEAN,
         mode TEXT DEFAULT 'async',
         autoCommit BOOLEAN DEFAULT 0,
-        ampMode TEXT DEFAULT 'production'
+        ampMode TEXT DEFAULT 'production',
+        agentId TEXT,
+        agentMode TEXT DEFAULT 'auto',
+        multiProvider BOOLEAN DEFAULT 0,
+        alloyMode BOOLEAN DEFAULT 0,
+        autoRoute BOOLEAN DEFAULT 0
       );
 
       CREATE TABLE IF NOT EXISTS iterations (
@@ -288,6 +325,9 @@ export class SessionStore {
     // Migration: Make ampPrompt nullable for interactive sessions
     this.migrateAmpPromptNullable();
     
+    // Migration: Add SDLC agent columns
+    this.migrateAgentColumns();
+    
     // Add indexes for thread relationship tables
     this.db.exec(`
       -- Indexes for threads table
@@ -323,13 +363,20 @@ export class SessionStore {
       threadId: options.threadId,
       createdAt: new Date().toISOString(),
       mode: options.mode || 'async',
-      ampMode: options.ampMode || 'production'
+      ampMode: options.ampMode || 'production',
+      // SDLC Agent fields
+      agentId: options.agentId,
+      agentMode: options.agentMode || 'auto',
+      multiProvider: options.multiProvider,
+      alloyMode: options.alloyMode,
+      autoRoute: options.autoRoute
     };
 
     const stmt = this.db.prepare(`
       INSERT INTO sessions (id, name, ampPrompt, followUpPrompts, repoRoot, baseBranch, branchName, 
-        worktreePath, status, scriptCommand, modelOverride, threadId, createdAt, mode, autoCommit, ampMode)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        worktreePath, status, scriptCommand, modelOverride, threadId, createdAt, mode, autoCommit, ampMode,
+        agentId, agentMode, multiProvider, alloyMode, autoRoute)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -338,7 +385,9 @@ export class SessionStore {
       session.status, session.scriptCommand ?? null, session.modelOverride ?? null,
       session.threadId ?? null, session.createdAt, session.mode ?? 'async',
       options.autoCommit !== undefined ? (options.autoCommit ? 1 : 0) : null,
-      session.ampMode ?? 'production'
+      session.ampMode ?? 'production',
+      session.agentId ?? null, session.agentMode ?? 'auto',
+      session.multiProvider ? 1 : 0, session.alloyMode ? 1 : 0, session.autoRoute ? 1 : 0
     );
 
     return session;

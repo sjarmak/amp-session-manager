@@ -1620,10 +1620,23 @@ ipcMain.handle('interactive:start', async (_, sessionId: string, threadId?: stri
     }
 
     const { AmpAdapter } = require('@ampsm/core');
-    const ampConfig = loadAmpConfig();
+    const ampConfig = {
+      ...loadAmpConfig(),
+      // Add agent configuration from session
+      agentId: session.agentId,
+      autoRoute: session.autoRoute,
+      alloyMode: session.alloyMode,
+      multiProvider: session.multiProvider
+    };
     console.log(`[DEBUG] Interactive session using config:`, {
       ampPath: ampConfig.ampPath,
-      runtimeConfig: ampConfig.runtimeConfig
+      runtimeConfig: ampConfig.runtimeConfig,
+      agentConfig: {
+        agentId: ampConfig.agentId,
+        autoRoute: ampConfig.autoRoute,
+        alloyMode: ampConfig.alloyMode,
+        multiProvider: ampConfig.multiProvider
+      }
     });
     
     const ampAdapter = new AmpAdapter(ampConfig, store, metricsEventBus);

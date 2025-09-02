@@ -10,6 +10,10 @@ export async function newCommand(options: {
   model?: string;
   gpt5?: boolean;
   blend?: string;
+  agent?: string;
+  autoRoute?: boolean;
+  alloy?: boolean;
+  multiProvider?: boolean;
   run?: boolean;  // New flag to optionally run first iteration
 }, program?: any): Promise<void> {
   try {
@@ -46,7 +50,13 @@ export async function newCommand(options: {
       baseBranch: options.base || 'main',
       scriptCommand: options.script,
       modelOverride,
-      threadId: threadId || undefined
+      threadId: threadId || undefined,
+      // SDLC Agent options
+      agentId: options.agent,
+      agentMode: options.agent ? 'explicit' : 'auto',
+      autoRoute: options.autoRoute,
+      alloyMode: options.alloy,
+      multiProvider: options.multiProvider
     };
 
     console.log(`Creating session "${options.name}"...`);

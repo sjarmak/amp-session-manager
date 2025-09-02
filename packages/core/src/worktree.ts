@@ -313,11 +313,30 @@ export class WorktreeManager {
         let sessionAmpAdapter = this.ampAdapter;
         if (session.ampMode && session.ampMode !== 'production') {
           const sessionRuntimeConfig = this.sessionAmpModeToRuntimeConfig(session);
-          sessionAmpAdapter = new AmpAdapter(
-            {...this.loadAmpConfig(), runtimeConfig: sessionRuntimeConfig}, 
-            this.store, 
-            this.metricsEventBus
-          );
+          const ampConfig = {
+            ...this.loadAmpConfig(), 
+            runtimeConfig: sessionRuntimeConfig,
+            // Add agent configuration from session
+            agentId: session.agentId,
+            autoRoute: session.autoRoute,
+            alloyMode: session.alloyMode,
+            multiProvider: session.multiProvider
+          };
+          sessionAmpAdapter = new AmpAdapter(ampConfig, this.store, this.metricsEventBus);
+        } else {
+          // For production mode, check if we need to create an agent-aware adapter
+          if (session.agentId || session.autoRoute || session.alloyMode || session.multiProvider) {
+            const ampConfig = {
+              ...this.loadAmpConfig(),
+              runtimeConfig: this.runtimeConfig,
+              // Add agent configuration from session
+              agentId: session.agentId,
+              autoRoute: session.autoRoute,
+              alloyMode: session.alloyMode,
+              multiProvider: session.multiProvider
+            };
+            sessionAmpAdapter = new AmpAdapter(ampConfig, this.store, this.metricsEventBus);
+          }
         }
         
         result = await sessionAmpAdapter.runIteration(

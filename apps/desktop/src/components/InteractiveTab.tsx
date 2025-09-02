@@ -58,6 +58,7 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected, onT
   const isCreatingNewThreadRef = useRef(isCreatingNewThread);
   const selectedThreadIdRef = useRef(selectedThreadId);
   const startInFlight = useRef<Promise<void> | null>(null);
+  const lastStartedSessionId = useRef<string | null>(null);
 
   // Keep refs in sync with state
   useEffect(() => { 
@@ -194,37 +195,74 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected, onT
         }
       }
       
-      // Handle tool_use events with proper formatting
-      if (event.type === 'tool_use' || (event.data?.type === 'tool_use')) {
-        const toolData = event.data || event;
+      // Handle tool_start events (new streaming format)
+      if (event.type === 'tool_start' && event.data) {
+        // Create a consistent ID based on tool name and timestamp for deduplication
+        const toolId = `${event.data.tool}_${event.data.timestamp || Date.now()}`;
         addToolMessage({
-          id: toolData.id || `tool_${Date.now()}`,
-          name: toolData.name || 'unknown_tool',
-          input: toolData.input || {},
-          status: 'success'
+          id: toolId,
+          name: event.data.tool || 'unknown_tool',
+          input: event.data.args || {},
+          status: 'pending'
         });
         return;
       }
       
+      // Handle tool_finish events (new streaming format)
+      if (event.type === 'tool_finish' && event.data) {
+        // Try to match by consistent ID first, then fall back to name matching
+        const toolId = `${event.data.tool}_${event.data.timestamp || ''}`;
+        
+        setMessages(prev => {
+          const updated = [...prev];
+          
+          // First try to find by ID
+          let foundIndex = updated.findIndex(msg =>
+            msg.sender === 'tool' && msg.toolCall?.id === toolId
+          );
+          
+          // If not found by ID, find by name and pending status (fallback)
+          if (foundIndex === -1) {
+            for (let i = updated.length - 1; i >= 0; i--) {
+              if (updated[i].sender === 'tool' && 
+                  updated[i].toolCall?.name === event.data.tool && 
+                  updated[i].toolCall?.status === 'pending') {
+                foundIndex = i;
+                break;
+              }
+            }
+          }
+          
+          if (foundIndex !== -1) {
+            updated[foundIndex] = {
+              ...updated[foundIndex],
+              toolCall: {
+                ...updated[foundIndex].toolCall,
+                status: event.data.success ? 'success' : 'error',
+                result: event.data.result || event.data.output || updated[foundIndex].toolCall?.result
+              }
+            };
+          }
+          
+          return updated;
+        });
+
+        // For SDLC agent tools that complete, let the main conversation flow handle follow-up
+        // The agent output will be available in the tool result for user to review
+        
+        return;
+      }
+
+      // Legacy tool_use events are deprecated - use tool_start/tool_finish instead
+      
       if (event.type === 'assistant_message' && event.data?.content) {
-        // Check if this message contains tool calls
-        const toolCalls = event.data.content.filter((c: any) => c.type === 'tool_use');
+        // Extract text content only - tool calls are handled by tool_start/tool_finish events
         const textContent = event.data.content
           .filter((c: any) => c.type === 'text')
           .map((c: any) => c.text)
           .join(' ');
         
-        // Add tool calls first
-        for (const toolCall of toolCalls) {
-          addToolMessage({
-            id: toolCall.id || `tool_${Date.now()}`,
-            name: toolCall.name || 'unknown_tool',
-            input: toolCall.input || {},
-            status: 'success'
-          });
-        }
-        
-        // Then add text content if available
+        // Only add text content if available
         if (textContent.trim()) {
           addMessage('assistant', textContent, event.data?.session_id || (event as any).session_id);
         }
@@ -541,18 +579,41 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected, onT
   };
 
   const addToolMessage = (toolCall: { id: string; name: string; input: any; status?: 'pending' | 'success' | 'error' }) => {
-    const newMessage: ChatMessage = {
-      id: toolCall.id || `tool-${Date.now()}-${Math.random()}`,
-      sender: 'tool',
-      content: `Tool: ${toolCall.name}`,
-      timestamp: new Date().toISOString(),
-      toolCall: {
-        ...toolCall,
-        status: toolCall.status || 'success'
+    // Check if a tool message with this ID already exists
+    setMessages(prev => {
+      const existingIndex = prev.findIndex(msg => 
+        msg.sender === 'tool' && 
+        msg.toolCall?.id === toolCall.id
+      );
+      
+      if (existingIndex !== -1) {
+        // Update existing tool message instead of adding duplicate
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          toolCall: {
+            ...updated[existingIndex].toolCall,
+            ...toolCall,
+            status: toolCall.status || updated[existingIndex].toolCall?.status || 'success'
+          }
+        };
+        return updated;
+      } else {
+        // Add new tool message
+        const newMessage: ChatMessage = {
+          id: toolCall.id || `tool-${Date.now()}-${Math.random()}`,
+          sender: 'tool',
+          content: `Tool: ${toolCall.name}`,
+          timestamp: new Date().toISOString(),
+          toolCall: {
+            ...toolCall,
+            status: toolCall.status || 'success'
+          }
+        };
+        
+        return [...prev, newMessage];
       }
-    };
-    
-    setMessages(prev => [...prev, newMessage]);
+    });
   };
 
   const startNewThread = async () => {
@@ -583,9 +644,21 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected, onT
   };
 
   const startInteractiveSession = async (forceNewThread = false, isThreadSwitch = false): Promise<void> => {
-    // Simple mutex: if already starting, return early
+    // Stronger mutex: prevent any concurrent calls
     if (startInFlight.current) {
       console.log('Start already in flight, skipping');
+      return;
+    }
+    
+    // Also check if already connecting/ready to prevent unnecessary restarts
+    if (!isThreadSwitch && (connectionState === 'connecting' || connectionState === 'ready')) {
+      console.log('Session already connecting/ready, skipping start');
+      return;
+    }
+    
+    // Prevent double-starting the same session (React StrictMode protection)
+    if (!isThreadSwitch && lastStartedSessionId.current === session.id) {
+      console.log('Same session already started recently, skipping to prevent duplicates');
       return;
     }
     
@@ -618,6 +691,7 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected, onT
         if (result.success && result.handleId) {
           setHandleId(result.handleId);
           setConnectionState('ready');
+          lastStartedSessionId.current = session.id; // Track this session as started
           console.log(`=== FRONTEND DEBUG ${callId}: Session started with handleId = ${result.handleId} ===`);
         } else {
           setError(result.error || 'Failed to start interactive session');
@@ -660,8 +734,8 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected, onT
     await loadAvailableThreads(true);
 
     // if a session is live, restart it with the new thread
-    if (isStarted) {
-      console.log('Session is started, restarting with new thread:', id);
+    if (isStarted && selectedThreadId !== id) {
+      console.log('Session is started and thread changed, restarting with new thread:', id);
       await startInteractiveSession(false, true); // isThreadSwitch = true, mutex handles ordering
     }
   };
@@ -857,29 +931,8 @@ export function InteractiveTab({ session, initialThreadId, onThreadSelected, onT
                   );
                 }
                 
-                // Check if the message content contains raw tool_use JSON
-                if (message.sender === 'assistant' && message.content.includes('"type":"tool_use"')) {
-                  try {
-                    const parsed = JSON.parse(message.content);
-                    if (parsed.type === 'tool_use') {
-                      const toolCall = {
-                        id: parsed.id || `tool_${Date.now()}`,
-                        name: parsed.name || 'unknown_tool',
-                        input: parsed.input || {},
-                        timestamp: message.timestamp,
-                        status: 'success' as const
-                      };
-                      return (
-                        <ToolCallDisplay 
-                          toolCall={toolCall}
-                          className="mb-3"
-                        />
-                      );
-                    }
-                  } catch (err) {
-                    // If parsing fails, fall back to regular message display
-                  }
-                }
+                // Tool calls are already handled by the event processing logic above
+                // No need for redundant parsing here
                 
                 // Regular message display
                 return (
