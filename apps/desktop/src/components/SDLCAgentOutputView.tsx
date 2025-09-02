@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 interface AgentStep {
   type: 'planning' | 'validation' | 'output' | 'model_change' | 'tool_execution';
@@ -27,14 +28,6 @@ export function SDLCAgentOutputView({ toolCall, streamingEvents = [], className 
   const [showValidation, setShowValidation] = useState(true); // Show validation by default for transparency
   
   const agentType = toolCall.name.replace('agent_', '');
-  const agentIcon = {
-    planning: 'Planning',
-    testing: 'Testing', 
-    devops: 'DevOps',
-    compliance: 'Compliance',
-    docs: 'Documentation',
-    autonomy: 'Autonomy'
-  }[agentType] || 'Agent';
 
   useEffect(() => {
     // Process streaming events to build agent steps timeline
@@ -156,7 +149,6 @@ export function SDLCAgentOutputView({ toolCall, streamingEvents = [], className 
     <div className={`border rounded-lg p-3 bg-gruvbox-aqua/20 border-gruvbox-aqua ${className}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 flex-1">
-          <span className="text-lg">{agentIcon}</span>
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <span className="font-semibold capitalize text-gruvbox-aqua">
@@ -231,41 +223,96 @@ export function SDLCAgentOutputView({ toolCall, streamingEvents = [], className 
         </div>
       )}
       
+      {/* Always show agent output when there's a result */}
+      {toolCall.result && toolCall.status !== 'pending' && (
+        <div className="mt-3 pt-3 border-t border-gruvbox-bg4">
+          <div className="font-semibold text-gruvbox-fg0 text-sm mb-2">
+            Agent Output
+          </div>
+          <div className="bg-gruvbox-bg2 text-gruvbox-fg1 p-3 rounded overflow-auto text-sm max-h-96 leading-relaxed prose prose-sm prose-invert max-w-none">
+            <ReactMarkdown 
+              components={{
+                a: ({ href, children }) => (
+                  <span className="text-gruvbox-blue underline cursor-not-allowed" title={`File link: ${href}`}>
+                    {children}
+                  </span>
+                )
+              }}
+            >
+              {typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result, null, 2)}
+            </ReactMarkdown>
+          </div>
+        </div>
+      )}
+
       {/* Agent validation sections (when available) */}
       {sections && showValidation && (sections.validation || sections.improvements || sections.final) && (
         <div className="mt-3 pt-3 border-t border-gruvbox-bg4 space-y-4">
+          {/* Phase indicator */}
+          <div className="bg-gruvbox-bg2 rounded-lg p-2 border-l-4 border-gruvbox-yellow">
+            <div className="text-gruvbox-yellow text-xs font-medium">
+              Validation & Improvement Phase - Secondary model analyzing response quality
+            </div>
+          </div>
           {sections.validation && (
             <div className="bg-gruvbox-bg2 rounded-lg p-3 border-l-4 border-gruvbox-purple">
-              <div className="font-semibold text-gruvbox-purple text-sm mb-2 flex items-center gap-2">
-              <span>Validation</span>
-              Validation Process (Validator Model Analysis)
+              <div className="font-semibold text-gruvbox-purple text-sm mb-2">
+               Validation Process (Validator Model Analysis)
               </div>
-              <div className="text-xs text-gruvbox-fg1 whitespace-pre-wrap leading-relaxed">
-                {sections.validation}
+              <div className="text-xs text-gruvbox-fg1 leading-relaxed prose prose-sm prose-invert max-w-none">
+                <ReactMarkdown 
+                  components={{
+                    a: ({ href, children }) => (
+                      <span className="text-gruvbox-blue underline cursor-not-allowed" title={`File link: ${href}`}>
+                        {children}
+                      </span>
+                    )
+                  }}
+                >
+                  {sections.validation}
+                </ReactMarkdown>
               </div>
             </div>
           )}
           
           {sections.improvements && (
             <div className="bg-gruvbox-bg2 rounded-lg p-3 border-l-4 border-gruvbox-blue">
-              <div className="font-semibold text-gruvbox-blue text-sm mb-2 flex items-center gap-2">
-              <span>Insights</span>
-              Improvements & Insights (Validator Recommendations)
+              <div className="font-semibold text-gruvbox-blue text-sm mb-2">
+               Improvements & Insights (Validator Recommendations)
               </div>
-              <div className="text-xs text-gruvbox-fg1 whitespace-pre-wrap leading-relaxed">
-                {sections.improvements}
+              <div className="text-xs text-gruvbox-fg1 leading-relaxed prose prose-sm prose-invert max-w-none">
+                <ReactMarkdown 
+                  components={{
+                    a: ({ href, children }) => (
+                      <span className="text-gruvbox-blue underline cursor-not-allowed" title={`File link: ${href}`}>
+                        {children}
+                      </span>
+                    )
+                  }}
+                >
+                  {sections.improvements}
+                </ReactMarkdown>
               </div>
             </div>
           )}
           
           {sections.final && (
             <div className="bg-gruvbox-bg2 rounded-lg p-3 border-l-4 border-gruvbox-green">
-              <div className="font-semibold text-gruvbox-green text-sm mb-2 flex items-center gap-2">
-                <span>Final</span>
+              <div className="font-semibold text-gruvbox-green text-sm mb-2">
                 Final Polished Output
               </div>
-              <div className="text-xs text-gruvbox-fg1 whitespace-pre-wrap leading-relaxed">
-                {sections.final}
+              <div className="text-xs text-gruvbox-fg1 leading-relaxed prose prose-sm prose-invert max-w-none">
+                <ReactMarkdown 
+                  components={{
+                    a: ({ href, children }) => (
+                      <span className="text-gruvbox-blue underline cursor-not-allowed" title={`File link: ${href}`}>
+                        {children}
+                      </span>
+                    )
+                  }}
+                >
+                  {sections.final}
+                </ReactMarkdown>
               </div>
             </div>
           )}
@@ -278,8 +325,7 @@ export function SDLCAgentOutputView({ toolCall, streamingEvents = [], className 
           {/* Agent Communication Timeline */}
           {agentSteps.length > 0 && (
             <div>
-              <div className="font-semibold text-gruvbox-fg0 text-sm mb-3 flex items-center gap-2">
-                <span>Output</span>
+              <div className="font-semibold text-gruvbox-fg0 text-sm mb-3">
               Agent Communication Timeline
               </div>
               <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -322,8 +368,7 @@ export function SDLCAgentOutputView({ toolCall, streamingEvents = [], className 
           
           {/* Full Input Details */}
           <div>
-            <div className="font-semibold text-gruvbox-fg0 text-sm mb-2 flex items-center gap-2">
-               <span>Input</span>
+            <div className="font-semibold text-gruvbox-fg0 text-sm mb-2">
             Full Task Input
             </div>
             <div className="bg-gruvbox-bg2 text-gruvbox-fg1 p-3 rounded text-sm leading-relaxed">
@@ -357,14 +402,21 @@ export function SDLCAgentOutputView({ toolCall, streamingEvents = [], className 
           {/* Fallback: show structured result if parsing failed but we have content */}
           {toolCall.result && sections && !sections.validation && !sections.improvements && !sections.final && (
             <div>
-              <div className="font-semibold text-gruvbox-fg0 text-sm mb-2 flex items-center gap-2">
-                <span>[OUT]</span>
-                Agent Output (Structured view pending...)
+              <div className="font-semibold text-gruvbox-fg0 text-sm mb-2">
+                Agent Output
               </div>
-              <div className="bg-gruvbox-bg2 text-gruvbox-fg1 p-3 rounded overflow-auto text-sm max-h-96 leading-relaxed">
-                <pre className="whitespace-pre-wrap">{
-                  typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result, null, 2)
-                }</pre>
+              <div className="bg-gruvbox-bg2 text-gruvbox-fg1 p-3 rounded overflow-auto text-sm max-h-96 leading-relaxed prose prose-sm prose-invert max-w-none">
+                <ReactMarkdown 
+                  components={{
+                    a: ({ href, children }) => (
+                      <span className="text-gruvbox-blue underline cursor-not-allowed" title={`File link: ${href}`}>
+                        {children}
+                      </span>
+                    )
+                  }}
+                >
+                  {typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result, null, 2)}
+                </ReactMarkdown>
               </div>
             </div>
           )}
@@ -372,14 +424,21 @@ export function SDLCAgentOutputView({ toolCall, streamingEvents = [], className 
           {/* Raw Result (if no structured sections) */}
           {toolCall.result && !sections && (
             <div>
-              <div className="font-semibold text-gruvbox-fg0 text-sm mb-2 flex items-center gap-2">
-                <span>[RAW]</span>
-                Raw Output
+              <div className="font-semibold text-gruvbox-fg0 text-sm mb-2">
+                Agent Output
               </div>
-              <div className="bg-gruvbox-bg2 text-gruvbox-fg1 p-3 rounded overflow-auto text-sm max-h-96 leading-relaxed">
-                <pre className="whitespace-pre-wrap">{
-                  typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result, null, 2)
-                }</pre>
+              <div className="bg-gruvbox-bg2 text-gruvbox-fg1 p-3 rounded overflow-auto text-sm max-h-96 leading-relaxed prose prose-sm prose-invert max-w-none">
+                <ReactMarkdown 
+                  components={{
+                    a: ({ href, children }) => (
+                      <span className="text-gruvbox-blue underline cursor-not-allowed" title={`File link: ${href}`}>
+                        {children}
+                      </span>
+                    )
+                  }}
+                >
+                  {typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result, null, 2)}
+                </ReactMarkdown>
               </div>
             </div>
           )}

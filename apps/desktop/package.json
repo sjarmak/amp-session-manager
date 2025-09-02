@@ -15,7 +15,9 @@
     "@ampsm/core": "workspace:*",
     "@ampsm/types": "workspace:*",
     "@heroicons/react": "^2.2.0",
-    "react-diff-viewer-continued": "^3.4.0"
+    "@tailwindcss/typography": "^0.5.16",
+    "react-diff-viewer-continued": "^3.4.0",
+    "react-markdown": "^10.1.0"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.1",
