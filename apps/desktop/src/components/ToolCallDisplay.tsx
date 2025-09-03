@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { SDLCAgentOutputView } from './SDLCAgentOutputView';
 
 interface ToolCall {
@@ -399,8 +400,22 @@ export function ToolCallDisplay({ toolCall, className = '', streamingEvents = []
                       }
                     }
                     
-                    // Default rendering for regular responses
-                    return <pre className="whitespace-pre-wrap">{result}</pre>;
+                    // Default rendering for regular responses with markdown
+                    return (
+                      <div className="prose prose-sm prose-invert max-w-none">
+                        <ReactMarkdown 
+                          components={{
+                            a: ({ href, children }) => (
+                              <span className="text-gruvbox-blue underline cursor-not-allowed" title={`Link: ${href}`}>
+                                {children}
+                              </span>
+                            )
+                          }}
+                        >
+                          {result}
+                        </ReactMarkdown>
+                      </div>
+                    );
                   })()}
                 </div>
               </div>

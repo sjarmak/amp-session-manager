@@ -59,7 +59,7 @@ export async function configSetCommand(key: string, value: string) {
   const validKeys = [
     'ampPath', 'ampArgs', 'enableJSONLogs',
     'ampEnv.AMP_BIN', 'ampEnv.AMP_ARGS', 'ampEnv.AMP_ENABLE_JSONL',
-    'ampEnv.AMP_AUTH_CMD', 'ampEnv.AMP_TOKEN'
+    'ampEnv.AMP_AUTH_CMD', 'ampEnv.AMP_TOKEN', 'ampEnv.OPENROUTER_API_KEY', 'ampEnv.AMP_URL'
   ];
   
   if (!validKeys.includes(key)) {

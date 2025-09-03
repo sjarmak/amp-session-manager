@@ -381,6 +381,18 @@ export class AmpAdapter extends EventEmitter {
       if (modelOverride === 'alloy') {
         env['amp.internal.alloy.enable'] = 'true';
       }
+
+      // Add GLM-specific environment variables when using GLM
+      if (modelOverride === 'glm-4.5' || modelOverride === 'glm') {
+        if (process.env.OPENROUTER_API_KEY) {
+          env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+          console.log(`[DEBUG] Added GLM OPENROUTER_API_KEY: ${process.env.OPENROUTER_API_KEY ? 'present' : 'missing'}`);
+        } else {
+          console.log(`[DEBUG] OPENROUTER_API_KEY not found in process.env`);
+        }
+        env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+        console.log(`[DEBUG] Added GLM environment variables for OpenRouter`);
+      }
       
       console.log(`🚀 [AMP EXEC] Spawning amp with:`);
       console.log(`   Command: ${this.config.ampPath}`);

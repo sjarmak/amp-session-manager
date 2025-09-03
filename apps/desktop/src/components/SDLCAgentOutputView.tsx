@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 
 interface AgentStep {
@@ -23,7 +23,7 @@ interface SDLCAgentOutputProps {
 }
 
 export function SDLCAgentOutputView({ toolCall, streamingEvents = [], className = '' }: SDLCAgentOutputProps) {
-  const [expanded, setExpanded] = useState(true); // Start expanded for SDLC agents to show thinking process
+  const [expanded, setExpanded] = useState(false); // Start collapsed to avoid overwhelming UI with long outputs
   const [agentSteps, setAgentSteps] = useState<AgentStep[]>([]);
   const [showValidation, setShowValidation] = useState(true); // Show validation by default for transparency
   
@@ -142,8 +142,11 @@ export function SDLCAgentOutputView({ toolCall, streamingEvents = [], className 
     return sections;
   };
 
-  const sections = parseAgentResult();
-  console.log('SDLCAgentOutputView - sections:', sections, 'showValidation:', showValidation);
+  const sections = useMemo(() => {
+    const result = parseAgentResult();
+    console.log('SDLCAgentOutputView - sections:', result, 'showValidation:', showValidation);
+    return result;
+  }, [toolCall.result]);
 
   return (
     <div className={`border rounded-lg p-3 bg-gruvbox-aqua/20 border-gruvbox-aqua ${className}`}>
@@ -223,30 +226,8 @@ export function SDLCAgentOutputView({ toolCall, streamingEvents = [], className 
         </div>
       )}
       
-      {/* Always show agent output when there's a result */}
-      {toolCall.result && toolCall.status !== 'pending' && (
-        <div className="mt-3 pt-3 border-t border-gruvbox-bg4">
-          <div className="font-semibold text-gruvbox-fg0 text-sm mb-2">
-            Agent Output
-          </div>
-          <div className="bg-gruvbox-bg2 text-gruvbox-fg1 p-3 rounded overflow-auto text-sm max-h-96 leading-relaxed prose prose-sm prose-invert max-w-none">
-            <ReactMarkdown 
-              components={{
-                a: ({ href, children }) => (
-                  <span className="text-gruvbox-blue underline cursor-not-allowed" title={`File link: ${href}`}>
-                    {children}
-                  </span>
-                )
-              }}
-            >
-              {typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result, null, 2)}
-            </ReactMarkdown>
-          </div>
-        </div>
-      )}
-
       {/* Agent validation sections (when available) */}
-      {sections && showValidation && (sections.validation || sections.improvements || sections.final) && (
+      {sections && (sections.validation || sections.improvements || sections.final) && (
         <div className="mt-3 pt-3 border-t border-gruvbox-bg4 space-y-4">
           {/* Phase indicator */}
           <div className="bg-gruvbox-bg2 rounded-lg p-2 border-l-4 border-gruvbox-yellow">
@@ -399,8 +380,8 @@ export function SDLCAgentOutputView({ toolCall, streamingEvents = [], className 
             </div>
           </div>
           
-          {/* Fallback: show structured result if parsing failed but we have content */}
-          {toolCall.result && sections && !sections.validation && !sections.improvements && !sections.final && (
+          {/* Fallback: show result if no structured sections available */}
+          {toolCall.result && (!sections || (!sections.validation && !sections.improvements && !sections.final)) && (
             <div>
               <div className="font-semibold text-gruvbox-fg0 text-sm mb-2">
                 Agent Output

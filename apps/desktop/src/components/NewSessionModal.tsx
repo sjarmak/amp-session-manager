@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import type { SessionCreateOptions } from "@ampsm/types";
+import { isDev } from '../utils/isDev';
 
 interface NewSessionModalProps {
   isOpen: boolean;
@@ -272,6 +273,14 @@ export function NewSessionModal({
               >
                 Alloy (GPT-5 + Sonnet 4)
               </option>
+              {isDev && (
+                <option
+                  value="glm-4.5"
+                  className="bg-gruvbox-dark0 text-gruvbox-light1"
+                >
+                  GLM 4.5 (dev only)
+                </option>
+              )}
             </select>
           </div>
 
