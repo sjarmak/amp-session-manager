@@ -195,12 +195,18 @@ export class AmpAdapter extends EventEmitter {
     // Format: amp threads continue <threadId> --execute "message" [options]
     const args = ['threads', 'continue', threadId, '--execute', finalPrompt];
     
-    // Add model override
-    if (modelOverride === 'gpt-5') {
+    // Add model override (case-insensitive)
+    const modelLower = modelOverride?.toLowerCase();
+    if (modelLower === 'gpt-5') {
       args.push('--try-gpt5');
-    } else if (modelOverride === 'alloy') {
+      console.log(`🔧 Using GPT-5 model with --try-gpt5 flag`);
+    } else if (modelLower === 'alloy') {
       // Alloy is handled via environment variable, not command line args
       // Environment variable will be set below
+      console.log(`🔧 Using Alloy model via environment variable`);
+    } else if (modelLower === 'glm-4.5') {
+      args.push('--try-glm');
+      console.log(`🔧 Using GLM-4.5 model with --try-glm flag`);
     } else if (modelOverride && modelOverride !== 'default') {
       // Note: amp CLI may not support --model flag for all models
       console.warn(`Model override '${modelOverride}' may not be supported by amp CLI`);
@@ -252,12 +258,18 @@ export class AmpAdapter extends EventEmitter {
   ): Promise<AmpIterationResult> {
     const args = [...baseArgs];
     
-    // Add model override
-    if (modelOverride === 'gpt-5') {
+    // Add model override (case-insensitive)
+    const modelLower = modelOverride?.toLowerCase();
+    if (modelLower === 'gpt-5') {
       args.push('--try-gpt5');
-    } else if (modelOverride === 'alloy') {
+      console.log(`🔧 Using GPT-5 model with --try-gpt5 flag`);
+    } else if (modelLower === 'alloy') {
       // Alloy is handled via environment variable, not command line args
       // Environment variable will be set in executeAmpCommand
+      console.log(`🔧 Using Alloy model via environment variable`);
+    } else if (modelLower === 'glm-4.5') {
+      args.push('--try-glm');
+      console.log(`🔧 Using GLM-4.5 model with --try-glm flag`);
     } else if (modelOverride && modelOverride !== 'default') {
       // Note: amp CLI may not support --model flag for all models
       console.warn(`Model override '${modelOverride}' may not be supported by amp CLI`);
@@ -359,16 +371,39 @@ export class AmpAdapter extends EventEmitter {
         env['amp.internal.alloy.enable'] = 'true';
       }
       
+      // Determine CLI path based on model (GLM requires local CLI)
+      let cliPath = this.config.ampPath;
+      if (modelOverride?.toLowerCase().includes('glm')) {
+        const localCliPath = this.config.runtimeConfig?.ampCliPath || '/Users/sjarmak/amp/cli/dist/main.js';
+        console.log(`🔧 GLM model detected, forcing local CLI: ${localCliPath}`);
+        cliPath = localCliPath;
+      }
+
+      // Add model override flags (case-insensitive)
+      if (modelOverride) {
+        console.log(`🔧 Model override debug: original='${modelOverride}', normalized='${modelOverride.toLowerCase()}'`);
+        const normalizedModel = modelOverride.toLowerCase();
+        if (normalizedModel === 'gpt-5') {
+          console.log(`🔧 Adding --try-gpt5 flag for model override: ${modelOverride}`);
+          args.push('--try-gpt5');
+        } else if (normalizedModel === 'glm-4.5') {
+          console.log(`🔧 Adding --try-glm flag for model override: ${modelOverride}`);
+          args.push('--try-glm');
+        } else if (normalizedModel !== 'alloy') {
+          console.warn(`Model override '${modelOverride}' may not be supported by amp CLI`);
+        }
+      }
+      
       console.log(`🚀 [AMP EXEC] Spawning amp with:`);
-      console.log(`   Command: ${this.config.ampPath}`);
+      console.log(`   Command: ${cliPath}`);
       console.log(`   Args: ${JSON.stringify(args)}`);
       console.log(`   Working dir: ${workingDir}`);
       console.log(`   Extra args: ${JSON.stringify(this.config.extraArgs)}`);
       console.log(`   Runtime config: ${JSON.stringify(this.config.runtimeConfig)}`);
-      console.log(`   Amp path: ${this.config.ampPath}`);
+      console.log(`   Amp path: ${cliPath}`);
       console.log(`   Environment: ${JSON.stringify(env)}`);
       
-      const child = spawn(this.config.ampPath!, args, {
+      const child = spawn(cliPath!, args, {
         cwd: workingDir,
         stdio: ['pipe', 'pipe', 'pipe'],
         env

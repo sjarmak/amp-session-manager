@@ -1,7 +1,7 @@
 import { SessionStore } from './store.js';
 import { WorktreeManager } from './worktree.js';
 import { MetricsEventBus } from './metrics/index.js';
-import type { Plan, PlanItem, BatchRecord, BatchItem, AmpSettings } from '@ampsm/types';
+import type { Plan, PlanItem, BatchRecord, BatchItem, AmpSettings, AmpRuntimeConfig } from '@ampsm/types';
 import { randomUUID } from 'crypto';
 import { readFile } from 'fs/promises';
 import { parse as parseYAML } from 'yaml';
@@ -33,6 +33,7 @@ const PlanSchema = z.object({
 export class BatchRunner {
   private abortController?: AbortController;
   private runningItems = new Set<string>();
+  private runtimeConfig?: AmpRuntimeConfig;
 
   constructor(
     private store: SessionStore,
@@ -40,6 +41,26 @@ export class BatchRunner {
     private metricsEventBus?: MetricsEventBus,
     private ampSettings?: AmpSettings
   ) {}
+
+  private deriveRuntimeConfig(): AmpRuntimeConfig | undefined {
+    console.log(`🔧 BatchRunner deriveRuntimeConfig: ampSettings = ${JSON.stringify(this.ampSettings)}`);
+    if (this.ampSettings?.mode === 'local-server') {
+      const config = { 
+        ampServerUrl: this.ampSettings.serverUrl ?? (this.ampSettings as any).localServerUrl ?? 'https://localhost:7002' 
+      };
+      console.log(`🔧 BatchRunner using local-server config: ${JSON.stringify(config)}`);
+      return config;
+    }
+    if (this.ampSettings?.mode === 'local-cli') {
+      const config = { 
+        ampCliPath: this.ampSettings.localCliPath || '/Users/sjarmak/amp/cli/dist/main.js'
+      };
+      console.log(`🔧 BatchRunner using local-cli config: ${JSON.stringify(config)}`);
+      return config;
+    }
+    console.log(`🔧 BatchRunner using production config (no ampSettings or production mode)`);
+    return undefined;
+  }
 
   async parsePlan(planPath: string): Promise<Plan> {
     try {
@@ -58,19 +79,30 @@ export class BatchRunner {
   async runBatch(plan: Plan, dryRun = false, skipAuthCheck = false): Promise<string> {
     const runId = plan.runId || randomUUID();
     
+    // Derive runtime config from ampSettings
+    this.runtimeConfig = this.deriveRuntimeConfig();
+    
+    // Always log batch details for debugging
+    console.log(`Batch plan "${runId}"`);
+    console.log(`Concurrency: ${plan.concurrency}`);
+    console.log(`Items: ${plan.matrix.length}`);
+    console.log(`Models: ${[...new Set(plan.matrix.map(item => item.model || plan.defaults.model || 'default'))].join(', ')}`);
+    console.log(`Repos: ${[...new Set(plan.matrix.map(item => item.repo))].join(', ')}`);
+    console.log(`🔧 [BATCH PARSE] Full matrix items:`, plan.matrix.map((item, i) => ({ 
+      index: i, 
+      repo: item.repo, 
+      prompt: item.prompt?.slice(0, 30) + '...', 
+      model: item.model || 'undefined' 
+    })));
+    
     if (dryRun) {
-      console.log(`Batch plan "${runId}"`);
-      console.log(`Concurrency: ${plan.concurrency}`);
-      console.log(`Items: ${plan.matrix.length}`);
-      console.log(`Models: ${[...new Set(plan.matrix.map(item => item.model || plan.defaults.model || 'default'))].join(', ')}`);
-      console.log(`Repos: ${[...new Set(plan.matrix.map(item => item.repo))].join(', ')}`);
       return runId;
     }
 
     // Pre-flight auth check to prevent failed batches
     if (!skipAuthCheck) {
       const { AmpAdapter } = await import('./amp.js');
-      const ampAdapter = new AmpAdapter({}, this.store);
+      const ampAdapter = new AmpAdapter({ runtimeConfig: this.runtimeConfig }, this.store);
       const authStatus = await ampAdapter.validateAuth();
       
       if (!authStatus.isAuthenticated) {
@@ -97,6 +129,7 @@ export class BatchRunner {
         prompt: planItem.prompt,
         status: 'queued',
         model: planItem.model || plan.defaults.model,
+        matrixIndex: i, // Add index to link batch item to matrix item
       });
       items.push(item);
     }
@@ -165,13 +198,16 @@ export class BatchRunner {
         startedAt: new Date().toISOString()
       });
 
-      // Get plan item configuration
-      const planItem = plan.matrix.find(p => p.repo === item.repo && p.prompt === item.prompt)!;
+      // Get plan item configuration using matrix index
+      const planItem = plan.matrix[item.matrixIndex!];
       
       // Create session
-      const worktreeManager = new WorktreeManager(this.store, this.dbPath, this.metricsEventBus, undefined, undefined, this.ampSettings);
+      const worktreeManager = new WorktreeManager(this.store, this.dbPath, this.metricsEventBus, undefined, this.runtimeConfig, this.ampSettings);
       const ampMode = this.ampSettings?.mode || 'production';
       console.log(`🔧 Creating batch session with ampMode: ${ampMode}, ampSettings: ${JSON.stringify(this.ampSettings)}`);
+      
+      const modelOverride = planItem.model || plan.defaults.model;
+      console.log(`🔧 [BATCH] Creating session for item ${item.id}: model='${planItem.model}', defaults.model='${plan.defaults.model}', final modelOverride='${modelOverride}'`);
       
       const session = await worktreeManager.createSession({
         name: this.generateSessionName(item.prompt, item.id),
@@ -179,7 +215,7 @@ export class BatchRunner {
         repoRoot: item.repo,
         baseBranch: planItem.baseBranch || plan.defaults.baseBranch,
         scriptCommand: planItem.scriptCommand || plan.defaults.scriptCommand,
-        modelOverride: planItem.model || plan.defaults.model,
+        modelOverride,
         // Set autoCommit to false for batch sessions so changes remain staged for review
         autoCommit: false,
         ampMode

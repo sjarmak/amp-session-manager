@@ -1,0 +1,12 @@
+concurrency: 3
+defaults:
+  baseBranch: main
+matrix:
+  - repo: /Users/sjarmak/test-project
+    prompt: "write a hello world script in python"
+    model: "GPT-5"
+  - repo: /Users/sjarmak/test-project
+    prompt: "write a hello world script in python"  
+    model: "GLM-4.5"
+  - repo: /Users/sjarmak/test-project
+    prompt: "write a hello world script in python"

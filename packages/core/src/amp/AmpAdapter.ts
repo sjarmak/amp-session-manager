@@ -6,13 +6,17 @@ export function getAmpCliPath(cfg: AmpRuntimeConfig = {}): string {
     return 'amp';
   }
   
-  // If server URL is configured, use 'amp' with --server flag
+  // Prefer explicit ampCliPath setting if configured
+  if (cfg.ampCliPath) {
+    return cfg.ampCliPath;
+  }
+  
+  // If server URL is configured but no explicit CLI path, use global amp
   if (cfg.ampServerUrl) {
     return 'amp';
   }
   
   return (
-    cfg.ampCliPath ||
     process.env.AMP_CLI_PATH ||
     process.env.AMP_BIN ||
     'amp'
