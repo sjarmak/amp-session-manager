@@ -41,7 +41,7 @@ suites:
     cases:
       - id: qa_test
         kind: qa
-        eval_spec: "evals/my-test.yaml"
+        eval_spec: "configs/evals/my-test.yaml"
       - id: session_test
         kind: session
         repo: /path/to/repo

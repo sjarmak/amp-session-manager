@@ -17,6 +17,11 @@ export interface Session {
   mode?: 'async' | 'interactive';
   autoCommit?: boolean; // If false, stage changes instead of committing them
   ampMode?: 'production' | 'local-cli' | 'local-server';
+  agentId?: string;
+  agentMode?: number;
+  multiProvider?: number;
+  alloyMode?: number;
+  autoRoute?: number;
 }
 
 export interface IterationRecord {
@@ -81,6 +86,11 @@ export interface SessionCreateOptions {
   mode?: "async" | "interactive";
   autoCommit?: boolean;
   ampMode?: 'production' | 'local-cli' | 'local-server';
+  agentId?: string;
+  agentMode?: number;
+  multiProvider?: number;
+  alloyMode?: number;
+  autoRoute?: number;
 }
 
 export interface PreflightResult {

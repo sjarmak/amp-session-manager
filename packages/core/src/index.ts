@@ -7,6 +7,7 @@ export { Notifier } from './notifier.js';
 export type { NotificationOptions, NotificationSettings, NotificationCallback } from './notifier.js';
 export { BatchRunner } from './batch.js';
 export { BatchController } from './batch-controller.js';
+export { BenchmarkController } from './benchmark-controller.js';
 export { Exporter } from './exporter.js';
 export { getCurrentAmpThreadId } from './amp-utils.js';
 export { getDbPath, getUserConfigDir } from './config.js';

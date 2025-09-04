@@ -87,6 +87,7 @@ export interface BenchmarkResult {
   started: string
   ended: string
   total_duration_sec: number
+  config_file?: string
   cases: CaseResult[]
   summary: {
     total_cases: number

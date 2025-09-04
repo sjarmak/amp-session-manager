@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { parse as parseYAML } from 'yaml';
 import { BenchmarkStartOptions } from '../types/benchmark';
 
 export interface NewBenchmarkModalProps {
@@ -11,6 +12,8 @@ export default function NewBenchmarkModal({ isOpen, onClose, onStart }: NewBench
   const [benchmarkType, setBenchmarkType] = useState<'swebench' | 'yaml'>('yaml');
   const [name, setName] = useState('');
   const [yamlConfigPath, setYamlConfigPath] = useState('');
+  const [yamlContent, setYamlContent] = useState('');
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [casesDir, setCasesDir] = useState('');
   const [parallel, setParallel] = useState(1);
   const [maxIterations, setMaxIterations] = useState(10);
@@ -21,8 +24,31 @@ export default function NewBenchmarkModal({ isOpen, onClose, onStart }: NewBench
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const saveYamlContent = async () => {
+    if (yamlContent && yamlConfigPath && yamlContent.trim()) {
+      try {
+        const writeResult = await window.electronAPI.fs.writeFile(yamlConfigPath, yamlContent);
+        if (!writeResult.success) {
+          console.warn('Failed to save YAML changes:', writeResult.error);
+        }
+      } catch (error) {
+        console.warn('Failed to save YAML changes:', error);
+      }
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (benchmarkType === 'yaml' && validationErrors.length > 0) {
+      alert('Please fix YAML validation errors before starting the benchmark.');
+      return;
+    }
+
+    // Save any YAML edits before starting the benchmark
+    if (benchmarkType === 'yaml') {
+      await saveYamlContent();
+    }
     
     const options: BenchmarkStartOptions = {
       type: benchmarkType,
@@ -55,6 +81,32 @@ export default function NewBenchmarkModal({ isOpen, onClose, onStart }: NewBench
     setModels(models.filter(m => m !== model));
   };
 
+  const validateYaml = (content: string) => {
+    try {
+      parseYAML(content);
+      setValidationErrors([]);
+      return true;
+    } catch (error) {
+      setValidationErrors([`YAML parsing error: ${error instanceof Error ? error.message : String(error)}`]);
+      return false;
+    }
+  };
+
+  const loadYamlContent = async (filePath: string) => {
+    try {
+      const fileReadResult = await window.electronAPI.fs.readFile(filePath);
+      if (fileReadResult.success && fileReadResult.content) {
+        setYamlContent(fileReadResult.content);
+        validateYaml(fileReadResult.content);
+      } else {
+        alert(`Failed to read file: ${fileReadResult.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Failed to load YAML file:', error);
+      alert(`Failed to load file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   const selectYamlFile = async () => {
     try {
       const result = await window.electronAPI.openFileDialog({
@@ -66,7 +118,9 @@ export default function NewBenchmarkModal({ isOpen, onClose, onStart }: NewBench
       });
       
       if (result && !result.canceled && result.filePaths.length > 0) {
-        setYamlConfigPath(result.filePaths[0]);
+        const filePath = result.filePaths[0];
+        setYamlConfigPath(filePath);
+        await loadYamlContent(filePath);
       }
     } catch (error) {
       console.error('Failed to select file:', error);
@@ -167,10 +221,45 @@ export default function NewBenchmarkModal({ isOpen, onClose, onStart }: NewBench
                   >
                     Browse
                   </button>
-                </div>
-              </div>
+                  </div>
+                  </div>
 
-              <div>
+                  {/* YAML Preview */}
+               {yamlConfigPath && (
+                 <div>
+                   <div className="flex justify-between items-center mb-2">
+                     <label className="block text-sm font-medium text-gruvbox-fg0">
+                       YAML Preview
+                     </label>
+                     <div className="text-xs text-gruvbox-fg2" title={yamlConfigPath}>
+                       {yamlConfigPath.split('/').pop()}
+                     </div>
+                   </div>
+                   
+                   <textarea
+                     value={yamlContent}
+                     onChange={(e) => {
+                       setYamlContent(e.target.value);
+                       validateYaml(e.target.value);
+                     }}
+                     className="w-full h-64 px-3 py-2 bg-gruvbox-bg1 border border-gruvbox-bg3 text-gruvbox-fg0 rounded-lg font-mono text-sm focus:ring-2 focus:ring-gruvbox-blue focus:border-gruvbox-blue"
+                     placeholder="YAML content will appear here..."
+                   />
+                   
+                   {validationErrors.length > 0 && (
+                     <div className="mt-2 p-3 bg-gruvbox-red/20 border border-gruvbox-red rounded-lg">
+                       <h4 className="text-sm font-medium text-gruvbox-bright-red mb-1">Validation Errors:</h4>
+                       <ul className="list-disc list-inside text-sm text-gruvbox-red space-y-1">
+                         {validationErrors.map((error, index) => (
+                           <li key={index}>{error}</li>
+                         ))}
+                       </ul>
+                     </div>
+                   )}
+                 </div>
+               )}
+
+               <div>
                 <label className="block text-sm font-medium text-gruvbox-fg0 mb-2">
                   Models (optional - leave empty to use all from spec)
                 </label>

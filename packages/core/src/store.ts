@@ -371,7 +371,7 @@ export class SessionStore {
       ampMode: options.ampMode || 'production',
       // SDLC Agent fields
       agentId: options.agentId,
-      agentMode: options.agentMode || 'auto',
+      agentMode: options.agentMode || 0,
       multiProvider: options.multiProvider,
       alloyMode: options.alloyMode,
       autoRoute: options.autoRoute

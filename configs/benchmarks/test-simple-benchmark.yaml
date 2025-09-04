@@ -16,5 +16,5 @@ suites:
     cases:
       - id: math_reasoning
         kind: qa
-        eval_spec: "evals/math-reasoning.yaml"
+        eval_spec: "configs/evals/math-reasoning.yaml"
         timeout_sec: 60

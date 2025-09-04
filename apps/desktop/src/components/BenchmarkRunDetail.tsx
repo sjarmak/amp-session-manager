@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { formatDate } from '../utils/date';
 import { getStatusColor, getStatusBgColor } from '../utils/status';
 import { CaseResult, BenchmarkResult } from '../types/benchmark';
+import { FileLink } from './FileLink';
 
 export interface BenchmarkDetailProps {
   runId: string;
@@ -168,6 +169,19 @@ export default function BenchmarkRunDetail({ runId, type, onBack }: BenchmarkDet
           <div className="text-sm text-gruvbox-fg2">Total Duration</div>
         </div>
       </div>
+
+      {/* Configuration File */}
+      {result.config_file && (
+        <div className="bg-gruvbox-bg1 border border-gruvbox-bg3 rounded-lg p-4">
+          <h3 className="text-lg font-bold text-gruvbox-fg0 mb-2">Configuration</h3>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gruvbox-fg2">YAML File:</span>
+            <FileLink href={`file:///${result.config_file}`}>
+              {result.config_file.split('/').pop() || result.config_file}
+            </FileLink>
+          </div>
+        </div>
+      )}
 
       {/* Model Comparison */}
       {Object.keys(result.summary.by_model).length > 1 && (

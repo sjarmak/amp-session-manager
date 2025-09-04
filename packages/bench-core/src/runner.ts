@@ -1,4 +1,4 @@
-import { readFileSync, mkdirSync } from 'node:fs'
+import { readFile, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parse } from 'yaml'
 import { EventEmitter } from 'node:events'
@@ -40,7 +40,7 @@ export class BenchmarkRunner extends EventEmitter {
   }
 
   async listRuns(): Promise<any[]> {
-    const fs = await import('node:fs');
+    const { readdir, readFile } = await import('node:fs/promises');
     const path = await import('node:path');
     
     try {
@@ -48,16 +48,18 @@ export class BenchmarkRunner extends EventEmitter {
         return [];
       }
       
-      const resultsFiles = fs.readdirSync(this.config.outputDir)
-        .filter(f => f.endsWith('.json') && !f.includes('/') && !f.startsWith('.'))
-        .map(f => {
+      const files = await readdir(this.config.outputDir);
+      const resultFiles = files.filter(f => f.endsWith('.json') && !f.includes('/') && !f.startsWith('.'));
+      
+      const results = await Promise.all(
+        resultFiles.map(async f => {
           const resultPath = path.join(this.config.outputDir!, f);
-          const content = fs.readFileSync(resultPath, 'utf-8');
+          const content = await readFile(resultPath, 'utf-8');
           return JSON.parse(content);
         })
-        .sort((a, b) => new Date(b.started).getTime() - new Date(a.started).getTime());
+      );
       
-      return resultsFiles;
+      return results.sort((a, b) => new Date(b.started).getTime() - new Date(a.started).getTime());
     } catch (error: any) {
       console.log('No benchmark results found:', error.message);
       return [];
@@ -65,7 +67,7 @@ export class BenchmarkRunner extends EventEmitter {
   }
 
   async deleteBenchmarkRun(runId: string): Promise<boolean> {
-    const fs = await import('node:fs');
+    const { readdir, unlink } = await import('node:fs/promises');
     const path = await import('node:path');
     
     try {
@@ -74,7 +76,7 @@ export class BenchmarkRunner extends EventEmitter {
       }
       
       // Find files associated with this benchmark
-      const files = fs.readdirSync(this.config.outputDir);
+      const files = await readdir(this.config.outputDir);
       const benchmarkFiles = files.filter(f => f.includes(runId.replace(/[^a-zA-Z0-9]/g, '_')));
       
       if (benchmarkFiles.length === 0) {
@@ -86,7 +88,7 @@ export class BenchmarkRunner extends EventEmitter {
       for (const file of benchmarkFiles) {
         const filePath = path.join(this.config.outputDir!, file);
         try {
-          fs.unlinkSync(filePath);
+          await unlink(filePath);
           console.log(`📊 Deleted benchmark file: ${file}`);
           deletedCount++;
         } catch (error) {
@@ -102,7 +104,7 @@ export class BenchmarkRunner extends EventEmitter {
   }
 
   async getBenchmarkResult(runId: string): Promise<any> {
-    const fs = await import('node:fs');
+    const { readdir, readFile } = await import('node:fs/promises');
     const path = await import('node:path');
     
     try {
@@ -111,7 +113,7 @@ export class BenchmarkRunner extends EventEmitter {
       }
       
       // Try to find result file by matching benchmark name (runId)
-      const files = fs.readdirSync(this.config.outputDir);
+      const files = await readdir(this.config.outputDir);
       const resultFile = files.find(f => f.endsWith('.json') && f.includes(runId.replace(/[^a-zA-Z0-9]/g, '_')));
       
       if (!resultFile) {
@@ -119,7 +121,7 @@ export class BenchmarkRunner extends EventEmitter {
       }
       
       const resultPath = path.join(this.config.outputDir!, resultFile);
-      const content = fs.readFileSync(resultPath, 'utf-8');
+      const content = await readFile(resultPath, 'utf-8');
       return JSON.parse(content);
     } catch (error) {
       console.error('Failed to load benchmark result:', error);
@@ -128,7 +130,7 @@ export class BenchmarkRunner extends EventEmitter {
   }
 
   async runBenchmark(specPath: string): Promise<BenchmarkResult> {
-    const spec = this.loadBenchmarkSpec(specPath)
+    const spec = await this.loadBenchmarkSpec(specPath)
     const startTime = new Date()
 
     this.emit('benchmark_started', {
@@ -146,6 +148,7 @@ export class BenchmarkRunner extends EventEmitter {
         started: startTime.toISOString(),
         ended: endTime.toISOString(),
         total_duration_sec: (endTime.getTime() - startTime.getTime()) / 1000,
+        config_file: specPath,
         cases: results,
         summary: this.computeSummary(results)
       }
@@ -162,8 +165,8 @@ export class BenchmarkRunner extends EventEmitter {
     }
   }
 
-  private loadBenchmarkSpec(specPath: string): BenchmarkSpecV2 {
-    const content = readFileSync(specPath, 'utf-8')
+  private async loadBenchmarkSpec(specPath: string): Promise<BenchmarkSpecV2> {
+    const content = await readFile(specPath, 'utf-8')
     const spec = parse(content)
     
     if (spec.version !== 2) {
@@ -235,6 +238,9 @@ export class BenchmarkRunner extends EventEmitter {
           results.push(nextResult)
           this.emit('case_completed', nextResult)
           nextResult = await processNext()
+          
+          // Yield control to event loop to prevent blocking
+          await new Promise(resolve => setImmediate(resolve))
         }
 
         return result
@@ -299,7 +305,7 @@ export class BenchmarkRunner extends EventEmitter {
       this.config.outputDir || './benchmark-results',
       new Date().toISOString().slice(0, 10) // YYYY-MM-DD
     )
-    mkdirSync(outputDir, { recursive: true })
+    await mkdir(outputDir, { recursive: true })
 
     // Create session for this benchmark case (if sessionStore is available)
     let sessionId: string | undefined

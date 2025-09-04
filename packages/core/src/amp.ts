@@ -600,6 +600,8 @@ export class AmpAdapter extends EventEmitter {
       // Add model override for oracle
       if (modelOverride === 'gpt-5') {
         args.push('--try-gpt5');
+      } else if (modelOverride === 'glm-4.5') {
+        args.push('--try-glm');
       } else if (modelOverride === 'alloy') {
         // Alloy is handled via environment variable (set below)
       } else if (modelOverride && modelOverride !== 'default') {
@@ -1623,6 +1625,8 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
       // Add model override if specified
       if (modelOverride === 'gpt-5') {
         args.push('--try-gpt5');
+      } else if (modelOverride === 'glm-4.5') {
+        args.push('--try-glm');
       } else if (modelOverride === 'alloy') {
         // Alloy is handled via environment variable, not command line args
         // Environment variable will be set below

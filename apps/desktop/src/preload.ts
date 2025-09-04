@@ -100,7 +100,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   fs: {
-    readFile: (filePath: string) => ipcRenderer.invoke('fs:readFile', filePath) as Promise<{ success: boolean; content?: string; error?: string }>
+    readFile: (filePath: string) => ipcRenderer.invoke('fs:readFile', filePath) as Promise<{ success: boolean; content?: string; error?: string }>,
+    writeFile: (filePath: string, content: string) => ipcRenderer.invoke('fs:writeFile', filePath, content) as Promise<{ success: boolean; error?: string }>
   },
 
   batch: {

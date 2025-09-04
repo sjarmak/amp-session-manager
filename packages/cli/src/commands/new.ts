@@ -53,10 +53,10 @@ export async function newCommand(options: {
       threadId: threadId || undefined,
       // SDLC Agent options
       agentId: options.agent,
-      agentMode: options.agent ? 'explicit' : 'auto',
-      autoRoute: options.autoRoute,
-      alloyMode: options.alloy,
-      multiProvider: options.multiProvider
+      agentMode: options.agent ? 1 : 0,
+      autoRoute: options.autoRoute ? 1 : 0,
+      alloyMode: options.alloy ? 1 : 0,
+      multiProvider: options.multiProvider ? 1 : 0
     };
 
     console.log(`Creating session "${options.name}"...`);

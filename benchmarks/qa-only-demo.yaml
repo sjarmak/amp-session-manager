@@ -23,10 +23,10 @@ suites:
     cases:
       - id: math_reasoning
         kind: qa
-        eval_spec: "evals/math-reasoning.yaml"
+        eval_spec: "configs/evals/math-reasoning.yaml"
         timeout_sec: 60
         
       - id: code_understanding
         kind: qa  
-        eval_spec: "evals/code-comprehension.yaml"
+        eval_spec: "configs/evals/code-comprehension.yaml"
         timeout_sec: 90

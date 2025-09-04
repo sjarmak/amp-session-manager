@@ -4,8 +4,7 @@ const { join } = require('path');
 const { homedir } = require('os');
 const fs = require('fs');
 const { readFileSync, existsSync } = require('fs');
-const { SessionStore, WorktreeManager, BatchController, SweBenchRunner, getCurrentAmpThreadId, getDbPath, Notifier, MetricsAPI, SQLiteMetricsSink, MetricsEventBus, costCalculator, Logger } = require('@ampsm/core');
-const { BenchmarkRunner } = require('@ampsm/bench-core');
+const { SessionStore, WorktreeManager, BatchController, SweBenchRunner, getCurrentAmpThreadId, getDbPath, Notifier, MetricsAPI, SQLiteMetricsSink, MetricsEventBus, costCalculator, Logger, BenchmarkController } = require('@ampsm/core');
 
 let mainWindow: any;
 
@@ -255,8 +254,9 @@ app.on('activate', () => {
 let store: any;
 let worktreeManager: any;
 let batchController: any;
+
 let sweBenchRunner: any;
-let benchmarkRunner: any;
+let benchmarkController: any;
 let notifier: any;
 let metricsAPI: any;
 let metricsEventBus: any;
@@ -282,15 +282,7 @@ async function initializeServices() {
     worktreeManager = new WorktreeManager(store, dbPath, metricsEventBus, undefined, runtimeConfig, ampSettings);
     batchController = new BatchController(store, dbPath, metricsEventBus, ampSettings);
     sweBenchRunner = new SweBenchRunner(store, dbPath);
-    benchmarkRunner = new BenchmarkRunner({
-      workingDir: resolveProjectRoot(),
-      outputDir: join(getDbPath(), '..', 'benchmark-results'),
-      parallel: 1,
-      reportFormats: ['json', 'markdown', 'html'],
-      ampSettings: ampSettings,
-      sessionStore: store,
-      metricsBus: metricsEventBus
-    });
+    benchmarkController = new BenchmarkController(store, dbPath, metricsEventBus, ampSettings);
     notifier = new Notifier();
 
     notifier.setCallback(async (options: any) => {
@@ -315,14 +307,10 @@ async function initializeServices() {
         mainWindow.webContents.send('benchmark-event', { type, ...payload });
     };
 
-    sweBenchRunner.on('run-started', forwardBenchmark('run-started'));
-    sweBenchRunner.on('run-updated', forwardBenchmark('run-updated'));
-    sweBenchRunner.on('run-finished', forwardBenchmark('run-finished'));
-    sweBenchRunner.on('run-aborted', forwardBenchmark('run-aborted'));
-    
-    benchmarkRunner.on('benchmark_started', forwardBenchmark('run-started'));
-    benchmarkRunner.on('benchmark_completed', forwardBenchmark('run-finished'));
-    benchmarkRunner.on('case_completed', forwardBenchmark('case-finished'));
+    benchmarkController.on('run-started', forwardBenchmark('run-started'));
+    benchmarkController.on('run-updated', forwardBenchmark('run-updated'));
+    benchmarkController.on('run-finished', forwardBenchmark('run-finished'));
+    benchmarkController.on('run-aborted', forwardBenchmark('run-aborted'));
 
     servicesReady = true;
     console.log('Services initialized successfully');
@@ -431,6 +419,19 @@ ipcMain.handle('fs:readFile', async (_, filePath: string) => {
     return { success: true, content };
   } catch (error) {
     console.error('File read error in main process:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('fs:writeFile', async (_, filePath: string, content: string) => {
+  const fs = require('fs').promises;
+  try {
+    console.log('Writing file from main process:', filePath);
+    await fs.writeFile(filePath, content, 'utf8');
+    console.log('File written successfully');
+    return { success: true };
+  } catch (error) {
+    console.error('File write error in main process:', error);
     return { success: false, error: error.message };
   }
 });
@@ -1387,7 +1388,7 @@ ipcMain.handle('amp:updateSettings', async (_, settings: any) => {
     // Update amp settings on existing controllers
     const newAmpSettings = loadAmpSettings();
     batchController?.updateAmpSettings(newAmpSettings);
-    benchmarkRunner?.updateAmpSettings(newAmpSettings);
+    benchmarkController?.updateAmpSettings(newAmpSettings);
     
     console.log('✅ [AMP CONFIG] Services reinitialized with new settings');
     
@@ -1608,53 +1609,14 @@ process.on('uncaughtException', (error) => {
 ipcMain.handle('benchmarks:listRuns', async () => {
   try {
     console.log('📊 benchmarks:listRuns called, servicesReady:', servicesReady);
-    if (!servicesReady || !sweBenchRunner) {
-      console.error('❌ Services not ready or SweBenchRunner not initialized');
+    if (!servicesReady || !benchmarkController) {
+      console.error('❌ Services not ready or BenchmarkController not initialized');
       return [];
     }
-    if (!store) {
-      console.error('❌ Store not initialized');
-      return [];
-    }
-    console.log('📊 Calling sweBenchRunner.listRuns()');
-    const sweBenchRuns = await sweBenchRunner.listRuns();
-    console.log('📊 Got sweBenchRuns:', sweBenchRuns?.length || 0, 'runs');
     
-    // Transform to generic benchmark format
-    const allRuns = sweBenchRuns.map((run: any) => ({
-      runId: run.id, // Fix: use 'id' instead of 'runId'
-      type: 'swebench' as const,
-      createdAt: run.createdAt,
-      casesDir: run.casesDir,
-      totalCases: run.total, // Fix: use 'total' instead of 'totalCases'
-      completedCases: run.completed, // Fix: use 'completed' instead of 'completedCases'
-      passedCases: run.passed, // Fix: use 'passed' instead of 'passedCases'
-      failedCases: run.failed, // Fix: use 'failed' instead of 'failedCases'
-      status: run.status
-    }));
-    
-    // Add YAML benchmark runs from file-based results
-    try {
-      const yamlBenchmarkRuns = await benchmarkRunner.listRuns();
-      const transformedYamlRuns = yamlBenchmarkRuns.map((run: any) => ({
-        runId: run.benchmark_name,
-        type: 'yaml' as const,
-        createdAt: run.started,
-        totalCases: run.summary?.total_cases || 0,
-        completedCases: run.summary?.total_cases || 0,
-        passedCases: run.summary?.passed_cases || 0,
-        failedCases: (run.summary?.total_cases || 0) - (run.summary?.passed_cases || 0),
-        status: run.ended ? 'completed' : 'running',
-        totalTokens: (run.summary?.total_prompt_tokens || 0) + (run.summary?.total_completion_tokens || 0),
-        totalCost: run.summary?.total_cost_usd
-      }));
-      allRuns.push(...transformedYamlRuns);
-    } catch (error) {
-      console.log('📊 No YAML benchmark runs found:', error.message);
-    }
-    
-    console.log('📊 Transformed benchmarkRuns:', allRuns);
-    return allRuns;
+    const runs = await benchmarkController.listRuns();
+    console.log('📊 Got benchmark runs:', runs?.length || 0, 'runs');
+    return runs;
   } catch (error) {
     console.error('❌ Failed to list benchmark runs:', error);
     return [];
@@ -1664,7 +1626,7 @@ ipcMain.handle('benchmarks:listRuns', async () => {
 ipcMain.handle('benchmarks:getRun', async (_, runId: string) => {
   try {
     console.log('📊 benchmarks:getRun called for runId:', runId);
-    const result = await sweBenchRunner.getRun(runId);
+    const result = await benchmarkController.getRun(runId);
     console.log('📊 benchmarks:getRun result:', result);
     return result;
   } catch (error) {
@@ -1701,33 +1663,9 @@ ipcMain.handle('benchmarks:getResults', async (_, runId: string) => {
 
 ipcMain.handle('benchmarks:start', async (_, options: any) => {
   try {
-    if (options.type === 'swebench') {
-      const runnerOptions = {
-        casesDir: options.casesDir,
-        name: `SWE-bench Run ${new Date().toISOString().slice(0, 19)}`,
-        parallel: options.parallel || 1,
-        maxIterations: options.maxIterations || 10,
-        timeoutSec: options.timeoutSec || 300,
-        filter: options.filter
-      };
-      
-      // This now returns immediately after setup
-      const result = await sweBenchRunner.run(runnerOptions);
-      return { success: true, runId: result.id };
-    } else if (options.type === 'yaml') {
-      if (!options.yamlConfigPath) {
-        throw new Error('YAML config path is required');
-      }
-      
-      // This now returns immediately after setup
-      const result = await benchmarkRunner.runBenchmark(options.yamlConfigPath);
-      return { success: true, runId: result.id };
-    } else if (options.type === 'custom') {
-      // For custom benchmarks, we could extend this later
-      throw new Error('Custom benchmarks not yet implemented');
-    } else {
-      throw new Error(`Unknown benchmark type: ${options.type}`);
-    }
+    // This now returns immediately after setup and runs in background
+    const runId = await benchmarkController.start(options);
+    return { success: true, runId };
   } catch (error) {
     console.error('Failed to start benchmark:', error);
     return { success: false, error: error.message };
@@ -1737,17 +1675,8 @@ ipcMain.handle('benchmarks:start', async (_, options: any) => {
 ipcMain.handle('benchmarks:get-result', async (_, runId: string) => {
   try {
     console.log('📊 benchmarks:get-result called for runId:', runId);
-    
-    // Try to get YAML benchmark result first
-    try {
-      const result = await benchmarkRunner.getBenchmarkResult(runId);
-      return { success: true, result };
-    } catch (yamlError) {
-      // Fall back to SWE-bench results  
-      console.log('📊 No YAML benchmark found, trying SWE-bench:', yamlError.message);
-      // Could implement SWE-bench result loading here if needed
-      return { success: false, error: 'Benchmark result not found' };
-    }
+    const result = await benchmarkController.getBenchmarkResult(runId);
+    return { success: true, result };
   } catch (error) {
     console.error('Failed to get benchmark result:', error);
     return { success: false, error: error.message };
@@ -1784,7 +1713,7 @@ ipcMain.handle('dialog:openDirectory', async (_, options) => {
 ipcMain.handle('benchmarks:abort', async (_, runId: string) => {
   try {
     console.log('📊 benchmarks:abort called for runId:', runId);
-    await sweBenchRunner.abortRun(runId);
+    await benchmarkController.abort(runId);
     return { success: true };
   } catch (error) {
     console.error('❌ Failed to abort benchmark run:', error);
@@ -1795,21 +1724,8 @@ ipcMain.handle('benchmarks:abort', async (_, runId: string) => {
 ipcMain.handle('benchmarks:delete', async (_, runId: string) => {
   try {
     console.log('📊 benchmarks:delete called for runId:', runId);
-    
-    // Try to delete YAML benchmark first
-    try {
-      const deleted = await benchmarkRunner.deleteBenchmarkRun(runId);
-      if (deleted) {
-        console.log('📊 Successfully deleted YAML benchmark:', runId);
-        return { success: true };
-      }
-    } catch (yamlError) {
-      console.log('📊 No YAML benchmark found, trying SWE-bench:', yamlError.message);
-    }
-    
-    // Fall back to SWE-bench deletion
-    await sweBenchRunner.deleteRun(runId);
-    console.log('📊 Successfully deleted SWE-bench run:', runId);
+    await benchmarkController.delete(runId);
+    console.log('📊 Successfully deleted benchmark run:', runId);
     return { success: true };
   } catch (error) {
     console.error('Failed to delete benchmark run:', error);
@@ -1822,7 +1738,7 @@ ipcMain.handle('benchmarks:exportJson', async (_, runId: string, destinationPath
     console.log('📊 benchmarks:exportJson called for runId:', runId);
     
     // Get the benchmark result with all analytics
-    const result = await benchmarkRunner.getBenchmarkResult(runId);
+    const result = await benchmarkController.getBenchmarkResult(runId);
     
     if (!result) {
       return { success: false, error: 'Benchmark result not found' };
@@ -1835,7 +1751,8 @@ ipcMain.handle('benchmarks:exportJson', async (_, runId: string, destinationPath
     );
     
     // Write JSON with pretty formatting
-    fs.writeFileSync(outputPath, JSON.stringify(result, null, 2));
+    const fs = require('fs').promises;
+    await fs.writeFile(outputPath, JSON.stringify(result, null, 2));
     
     console.log('📊 Successfully exported benchmark to:', outputPath);
     return { success: true, path: outputPath };

@@ -83,6 +83,7 @@ declare global {
       };
       fs: {
         readFile: (filePath: string) => Promise<{ success: boolean; content?: string; error?: string }>;
+        writeFile: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>;
       };
       batch: {
         listRuns: () => Promise<any[]>;
