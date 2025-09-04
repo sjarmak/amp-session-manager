@@ -42,14 +42,17 @@ export function getAmpEnvironment(cfg: AmpRuntimeConfig = {}, ampSettings?: { mo
     return env;
   }
   
+  // Local server mode: use configured server URL
   if (cfg.ampServerUrl) {
     env.AMP_URL = cfg.ampServerUrl;
     // Disable TLS verification for local development servers
     if (cfg.ampServerUrl.includes('localhost')) {
       env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
     }
-  } else if (cfg.ampCliPath && cfg.ampCliPath.includes('/Users/sjarmak/amp/') && ampSettings?.mode === 'local-cli') {
-    // Only apply local CLI heuristic in local-cli mode
+  }
+  
+  // Local CLI mode: always set local server URL when using local CLI
+  if (ampSettings?.mode === 'local-cli' && cfg.ampCliPath && cfg.ampCliPath.includes('/Users/sjarmak/amp/')) {
     env.AMP_URL = 'https://localhost:7002';
     env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
   }
