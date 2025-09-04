@@ -10,7 +10,7 @@ import { MainTabs } from './components/MainTabs';
 import { MainContent } from './components/MainContent';
 import { NewSessionModal } from './components/NewSessionModal';
 import { NewBatchModal } from './components/NewBatchModal';
-import { NewBenchmarkModal } from './components/NewBenchmarkModal';
+import NewBenchmarkModal from './components/NewBenchmarkModal';
 import { BackgroundBatchBanner } from './components/BackgroundBatchBanner';
 import { BackgroundBenchmarkBanner } from './components/BackgroundBenchmarkBanner';
 import NotificationSettingsModal from './components/NotificationSettingsModal';
@@ -60,6 +60,20 @@ function App() {
 
   const handleBatchCreated = () => {
     triggerRefresh();
+  };
+
+  const handleBenchmarkStart = async (options: any) => {
+    try {
+      const result = await window.electronAPI.benchmarks.start(options);
+      if (result.success) {
+        console.log('Benchmark started:', result);
+        triggerRefresh();
+      } else {
+        console.error('Failed to start benchmark:', result.error);
+      }
+    } catch (error) {
+      console.error('Error starting benchmark:', error);
+    }
   };
 
   const handleBenchmarkCreated = () => {
@@ -127,7 +141,7 @@ function App() {
         <NewBenchmarkModal
           isOpen={showNewBenchmarkModal}
           onClose={() => setShowNewBenchmarkModal(false)}
-          onBenchmarkCreated={handleBenchmarkCreated}
+          onStart={handleBenchmarkStart}
         />
 
         <NotificationSettingsModal

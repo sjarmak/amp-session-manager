@@ -24,6 +24,29 @@ function redactSecrets(text: string, env?: Record<string, string>): string {
   return redacted;
 }
 
+/**
+ * Sanitizes environment variables for Amp production mode
+ */
+function sanitizeEnvironment(env: Record<string, string | undefined>, ampSettings?: { mode?: string }): Record<string, string> {
+  // Filter out undefined values and convert to proper string record
+  const cleanEnv: Record<string, string> = {};
+  Object.entries(env).forEach(([key, value]) => {
+    if (value !== undefined) {
+      cleanEnv[key] = value;
+    }
+  });
+  
+  // Sanity check: warn if AMP_URL is set in production mode
+  if (ampSettings?.mode === 'production' && cleanEnv.AMP_URL) {
+    console.warn('🚨 AMP_URL is set but mode is production. Removing stale localhost URL.');
+    const sanitized = { ...cleanEnv };
+    delete sanitized.AMP_URL;
+    delete sanitized.NODE_TLS_REJECT_UNAUTHORIZED;
+    return sanitized;
+  }
+  return cleanEnv;
+}
+
 export interface AmpAdapterConfig {
   ampPath?: string;
   ampArgs?: string[];
@@ -31,11 +54,7 @@ export interface AmpAdapterConfig {
   env?: Record<string, string>;
   extraArgs?: string[];
   runtimeConfig?: AmpRuntimeConfig;
-  // SDLC Agent configuration
-  agentId?: string;           // Specific agent to use
-  autoRoute?: boolean;        // Enable auto-routing
-  alloyMode?: boolean;        // Enable primary + validator
-  multiProvider?: boolean;    // Enable multi-provider models
+  ampSettings?: { mode?: string };
 }
 
 export interface AmpIterationResult {
@@ -80,30 +99,15 @@ export class AmpAdapter extends EventEmitter {
       ampArgs: config.ampArgs || [],
       enableJSONLogs: config.enableJSONLogs !== false, // Default to true for streaming
       env: config.env,
-      extraArgs: [...(config.extraArgs || []), ...getAmpExtraArgs(config.runtimeConfig || {}), ...this.buildAgentArgs(config)],
+      extraArgs: [...(config.extraArgs || []), ...getAmpExtraArgs(config.runtimeConfig || {})],
       runtimeConfig: config.runtimeConfig,
-      // SDLC Agent configuration
-      agentId: config.agentId,
-      autoRoute: config.autoRoute,
-      alloyMode: config.alloyMode,
-      multiProvider: config.multiProvider
+      ampSettings: config.ampSettings
     };
     this.store = store;
     this.metricsEventBus = metricsEventBus;
   }
 
-  private buildAgentArgs(config: AmpAdapterConfig): string[] {
-    const args: string[] = [];
-    
-    if (config.agentId) {
-      args.push('--agent', config.agentId);
-    }
-    
-    // NOTE: --auto-route, --alloy, --multi-provider flags don't exist in current Amp CLI
-    // Only --agent is currently supported
-    
-    return args;
-  }
+
 
   private async hasExistingThread(sessionId: string): Promise<boolean> {
     if (!this.store) return false;
@@ -218,12 +222,18 @@ export class AmpAdapter extends EventEmitter {
     // Format: amp threads continue <threadId> --execute "message" [options]
     const args = ['threads', 'continue', threadId, '--execute', finalPrompt];
     
-    // Add model override
-    if (modelOverride === 'gpt-5') {
+    // Add model override (case-insensitive)
+    const modelLower = modelOverride?.toLowerCase();
+    if (modelLower === 'gpt-5') {
       args.push('--try-gpt5');
-    } else if (modelOverride === 'alloy') {
+      console.log(`🔧 Using GPT-5 model with --try-gpt5 flag`);
+    } else if (modelLower === 'alloy') {
       // Alloy is handled via environment variable, not command line args
       // Environment variable will be set below
+      console.log(`🔧 Using Alloy model via environment variable`);
+    } else if (modelLower === 'glm-4.5') {
+      args.push('--try-glm');
+      console.log(`🔧 Using GLM-4.5 model with --try-glm flag`);
     } else if (modelOverride && modelOverride !== 'default') {
       // Note: amp CLI may not support --model flag for all models
       console.warn(`Model override '${modelOverride}' may not be supported by amp CLI`);
@@ -275,12 +285,18 @@ export class AmpAdapter extends EventEmitter {
   ): Promise<AmpIterationResult> {
     const args = [...baseArgs];
     
-    // Add model override
-    if (modelOverride === 'gpt-5') {
+    // Add model override (case-insensitive)
+    const modelLower = modelOverride?.toLowerCase();
+    if (modelLower === 'gpt-5') {
       args.push('--try-gpt5');
-    } else if (modelOverride === 'alloy') {
+      console.log(`🔧 Using GPT-5 model with --try-gpt5 flag`);
+    } else if (modelLower === 'alloy') {
       // Alloy is handled via environment variable, not command line args
       // Environment variable will be set in executeAmpCommand
+      console.log(`🔧 Using Alloy model via environment variable`);
+    } else if (modelLower === 'glm-4.5') {
+      args.push('--try-glm');
+      console.log(`🔧 Using GLM-4.5 model with --try-glm flag`);
     } else if (modelOverride && modelOverride !== 'default') {
       // Note: amp CLI may not support --model flag for all models
       console.warn(`Model override '${modelOverride}' may not be supported by amp CLI`);
@@ -349,11 +365,11 @@ export class AmpAdapter extends EventEmitter {
       this.lastUsedArgs = args;
       
       // Use environment variables for authentication
-      const env = { 
+      const env = sanitizeEnvironment({ 
         ...process.env, 
         ...(this.config.env || {}),
-        ...getAmpEnvironment(this.config.runtimeConfig || {})
-      };
+        ...getAmpEnvironment(this.config.runtimeConfig || {}, this.config.ampSettings)
+      }, this.config.ampSettings);
       
       // Ensure AMP_API_KEY is available - check shell environment if missing
       if (!env.AMP_API_KEY && process.env.SHELL) {
@@ -381,29 +397,40 @@ export class AmpAdapter extends EventEmitter {
       if (modelOverride === 'alloy') {
         env['amp.internal.alloy.enable'] = 'true';
       }
+      
+      // Determine CLI path based on model (GLM requires local CLI)
+      let cliPath = this.config.ampPath;
+      if (modelOverride?.toLowerCase().includes('glm')) {
+        const localCliPath = this.config.runtimeConfig?.ampCliPath || '/Users/sjarmak/amp/cli/dist/main.js';
+        console.log(`🔧 GLM model detected, forcing local CLI: ${localCliPath}`);
+        cliPath = localCliPath;
+      }
 
-      // Add GLM-specific environment variables when using GLM
-      if (modelOverride === 'glm-4.5' || modelOverride === 'glm') {
-        if (process.env.OPENROUTER_API_KEY) {
-          env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-          console.log(`[DEBUG] Added GLM OPENROUTER_API_KEY: ${process.env.OPENROUTER_API_KEY ? 'present' : 'missing'}`);
-        } else {
-          console.log(`[DEBUG] OPENROUTER_API_KEY not found in process.env`);
+      // Add model override flags (case-insensitive)
+      if (modelOverride) {
+        console.log(`🔧 Model override debug: original='${modelOverride}', normalized='${modelOverride.toLowerCase()}'`);
+        const normalizedModel = modelOverride.toLowerCase();
+        if (normalizedModel === 'gpt-5') {
+          console.log(`🔧 Adding --try-gpt5 flag for model override: ${modelOverride}`);
+          args.push('--try-gpt5');
+        } else if (normalizedModel === 'glm-4.5') {
+          console.log(`🔧 Adding --try-glm flag for model override: ${modelOverride}`);
+          args.push('--try-glm');
+        } else if (normalizedModel !== 'alloy') {
+          console.warn(`Model override '${modelOverride}' may not be supported by amp CLI`);
         }
-        env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-        console.log(`[DEBUG] Added GLM environment variables for OpenRouter`);
       }
       
       console.log(`🚀 [AMP EXEC] Spawning amp with:`);
-      console.log(`   Command: ${this.config.ampPath}`);
+      console.log(`   Command: ${cliPath}`);
       console.log(`   Args: ${JSON.stringify(args)}`);
       console.log(`   Working dir: ${workingDir}`);
       console.log(`   Extra args: ${JSON.stringify(this.config.extraArgs)}`);
       console.log(`   Runtime config: ${JSON.stringify(this.config.runtimeConfig)}`);
-      console.log(`   Amp path: ${this.config.ampPath}`);
+      console.log(`   Amp path: ${cliPath}`);
       console.log(`   Environment: ${JSON.stringify(env)}`);
       
-      const child = spawn(this.config.ampPath!, args, {
+      const child = spawn(cliPath!, args, {
         cwd: workingDir,
         stdio: ['pipe', 'pipe', 'pipe'],
         env
@@ -585,11 +612,11 @@ export class AmpAdapter extends EventEmitter {
         args.push('--stream-json');
       }
       
-      const env = { 
+      const env = sanitizeEnvironment({ 
         ...process.env, 
         ...(this.config.env || {}),
-        ...getAmpEnvironment(this.config.runtimeConfig || {})
-      };
+        ...getAmpEnvironment(this.config.runtimeConfig || {}, this.config.ampSettings)
+      }, this.config.ampSettings);
       
       // Ensure AMP_API_KEY is available - check shell environment if missing
       if (!env.AMP_API_KEY && process.env.SHELL) {
@@ -759,16 +786,15 @@ Please provide a thorough analysis and actionable recommendations.`;
   }> {
     return new Promise(async (resolve) => {
       const testPrompt = 'echo "auth test"';
-      const env = { 
+      const env = sanitizeEnvironment({ 
         ...process.env, 
         ...(this.config.env || {}),
-        ...getAmpEnvironment(this.config.runtimeConfig || {})
-      };
+        ...getAmpEnvironment(this.config.runtimeConfig || {}, this.config.ampSettings)
+      }, this.config.ampSettings);
       
       // Ensure AMP_API_KEY is available - check shell environment if missing
       if (!env.AMP_API_KEY && process.env.SHELL) {
         try {
-
           const result = await new Promise<string>((resolve) => {
             const shell = spawn(process.env.SHELL!, ['-c', 'source ~/.zshrc && echo $AMP_API_KEY'], { 
               stdio: ['pipe', 'pipe', 'pipe'] 
@@ -786,7 +812,6 @@ Please provide a thorough analysis and actionable recommendations.`;
           // Failed to source AMP_API_KEY from shell for auth validation
         }
       }
-      
       const child = spawn(this.config.ampPath!, ['-x'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         env
@@ -805,6 +830,8 @@ Please provide a thorough analysis and actionable recommendations.`;
       
       child.on('close', (exitCode) => {
         const fullOutput = output + stderr;
+        
+
         
         if (fullOutput.includes('Not logged in') || fullOutput.includes('Unauthorized')) {
           resolve({
@@ -918,8 +945,6 @@ Please provide a thorough analysis and actionable recommendations.`;
                   toolName: streamEvent.tool,
                   durationMs: streamEvent.duration,
                   success: streamEvent.success,
-                  result: streamEvent.result,
-                  output: streamEvent.output,
                   sessionId
                 }
               } as StreamingEvent);
@@ -1365,11 +1390,11 @@ Please provide a thorough analysis and actionable recommendations.`;
    */
   async checkAuthentication(): Promise<boolean> {
     return new Promise((resolve) => {
-      const env = { 
+      const env = sanitizeEnvironment({ 
         ...process.env, 
         ...(this.config.env || {}),
-        ...getAmpEnvironment(this.config.runtimeConfig || {})
-      };
+        ...getAmpEnvironment(this.config.runtimeConfig || {}, this.config.ampSettings)
+      }, this.config.ampSettings);
       
       const child = spawn(this.config.ampPath!, ['threads', 'list'], {
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -1393,11 +1418,11 @@ Please provide a thorough analysis and actionable recommendations.`;
 
   async validateThreadExists(threadId: string): Promise<boolean> {
     return new Promise((resolve) => {
-      const env = { 
+      const env = sanitizeEnvironment({ 
         ...process.env, 
         ...(this.config.env || {}),
-        ...getAmpEnvironment(this.config.runtimeConfig || {})
-      };
+        ...getAmpEnvironment(this.config.runtimeConfig || {}, this.config.ampSettings)
+      }, this.config.ampSettings);
       
       const child = spawn(this.config.ampPath!, ['threads', 'list'], {
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -1487,7 +1512,6 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
   private isInteractive: boolean = true;
   private metricsEventBus?: any;
   private metricsCleanup?: () => void;
-  private toolUseIdToName: Map<string, string> = new Map(); // Track tool_use_id to tool name mapping
 
   constructor(
     sessionId: string,
@@ -1512,8 +1536,7 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
       ampArgs: config.ampArgs || [],
       enableJSONLogs: config.enableJSONLogs !== false,
       env: config.env,
-      // For interactive sessions, don't pass agent flags - let natural text analysis handle agent selection
-      extraArgs: [...getAmpExtraArgs(config.runtimeConfig || {})],
+      extraArgs: [...(config.extraArgs || []), ...getAmpExtraArgs(config.runtimeConfig || {})],
       runtimeConfig: config.runtimeConfig
     };
     
@@ -1537,8 +1560,7 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
       const args = [
         '--execute',
         '--stream-json',
-        '--stream-json-input',
-        '--dangerously-allow-all'
+        '--stream-json-input'
       ];
 
       // Add thread continuation if threadId provided or session has existing threads
@@ -1610,17 +1632,20 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
         console.warn(`Model override '${modelOverride}' may not be supported by amp CLI`);
       }
 
-      // Add extra args (this.config.extraArgs already includes config.extraArgs)
+      // Add extra args (from both config parameter and this.config)
+      if (config.extraArgs?.length) {
+        args.push(...config.extraArgs);
+      }
       if (this.config.extraArgs?.length) {
         args.push(...this.config.extraArgs);
       }
 
       // Set up environment
-      const env = { 
+      const env = sanitizeEnvironment({ 
         ...process.env, 
         ...config.env, 
-        ...getAmpEnvironment(this.config.runtimeConfig || {})
-      };
+        ...getAmpEnvironment(this.config.runtimeConfig || {}, this.config.ampSettings)
+      }, this.config.ampSettings);
 
       console.log('Starting interactive amp process:', this.config.ampPath, args);
       console.log('Working directory:', workingDir);
@@ -1812,36 +1837,6 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
             store.addThreadMessage(this.threadId, 'assistant', content);
           }
 
-          // Handle user messages that contain tool results
-          if (parsedObject.type === 'user' && parsedObject.message?.content && Array.isArray(parsedObject.message.content)) {
-            for (const contentItem of parsedObject.message.content) {
-              if (contentItem.type === 'tool_result') {
-                // Look up the tool name from the stored mapping
-                const toolName = this.toolUseIdToName.get(contentItem.tool_use_id) || contentItem.tool_use_id;
-                
-                // Emit tool_finish event with actual result content
-                setImmediate(() => {
-                  const toolFinishEvent = {
-                    type: 'tool_finish',
-                    timestamp: new Date().toISOString(),
-                    data: {
-                      tool: toolName,
-                      success: !contentItem.is_error,
-                      result: contentItem.content,
-                      output: contentItem.content,
-                      sessionId: parsedObject.session_id
-                    }
-                  };
-                  console.log(`[DEBUG] Emitting real tool finish event with result:`, toolFinishEvent);
-                  this.emit('streaming-event', toolFinishEvent);
-                });
-                
-                // Clean up the mapping
-                this.toolUseIdToName.delete(contentItem.tool_use_id);
-              }
-            }
-          }
-
           // For interactive sessions, trigger staging when assistant message completes
           if (parsedObject.type === 'assistant' && this.sessionId && this.isInteractive && parsedObject.message?.content) {
             console.log(`[DEBUG] Interactive assistant message received, triggering post-interactive staging for session ${this.sessionId}`);
@@ -1896,11 +1891,6 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
         if (parsed.message?.content && Array.isArray(parsed.message.content)) {
           for (const contentItem of parsed.message.content) {
             if (contentItem.type === 'tool_use') {
-              // Store mapping from tool_use_id to tool name for later result matching
-              if (contentItem.id) {
-                this.toolUseIdToName.set(contentItem.id, contentItem.name);
-              }
-
               // Emit tool_start event
               setImmediate(() => {
                 const toolStartEvent = {
@@ -1916,7 +1906,22 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
                 this.emit('streaming-event', toolStartEvent);
               });
 
-              // Note: tool_finish events will be emitted when we receive the actual tool result message
+              // For now, emit a corresponding tool_finish event (successful completion)
+              // In the future, this could be enhanced to track actual tool execution results
+              setImmediate(() => {
+                const toolFinishEvent = {
+                  type: 'tool_finish',
+                  timestamp: ts,
+                  data: {
+                    tool: contentItem.name,
+                    duration: 1000, // Default duration since we don't track tool execution time
+                    success: true, // Assume success for now
+                    sessionId: parsed.session_id
+                  }
+                };
+                console.log(`[METRICS] Emitting tool finish event:`, toolFinishEvent);
+                this.emit('streaming-event', toolFinishEvent);
+              });
             }
           }
         }
@@ -2286,19 +2291,6 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
       console.error('Post-interactive staging failed:', error);
       throw error;
     }
-  }
-
-  private buildAgentArgs(config: AmpAdapterConfig): string[] {
-    const args: string[] = [];
-    
-    if (config.agentId) {
-      args.push('--agent', config.agentId);
-    }
-    
-    // NOTE: --auto-route, --alloy, --multi-provider flags don't exist in current Amp CLI
-    // Only --agent is currently supported
-    
-    return args;
   }
 
 

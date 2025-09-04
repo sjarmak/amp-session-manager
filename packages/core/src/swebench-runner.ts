@@ -32,27 +32,40 @@ export class SweBenchRunner extends EventEmitter {
   async run(options: SweBenchRunnerOptions): Promise<SweBenchRun> {
     const runId = randomUUID();
     
-    try {
-      console.log(`🔍 Loading cases from: ${options.casesDir}`);
-      const cases = await this.loadCases(options.casesDir, options.filter);
-      console.log(`🔍 Loaded ${cases.length} cases:`, cases.map(c => c.id));
-      
-      const run = this.store.createSweBenchRun({
-        id: runId,
-        name: options.name,
-        casesDir: options.casesDir,
-        total: cases.length,
-        completed: 0,
-        passed: 0,
-        failed: 0,
-        status: 'running'
-      });
+    console.log(`🔍 Loading cases from: ${options.casesDir}`);
+    const cases = await this.loadCases(options.casesDir, options.filter);
+    console.log(`🔍 Loaded ${cases.length} cases:`, cases.map(c => c.id));
+    
+    const run = this.store.createSweBenchRun({
+      id: runId,
+      name: options.name,
+      casesDir: options.casesDir,
+      total: cases.length,
+      completed: 0,
+      passed: 0,
+      failed: 0,
+      status: 'running'
+    });
 
-      console.log(`🚀 Starting SWE-bench run with ${cases.length} cases`);
-      this.emit('run-started', run);
-      
-      // Mark as running
-      this.runningProcesses.set(runId, true);
+    console.log(`🚀 Starting SWE-bench run with ${cases.length} cases`);
+    this.emit('run-started', run);
+    
+    // Mark as running
+    this.runningProcesses.set(runId, true);
+    
+    // Start execution in the background
+    this.executeRun(runId, options, cases).then((finalRun) => {
+      console.log(`✅ SWE-bench run ${runId} completed: ${finalRun.passed}/${finalRun.total} passed`);
+    }).catch((error) => {
+      console.error(`❌ SWE-bench run ${runId} failed:`, error);
+    });
+    
+    // Return immediately
+    return run;
+  }
+
+  private async executeRun(runId: string, options: SweBenchRunnerOptions, cases: SweBenchCase[]): Promise<SweBenchRun> {
+    try {
 
       const parallel = options.parallel || Math.max(1, cpus().length - 1);
       const maxIterations = options.maxIterations || 10;
@@ -120,7 +133,7 @@ export class SweBenchRunner extends EventEmitter {
   private async loadCases(casesDir: string, filter?: string): Promise<SweBenchCase[]> {
     // Look for JSON files in the cases directory
     console.log(`🔍 Reading directory: ${casesDir}`);
-    const files = fs.readdirSync(casesDir).filter(f => f.endsWith('.json'));
+    const files = (await fs.promises.readdir(casesDir)).filter(f => f.endsWith('.json'));
     console.log(`🔍 Found JSON files:`, files);
     
     if (files.length === 0) {
@@ -130,7 +143,7 @@ export class SweBenchRunner extends EventEmitter {
     const allCases: SweBenchCase[] = [];
     
     for (const file of files) {
-      const content = fs.readFileSync(path.join(casesDir, file), 'utf-8');
+      const content = await fs.promises.readFile(path.join(casesDir, file), 'utf-8');
       const data = JSON.parse(content);
       
       // Support both single case files and arrays of cases
@@ -257,13 +270,23 @@ Fix the code to make the test pass while maintaining compatibility with existing
     
     // Create repo cache directory
     const cacheDir = path.dirname(repoPath);
-    if (!fs.existsSync(cacheDir)) {
+    try {
+      await fs.promises.access(cacheDir);
+    } catch {
       console.log(`📦 Creating cache directory: ${cacheDir}`);
-      fs.mkdirSync(cacheDir, { recursive: true });
+      await fs.promises.mkdir(cacheDir, { recursive: true });
     }
 
     // Clone if doesn't exist
-    if (!fs.existsSync(repoPath)) {
+    let repoExists = false;
+    try {
+      await fs.promises.access(repoPath);
+      repoExists = true;
+    } catch {
+      repoExists = false;
+    }
+    
+    if (!repoExists) {
       console.log(`📦 Cloning repo: https://github.com/${repo}.git`);
       await this.execCommand(`git clone https://github.com/${repo}.git "${repoPath}"`);
       console.log(`📦 Clone completed`);

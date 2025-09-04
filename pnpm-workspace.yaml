@@ -9,6 +9,9 @@ publicHoistPattern:
   - "yaml"
   - "electron"
   - "esbuild"
+  - "commander"
+  - "chalk"
+  - "uuid"
 
 ignoredBuiltDependencies:
   - better-sqlite3

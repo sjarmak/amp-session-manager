@@ -1,10 +1,33 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const path = require('path');
 const { join } = require('path');
 const { homedir } = require('os');
-const { readFileSync } = require('fs');
-const { SessionStore, WorktreeManager, BatchController, SweBenchRunner, BenchmarkRunner, getCurrentAmpThreadId, getDbPath, Notifier, MetricsAPI, SQLiteMetricsSink, MetricsEventBus, costCalculator, Logger } = require('@ampsm/core');
+const fs = require('fs');
+const { readFileSync, existsSync } = require('fs');
+const { SessionStore, WorktreeManager, BatchController, SweBenchRunner, getCurrentAmpThreadId, getDbPath, Notifier, MetricsAPI, SQLiteMetricsSink, MetricsEventBus, costCalculator, Logger } = require('@ampsm/core');
+const { BenchmarkRunner } = require('@ampsm/bench-core');
 
 let mainWindow: any;
+
+/**
+ * Robust project root resolution that works in dev, packaged, and test environments
+ */
+function resolveProjectRoot(): string {
+  // 1. Honor an override for test/dev automation
+  if (process.env.PROJECT_ROOT && existsSync(process.env.PROJECT_ROOT)) {
+    return process.env.PROJECT_ROOT;
+  }
+
+  // 2. Packaged: app.getAppPath() → "…/app.asar", we want "…/" (resources root)
+  if (app.isPackaged) {
+    // /…/MyApp.app/Contents/Resources/app.asar  →  /…/MyApp.app/Contents/Resources
+    return join(app.getAppPath(), '..');
+  }
+
+  // 3. Dev run through ts-node / electron . – three levels above dist
+  const candidate = join(__dirname, '../../..');
+  return existsSync(join(candidate, 'package.json')) ? candidate : process.cwd();
+}
 
 // Load amp runtime configuration for version selection
 function loadAmpRuntimeConfig() {
@@ -38,24 +61,27 @@ function loadAmpConfig() {
     const configPath = join(homedir(), '.amp-session-manager', 'config.json');
     const config = JSON.parse(readFileSync(configPath, 'utf-8'));
     
-    // Merge process env with config, giving priority to process env
-    const env = config.ampEnv ? { ...config.ampEnv } : {};
+    // Load Amp settings for runtime configuration
+    const ampSettings = loadAmpSettings();
+    const runtimeConfig = convertSettingsToRuntimeConfig(ampSettings);
+    
+    // Only use ampEnv when NOT in production mode
+    const env: Record<string, string> = {};
+    if (ampSettings.mode !== 'production' && config.ampEnv) {
+      Object.assign(env, config.ampEnv);
+    }
     
     // Always inherit AMP_API_KEY from process environment if available
     if (process.env.AMP_API_KEY) {
       env.AMP_API_KEY = process.env.AMP_API_KEY;
     }
     
-    // Load Amp settings for runtime configuration
-    const ampSettings = loadAmpSettings();
-    const runtimeConfig = convertSettingsToRuntimeConfig(ampSettings);
-    
     return {
       ampPath: config.ampPath,
       ampArgs: config.ampArgs ? config.ampArgs.split(' ') : undefined,
       enableJSONLogs: config.enableJSONLogs !== false,
       env: Object.keys(env).length > 0 ? env : undefined,
-      extraArgs: config.ampEnv?.AMP_ARGS ? config.ampEnv.AMP_ARGS.split(/\s+/).filter(Boolean) : undefined,
+      extraArgs: (ampSettings.mode !== 'production' && config.ampEnv?.AMP_ARGS) ? config.ampEnv.AMP_ARGS.split(/\s+/).filter(Boolean) : undefined,
       runtimeConfig
     };
   } catch {
@@ -79,7 +105,19 @@ function loadAmpConfig() {
 function loadAmpSettings() {
   try {
     const ampConfigPath = join(homedir(), '.amp-session-manager', 'amp-settings.json');
-    return JSON.parse(readFileSync(ampConfigPath, 'utf-8'));
+    const settings = JSON.parse(readFileSync(ampConfigPath, 'utf-8'));
+    
+    // If using local-server mode with a local CLI path, switch to local-cli mode
+    // since the local CLI doesn't support the --server flag
+    if (settings.mode === 'local-server' && settings.localCliPath) {
+      console.log('🔧 [AMP CONFIG] Switching from local-server to local-cli mode for local CLI compatibility');
+      return {
+        mode: 'local-cli',
+        localCliPath: settings.localCliPath
+      };
+    }
+    
+    return settings;
   } catch {
     return {
       mode: 'production',
@@ -244,7 +282,15 @@ async function initializeServices() {
     worktreeManager = new WorktreeManager(store, dbPath, metricsEventBus, undefined, runtimeConfig, ampSettings);
     batchController = new BatchController(store, dbPath, metricsEventBus, ampSettings);
     sweBenchRunner = new SweBenchRunner(store, dbPath);
-    benchmarkRunner = new BenchmarkRunner(store, dbPath, runtimeConfig, ampSettings);
+    benchmarkRunner = new BenchmarkRunner({
+      workingDir: resolveProjectRoot(),
+      outputDir: join(getDbPath(), '..', 'benchmark-results'),
+      parallel: 1,
+      reportFormats: ['json', 'markdown', 'html'],
+      ampSettings: ampSettings,
+      sessionStore: store,
+      metricsBus: metricsEventBus
+    });
     notifier = new Notifier();
 
     notifier.setCallback(async (options: any) => {
@@ -274,9 +320,9 @@ async function initializeServices() {
     sweBenchRunner.on('run-finished', forwardBenchmark('run-finished'));
     sweBenchRunner.on('run-aborted', forwardBenchmark('run-aborted'));
     
-    benchmarkRunner.on('benchmark-started', forwardBenchmark('run-started'));
-    benchmarkRunner.on('benchmark-finished', forwardBenchmark('run-finished'));
-    benchmarkRunner.on('case-finished', forwardBenchmark('case-finished'));
+    benchmarkRunner.on('benchmark_started', forwardBenchmark('run-started'));
+    benchmarkRunner.on('benchmark_completed', forwardBenchmark('run-finished'));
+    benchmarkRunner.on('case_completed', forwardBenchmark('case-finished'));
 
     servicesReady = true;
     console.log('Services initialized successfully');
@@ -1050,6 +1096,82 @@ ipcMain.handle('sessions:setAutoCommit', async (_, sessionId: string, autoCommit
 //   }
 // });
 
+// Telemetry and Analytics handlers
+ipcMain.handle('sessions:getMetrics', async (_, sessionId: string) => {
+  try {
+    const metrics = store.telemetry.getSessionMetrics(sessionId);
+    if (!metrics) {
+      // Calculate metrics if not cached
+      const calculatedMetrics = store.telemetry.calculateSessionMetrics(sessionId);
+      return { success: true, metrics: calculatedMetrics };
+    }
+    return { success: true, metrics };
+  } catch (error) {
+    console.error('Failed to get session metrics:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to get session metrics' };
+  }
+});
+
+ipcMain.handle('sessions:getCostData', async (_, sessionId: string) => {
+  try {
+    const events = store.telemetry.getSessionEvents(sessionId);
+    
+    // Process events to create cost data structure
+    const agentEvents = events.filter(e => e.type === 'agent' && e.attrs.costUSD);
+    
+    const timeSeries = agentEvents.map(e => ({
+      timestamp: new Date(e.tsStart).toISOString(),
+      cost: e.attrs.costUSD || 0,
+      tokens: (e.attrs.tokensIn || 0) + (e.attrs.tokensOut || 0)
+    }));
+    
+    // Group by model for breakdown
+    const modelMap = new Map<string, { cost: number; tokens: number }>();
+    agentEvents.forEach(e => {
+      const model = e.attrs.model || 'unknown';
+      const existing = modelMap.get(model) || { cost: 0, tokens: 0 };
+      modelMap.set(model, {
+        cost: existing.cost + (e.attrs.costUSD || 0),
+        tokens: existing.tokens + (e.attrs.tokensIn || 0) + (e.attrs.tokensOut || 0)
+      });
+    });
+    
+    const modelColors = ['#83a598', '#b8bb26', '#fabd2f', '#fe8019', '#d3869b', '#8ec07c'];
+    const modelBreakdown = Array.from(modelMap.entries()).map(([model, data], index) => ({
+      model,
+      cost: data.cost,
+      tokens: data.tokens,
+      color: modelColors[index % modelColors.length]
+    }));
+    
+    const totalCost = agentEvents.reduce((sum, e) => sum + (e.attrs.costUSD || 0), 0);
+    const totalTokens = agentEvents.reduce((sum, e) => sum + (e.attrs.tokensIn || 0) + (e.attrs.tokensOut || 0), 0);
+    
+    const data = {
+      totalCost,
+      totalTokens,
+      avgIterationCost: agentEvents.length > 0 ? totalCost / agentEvents.length : 0,
+      timeSeries,
+      modelBreakdown
+    };
+    
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to get cost data:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to get cost data' };
+  }
+});
+
+ipcMain.handle('sessions:getEvents', async (_, sessionId: string) => {
+  try {
+    const events = store.telemetry.getSessionEvents(sessionId);
+    return { success: true, events };
+  } catch (error) {
+    console.error('Failed to get session events:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to get session events' };
+  }
+});
+
 ipcMain.handle('get-batches', async () => {
   try {
     return store.getAllBatches();
@@ -1237,6 +1359,23 @@ ipcMain.handle('amp:updateSettings', async (_, settings: any) => {
     
     if (!existsSync(configDir)) {
       mkdirSync(configDir, { recursive: true });
+    }
+    
+    // Clear stale ampEnv when switching to production mode
+    if (settings.mode === 'production') {
+      const mainConfigPath = join(homedir(), '.amp-session-manager', 'config.json');
+      if (existsSync(mainConfigPath)) {
+        try {
+          const config = JSON.parse(readFileSync(mainConfigPath, 'utf-8'));
+          if (config.ampEnv) {
+            console.log('🧹 [AMP CONFIG] Clearing stale ampEnv for production mode');
+            delete config.ampEnv;
+            writeFileSync(mainConfigPath, JSON.stringify(config, null, 2));
+          }
+        } catch (error) {
+          console.error('Failed to clean stale ampEnv:', error);
+        }
+      }
     }
     
     writeFileSync(configPath, JSON.stringify(settings, null, 2));
@@ -1494,8 +1633,26 @@ ipcMain.handle('benchmarks:listRuns', async () => {
       status: run.status
     }));
     
-    // Add YAML benchmark runs (stored separately - we'll need to implement this)
-    // For now, just return SWE-bench runs
+    // Add YAML benchmark runs from file-based results
+    try {
+      const yamlBenchmarkRuns = await benchmarkRunner.listRuns();
+      const transformedYamlRuns = yamlBenchmarkRuns.map((run: any) => ({
+        runId: run.benchmark_name,
+        type: 'yaml' as const,
+        createdAt: run.started,
+        totalCases: run.summary?.total_cases || 0,
+        completedCases: run.summary?.total_cases || 0,
+        passedCases: run.summary?.passed_cases || 0,
+        failedCases: (run.summary?.total_cases || 0) - (run.summary?.passed_cases || 0),
+        status: run.ended ? 'completed' : 'running',
+        totalTokens: (run.summary?.total_prompt_tokens || 0) + (run.summary?.total_completion_tokens || 0),
+        totalCost: run.summary?.total_cost_usd
+      }));
+      allRuns.push(...transformedYamlRuns);
+    } catch (error) {
+      console.log('📊 No YAML benchmark runs found:', error.message);
+    }
+    
     console.log('📊 Transformed benchmarkRuns:', allRuns);
     return allRuns;
   } catch (error) {
@@ -1553,12 +1710,16 @@ ipcMain.handle('benchmarks:start', async (_, options: any) => {
         timeoutSec: options.timeoutSec || 300,
         filter: options.filter
       };
+      
+      // This now returns immediately after setup
       const result = await sweBenchRunner.run(runnerOptions);
       return { success: true, runId: result.id };
     } else if (options.type === 'yaml') {
       if (!options.yamlConfigPath) {
         throw new Error('YAML config path is required');
       }
+      
+      // This now returns immediately after setup
       const result = await benchmarkRunner.runBenchmark(options.yamlConfigPath);
       return { success: true, runId: result.id };
     } else if (options.type === 'custom') {
@@ -1570,6 +1731,53 @@ ipcMain.handle('benchmarks:start', async (_, options: any) => {
   } catch (error) {
     console.error('Failed to start benchmark:', error);
     return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('benchmarks:get-result', async (_, runId: string) => {
+  try {
+    console.log('📊 benchmarks:get-result called for runId:', runId);
+    
+    // Try to get YAML benchmark result first
+    try {
+      const result = await benchmarkRunner.getBenchmarkResult(runId);
+      return { success: true, result };
+    } catch (yamlError) {
+      // Fall back to SWE-bench results  
+      console.log('📊 No YAML benchmark found, trying SWE-bench:', yamlError.message);
+      // Could implement SWE-bench result loading here if needed
+      return { success: false, error: 'Benchmark result not found' };
+    }
+  } catch (error) {
+    console.error('Failed to get benchmark result:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// File dialog handlers
+ipcMain.handle('dialog:openFile', async (_, options) => {
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      ...options
+    });
+    return result;
+  } catch (error) {
+    console.error('Failed to open file dialog:', error);
+    return { canceled: true, filePaths: [] };
+  }
+});
+
+ipcMain.handle('dialog:openDirectory', async (_, options) => {
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory'],
+      ...options
+    });
+    return result;
+  } catch (error) {
+    console.error('Failed to open directory dialog:', error);
+    return { canceled: true, filePaths: [] };
   }
 });
 
@@ -1586,10 +1794,53 @@ ipcMain.handle('benchmarks:abort', async (_, runId: string) => {
 
 ipcMain.handle('benchmarks:delete', async (_, runId: string) => {
   try {
+    console.log('📊 benchmarks:delete called for runId:', runId);
+    
+    // Try to delete YAML benchmark first
+    try {
+      const deleted = await benchmarkRunner.deleteBenchmarkRun(runId);
+      if (deleted) {
+        console.log('📊 Successfully deleted YAML benchmark:', runId);
+        return { success: true };
+      }
+    } catch (yamlError) {
+      console.log('📊 No YAML benchmark found, trying SWE-bench:', yamlError.message);
+    }
+    
+    // Fall back to SWE-bench deletion
     await sweBenchRunner.deleteRun(runId);
+    console.log('📊 Successfully deleted SWE-bench run:', runId);
     return { success: true };
   } catch (error) {
     console.error('Failed to delete benchmark run:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('benchmarks:exportJson', async (_, runId: string, destinationPath?: string) => {
+  try {
+    console.log('📊 benchmarks:exportJson called for runId:', runId);
+    
+    // Get the benchmark result with all analytics
+    const result = await benchmarkRunner.getBenchmarkResult(runId);
+    
+    if (!result) {
+      return { success: false, error: 'Benchmark result not found' };
+    }
+    
+    // If no destination path provided, use default
+    const outputPath = destinationPath || path.join(
+      app.getPath('downloads'),
+      `benchmark-${runId.replace(/[^a-zA-Z0-9]/g, '_')}-${Date.now()}.json`
+    );
+    
+    // Write JSON with pretty formatting
+    fs.writeFileSync(outputPath, JSON.stringify(result, null, 2));
+    
+    console.log('📊 Successfully exported benchmark to:', outputPath);
+    return { success: true, path: outputPath };
+  } catch (error) {
+    console.error('Failed to export benchmark JSON:', error);
     return { success: false, error: error.message };
   }
 });

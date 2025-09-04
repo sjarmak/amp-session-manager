@@ -4,10 +4,12 @@ import { randomUUID } from 'crypto';
 import { join } from 'path';
 import { getDbPath } from './config.js';
 import { createTimestampId, getCurrentISOString } from './utils/date.js';
+import { TelemetryPersistence } from './telemetry/persistence.js';
 
 export class SessionStore {
   public readonly db: Database.Database;
   public readonly dbPath: string;
+  public readonly telemetry: TelemetryPersistence;
 
   constructor(dbPath?: string) {
     try {
@@ -21,7 +23,10 @@ export class SessionStore {
       this.db.pragma('cache_size = 1000');
       this.db.pragma('temp_store = memory');
       
+      this.telemetry = new TelemetryPersistence(this.db);
+      
       this.initTables();
+      this.telemetry.initTables();
       this.migrateThreadIds();
       this.migrateAutoCommitDefault();
       this.migrateSessionThreads();

@@ -1,0 +1,29 @@
+version: 1
+name: "Code Comprehension"
+description: "Test understanding of code patterns and logic"
+
+questions:
+  - input: "What does this JavaScript function do?\n\nfunction fibonacci(n) {\n  if (n <= 1) return n;\n  return fibonacci(n-1) + fibonacci(n-2);\n}"
+    expectedOutput:
+      - "calculates fibonacci number"
+      - "returns the nth fibonacci number"
+      - "recursive fibonacci implementation"
+      - "generates fibonacci sequence"
+  
+  - input: "What is the time complexity of a binary search algorithm?"
+    expectedOutput:
+      - "O(log n)"
+      - "logarithmic time complexity"
+      - "O(log n) time complexity"
+  
+  - input: "In Python, what's the difference between '==' and 'is'?"
+    expectedOutput:
+      - "'==' compares values, 'is' compares identity"
+      - "== checks equality, is checks object identity"
+      - "== compares content, is compares memory location"
+  
+  - input: "What design pattern is demonstrated here?\n\nclass Singleton {\n  private static instance: Singleton;\n  private constructor() {}\n  \n  static getInstance(): Singleton {\n    if (!Singleton.instance) {\n      Singleton.instance = new Singleton();\n    }\n    return Singleton.instance;\n  }\n}"
+    expectedOutput:
+      - "Singleton pattern"
+      - "Singleton design pattern"
+      - "This is the Singleton pattern"

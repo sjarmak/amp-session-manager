@@ -5,6 +5,10 @@ declare global {
     electronAPI: {
       platform: string;
       versions: NodeJS.ProcessVersions;
+      
+      // File dialogs
+      openFileDialog: (options: any) => Promise<any>;
+      openDirectoryDialog: (options: any) => Promise<any>;
       sessions: {
         list: () => Promise<Session[]>;
         get: (sessionId: string) => Promise<Session | null>;
@@ -50,6 +54,11 @@ declare global {
         cherryPick: (sessionId: string, shas: string[]) => Promise<{ success: boolean; error?: string }>;
         getDiff: (sessionId: string, filePath?: string) => Promise<{ success: boolean; result?: { diff: string }; error?: string }>;
         exportSession: (options: { sessionId: string; format: 'markdown' | 'json'; outputDir: string; includeConversation: boolean }) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+        
+        // Telemetry and Analytics methods
+        getMetrics: (sessionId: string) => Promise<{ success: boolean; metrics?: any; error?: string }>;
+        getCostData: (sessionId: string) => Promise<{ success: boolean; data?: any; error?: string }>;
+        getEvents: (sessionId: string) => Promise<{ success: boolean; events?: any[]; error?: string }>;
         };
 
   // Main repository git operations
@@ -110,9 +119,11 @@ declare global {
         listRuns: () => Promise<any[]>;
         getRun: (runId: string) => Promise<any>;
         getResults: (runId: string) => Promise<any[]>;
+        getResult: (runId: string) => Promise<{ success: boolean; result?: any; error?: string }>;
         start: (options: any) => Promise<{ success: boolean; runId?: string; error?: string }>;
         abort: (runId: string) => Promise<{ success: boolean; error?: string }>;
         delete: (runId: string) => Promise<{ success: boolean; error?: string }>;
+        exportJson: (runId: string, destinationPath?: string) => Promise<{ success: boolean; path?: string; error?: string }>;
         onEvent: (callback: (event: any) => void) => void;
         offEvent: (callback: (event: any) => void) => void;
       };

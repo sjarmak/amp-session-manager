@@ -1,0 +1,52 @@
+{
+  "benchmark_name": "Model Comparison: Default vs GLM-4.5 vs GPT-5",
+  "started": "2025-09-03T19:42:14.667Z",
+  "ended": "2025-09-03T19:42:40.413Z",
+  "total_duration_sec": 25.746,
+  "cases": [
+    {
+      "id": "math_reasoning",
+      "model": "Amp Default",
+      "kind": "qa",
+      "started": "2025-09-03T19:42:14.668Z",
+      "ended": "2025-09-03T19:42:40.413Z",
+      "duration_sec": 25.745,
+      "passed": true,
+      "metrics": {
+        "total_questions": 4,
+        "questions_with_output": 4,
+        "questions_graded": 4,
+        "pass_rate": 1,
+        "avg_latency_ms": 4563,
+        "total_points": 8,
+        "passed_points": 8
+      },
+      "artifacts": [
+        "benchmark-results/2025-09-03/math_reasoning_Amp Default_0b9f7eef/result.1756928534669.json",
+        "benchmark-results/2025-09-03/math_reasoning_Amp Default_0b9f7eef/result.1756928534669-graded.json"
+      ]
+    }
+  ],
+  "summary": {
+    "total_cases": 1,
+    "passed_cases": 1,
+    "success_rate": 1,
+    "by_model": {
+      "Amp Default": {
+        "total_cases": 1,
+        "passed_cases": 1,
+        "success_rate": 1,
+        "avg_duration_sec": 25.745,
+        "metrics": {
+          "success_rate": 1,
+          "avg_iterations": 0,
+          "total_runtime_sec": 25.745,
+          "avg_latency_ms": 4563,
+          "total_tokens": 0,
+          "pass_rate": 1,
+          "total_cost": 0
+        }
+      }
+    }
+  }
+}

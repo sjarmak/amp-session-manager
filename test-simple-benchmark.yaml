@@ -1,0 +1,20 @@
+version: 2
+name: "Simple Test"
+description: "Test just one QA case to verify path resolution"
+
+defaults:
+  parallel: 1
+  timeout_sec: 60
+
+models:
+  default:
+    name: "Amp Default"
+
+suites:
+  - id: simple_test
+    description: "Simple QA test"
+    cases:
+      - id: math_reasoning
+        kind: qa
+        eval_spec: "evals/math-reasoning.yaml"
+        timeout_sec: 60

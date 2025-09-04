@@ -5,6 +5,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   versions: process.versions,
   
+  // File dialogs
+  openFileDialog: (options: any) => ipcRenderer.invoke('dialog:openFile', options),
+  openDirectoryDialog: (options: any) => ipcRenderer.invoke('dialog:openDirectory', options),
+  
   sessions: {
     list: () => ipcRenderer.invoke('sessions:list') as Promise<Session[]>,
     get: (sessionId: string) => ipcRenderer.invoke('sessions:get', sessionId) as Promise<Session | null>,
@@ -49,7 +53,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     resetToCommit: (sessionId: string, commitRef: string, soft?: boolean) => ipcRenderer.invoke('sessions:resetToCommit', sessionId, commitRef, soft) as Promise<{ success: boolean; error?: string }>,
     cherryPick: (sessionId: string, shas: string[]) => ipcRenderer.invoke('sessions:cherryPick', sessionId, shas) as Promise<{ success: boolean; error?: string }>,
     getDiff: (sessionId: string, filePath?: string) => ipcRenderer.invoke('sessions:getDiff', sessionId, filePath) as Promise<{ success: boolean; result?: { diff: string }; error?: string }>,
-    exportSession: (options: { sessionId: string; format: 'markdown' | 'json'; outputDir: string; includeConversation: boolean }) => ipcRenderer.invoke('sessions:exportSession', options) as Promise<{ success: boolean; filePath?: string; error?: string }>
+    exportSession: (options: { sessionId: string; format: 'markdown' | 'json'; outputDir: string; includeConversation: boolean }) => ipcRenderer.invoke('sessions:exportSession', options) as Promise<{ success: boolean; filePath?: string; error?: string }>,
+    
+    // Telemetry and Analytics methods
+    getMetrics: (sessionId: string) => ipcRenderer.invoke('sessions:getMetrics', sessionId) as Promise<{ success: boolean; metrics?: any; error?: string }>,
+    getCostData: (sessionId: string) => ipcRenderer.invoke('sessions:getCostData', sessionId) as Promise<{ success: boolean; data?: any; error?: string }>,
+    getEvents: (sessionId: string) => ipcRenderer.invoke('sessions:getEvents', sessionId) as Promise<{ success: boolean; events?: any[]; error?: string }>
   },
 
   // Main repository git operations
@@ -143,9 +152,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     listRuns: () => ipcRenderer.invoke('benchmarks:listRuns'),
     getRun: (runId: string) => ipcRenderer.invoke('benchmarks:getRun', runId),
     getResults: (runId: string) => ipcRenderer.invoke('benchmarks:getResults', runId),
+    getResult: (runId: string) => ipcRenderer.invoke('benchmarks:get-result', runId),
     start: (options: any) => ipcRenderer.invoke('benchmarks:start', options),
     abort: (runId: string) => ipcRenderer.invoke('benchmarks:abort', runId),
     delete: (runId: string) => ipcRenderer.invoke('benchmarks:delete', runId),
+    exportJson: (runId: string, destinationPath?: string) => ipcRenderer.invoke('benchmarks:exportJson', runId, destinationPath),
     onEvent: (callback: (event: any) => void) => {
       const handler = (_: any, event: any) => callback(event);
       ipcRenderer.on('benchmark-event', handler);

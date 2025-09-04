@@ -1,5 +1,6 @@
 import { SessionStore } from './store.js';
 import { GitOps } from './git.js';
+import { GitAutoInit } from './git-auto-init.js';
 import { AmpAdapter, type AmpAdapterConfig } from './amp.js';
 // import { getCurrentAmpThreadId } from './amp-utils.js'; // Removed - we now capture thread IDs directly from Amp output
 import type { Session, SessionCreateOptions, IterationRecord, PreflightResult, SquashOptions, RebaseResult, MergeOptions, AmpRuntimeConfig, AmpSettings } from '@ampsm/types';
@@ -67,7 +68,7 @@ export class WorktreeManager {
       }
     }
     
-    this.ampAdapter = new AmpAdapter({...this.loadAmpConfig(), runtimeConfig: this.runtimeConfig}, this.store, this.metricsEventBus);
+    this.ampAdapter = new AmpAdapter({...this.loadAmpConfig(), runtimeConfig: this.runtimeConfig, ampSettings: this.ampSettings}, this.store, this.metricsEventBus);
   }
 
   public getRuntimeConfig(): AmpRuntimeConfig | undefined {
@@ -83,14 +84,27 @@ export class WorktreeManager {
       console.log(`🔧 Using local CLI config for session: ${JSON.stringify(config)}`);
       return config;
     }
+    if (session.ampMode === 'local-server') {
+      const config = {
+        ampServerUrl: this.ampSettings?.serverUrl ?? 'https://localhost:7002'
+      };
+      console.log(`🔧 Using local server config for session: ${JSON.stringify(config)}`);
+      return config;
+    }
     console.log(`🔧 Using production mode for session ${session.id}`);
     return {}; // Production mode uses default amp CLI
   }
 
   async createSession(options: SessionCreateOptions): Promise<Session> {
+    // Auto-initialize git repository if needed
+    const wasInitialized = await GitAutoInit.ensureGitRepo(options.repoRoot);
+    if (wasInitialized) {
+      console.log(`✅ Auto-initialized git repository at ${options.repoRoot}`);
+    }
+    
     const git = new GitOps(options.repoRoot);
     
-    // Validate repo
+    // Validate repo (should now always pass after auto-init)
     const isRepo = await git.isRepo();
     if (!isRepo) {
       throw new Error(`${options.repoRoot} is not a git repository`);
@@ -1281,8 +1295,11 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
       const configPath = join(homedir(), '.amp-session-manager', 'config.json');
       const config = JSON.parse(readFileSync(configPath, 'utf-8'));
       
-      // Merge process env with config, giving priority to process env
-      const env = config.ampEnv ? { ...config.ampEnv } : {};
+      // Only use ampEnv when NOT in production mode
+      const env: Record<string, string> = {};
+      if (this.ampSettings?.mode !== 'production' && config.ampEnv) {
+        Object.assign(env, config.ampEnv);
+      }
       
       // Always inherit AMP_API_KEY from process environment if available
       if (process.env.AMP_API_KEY) {
@@ -1294,7 +1311,7 @@ ${session.lastRun ? `\nLast Run: ${session.lastRun}` : ''}
         ampArgs: config.ampArgs ? config.ampArgs.split(' ') : undefined,
         enableJSONLogs: config.enableJSONLogs !== false,
         env: Object.keys(env).length > 0 ? env : undefined,
-        extraArgs: config.ampEnv?.AMP_ARGS ? config.ampEnv.AMP_ARGS.split(/\s+/).filter(Boolean) : undefined
+        extraArgs: (this.ampSettings?.mode !== 'production' && config.ampEnv?.AMP_ARGS) ? config.ampEnv.AMP_ARGS.split(/\s+/).filter(Boolean) : undefined
       };
     } catch {
       // If no config file, still pass through AMP_API_KEY

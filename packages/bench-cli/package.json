@@ -1,0 +1,28 @@
+{
+  "name": "@ampsm/bench-cli",
+  "version": "1.0.0",
+  "description": "CLI for running unified benchmarks with Amp Session Orchestrator",
+  "type": "module",
+  "bin": {
+    "amp-bench": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ampsm/bench-core": "workspace:*",
+    "@ampsm/types": "workspace:*",
+    "commander": "^11.1.0",
+    "yaml": "^2.3.4",
+    "chalk": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}

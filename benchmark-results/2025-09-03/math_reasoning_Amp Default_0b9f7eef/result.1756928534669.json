@@ -1,0 +1,40 @@
+{
+  "questions": [
+    {
+      "input": "What is the result of 15 + 27?",
+      "expectedOutput": "42",
+      "output": "42",
+      "durationMs": 5336,
+      "outputCmd": "/Users/sjarmak/amp/cli/dist/main.js -x"
+    },
+    {
+      "input": "If a rectangle has length 8 and width 5, what is its area?",
+      "expectedOutput": "40",
+      "output": "40",
+      "durationMs": 4133,
+      "outputCmd": "/Users/sjarmak/amp/cli/dist/main.js -x"
+    },
+    {
+      "input": "Solve for x: 2x + 5 = 13",
+      "expectedOutput": [
+        "x = 4",
+        "4",
+        "x equals 4"
+      ],
+      "output": "x = 4",
+      "durationMs": 4740,
+      "outputCmd": "/Users/sjarmak/amp/cli/dist/main.js -x"
+    },
+    {
+      "input": "What is 25% of 80?",
+      "expectedOutput": [
+        "20",
+        "25% of 80 is 20",
+        "The answer is 20"
+      ],
+      "output": "20",
+      "durationMs": 4042,
+      "outputCmd": "/Users/sjarmak/amp/cli/dist/main.js -x"
+    }
+  ]
+}

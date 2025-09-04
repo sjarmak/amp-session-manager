@@ -8,8 +8,8 @@ import { BatchesView } from './components/BatchesView';
 import { BatchRunDetail } from './components/BatchRunDetail';
 import { NewBatchModal } from './components/NewBatchModal';
 import { BenchmarksView } from './components/BenchmarksView';
-import { BenchmarkRunDetail } from './components/BenchmarkRunDetail';
-import { NewBenchmarkModal } from './components/NewBenchmarkModal';
+import BenchmarkRunDetail from './components/BenchmarkRunDetail';
+import NewBenchmarkModal from './components/NewBenchmarkModal';
 import { BackgroundBatchBanner } from './components/BackgroundBatchBanner';
 import { BackgroundBenchmarkBanner } from './components/BackgroundBenchmarkBanner';
 
@@ -91,6 +91,20 @@ function App() {
   const handleBackToBenchmarks = () => {
     setSelectedBenchmarkRun(null);
     setCurrentView('benchmarks');
+  };
+
+  const handleBenchmarkStart = async (options: any) => {
+    try {
+      const result = await window.electronAPI.benchmarks.start(options);
+      if (result.success) {
+        console.log('Benchmark started:', result);
+        setRefreshKey(prev => prev + 1);
+      } else {
+        console.error('Failed to start benchmark:', result.error);
+      }
+    } catch (error) {
+      console.error('Error starting benchmark:', error);
+    }
   };
 
   const handleBenchmarkCreated = () => {
@@ -325,7 +339,6 @@ function App() {
               runId={selectedBenchmarkRun.runId}
               type={selectedBenchmarkRun.type}
               onBack={handleBackToBenchmarks}
-              onSessionSelect={handleSessionSelect}
             />
           ) : currentView === 'session' && selectedSession ? (
             <SessionView
@@ -357,7 +370,7 @@ function App() {
         <NewBenchmarkModal
           isOpen={showNewBenchmarkModal}
           onClose={() => setShowNewBenchmarkModal(false)}
-          onBenchmarkCreated={handleBenchmarkCreated}
+          onStart={handleBenchmarkStart}
         />
 
         <NotificationSettingsModal

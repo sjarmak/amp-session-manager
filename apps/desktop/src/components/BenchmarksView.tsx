@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { formatDate } from '../utils/date';
 import { getStatusColor, getStatusBgColor } from '../utils/status';
+import { DesktopBenchmarkRun } from '../types/benchmark';
 
 interface TooltipProps {
   children: React.ReactNode;
@@ -32,16 +33,8 @@ function Tooltip({ children, content }: TooltipProps) {
   );
 }
 
-export interface BenchmarkRun {
-  runId: string;
-  type: 'swebench' | 'custom';
-  createdAt: string;
-  casesDir?: string;
-  totalCases: number;
-  completedCases: number;
-  passedCases: number;
-  failedCases: number;
-  status: 'running' | 'completed' | 'failed';
+export interface BenchmarkRun extends DesktopBenchmarkRun {
+  // Legacy alias for backwards compatibility
 }
 
 export interface BenchmarksViewProps {
@@ -152,6 +145,25 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
     }
   };
 
+  const handleExportJson = async (runId: string) => {
+    try {
+      if (!window.electronAPI?.benchmarks?.exportJson) {
+        alert('Export functionality not available');
+        return;
+      }
+      
+      const result = await window.electronAPI.benchmarks.exportJson(runId);
+      if (result.success) {
+        alert(`Benchmark exported successfully to: ${result.path}`);
+      } else {
+        alert(`Export failed: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Failed to export benchmark:', error);
+      alert('Failed to export benchmark. Check console for details.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -205,19 +217,25 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
                   <th className="w-20 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Run ID
                   </th>
-                  <th className="w-36 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                  <th className="w-32 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Created
                   </th>
-                  <th className="w-48 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                  <th className="w-40 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Source
                   </th>
-                  <th className="w-24 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
-                    Total Cases
+                  <th className="w-20 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                    Cases
                   </th>
-                  <th className="w-24 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                  <th className="w-20 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Progress
                   </th>
                   <th className="w-20 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                    Tokens
+                  </th>
+                  <th className="w-16 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
+                    Cost
+                  </th>
+                  <th className="w-16 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
                     Status
                   </th>
                   <th className="w-24 px-3 py-3 text-left text-xs font-medium text-gruvbox-fg2 uppercase tracking-wider">
@@ -271,6 +289,30 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
                         {run.passedCases}✓ {run.failedCases}✗
                       </div>
                     </td>
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
+                      <div className="text-xs">
+                        {run.totalTokens ? (
+                          <div>
+                            <div>{(run.totalTokens / 1000).toFixed(1)}k</div>
+                            <div className="text-gruvbox-fg3">tokens</div>
+                          </div>
+                        ) : (
+                          <div className="text-gruvbox-fg3">-</div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gruvbox-fg1">
+                      <div className="text-xs">
+                        {run.totalCost ? (
+                          <div>
+                            <div>${run.totalCost.toFixed(3)}</div>
+                            <div className="text-gruvbox-fg3">USD</div>
+                          </div>
+                        ) : (
+                          <div className="text-gruvbox-fg3">-</div>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-3 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-1">
                         <span className={`inline-flex px-1 py-1 text-xs font-semibold rounded-full ${getStatusColor(run.status as any)} ${getStatusBgColor(run.status as any)}`}>
@@ -298,13 +340,21 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
                             {aborting === run.runId ? 'Aborting...' : 'Abort'}
                           </button>
                         ) : (
-                          <button
-                            onClick={() => handleDelete(run.runId)}
-                            disabled={deleting === run.runId}
-                            className="text-gruvbox-bright-red hover:text-gruvbox-red disabled:opacity-50 text-xs"
-                          >
-                            {deleting === run.runId ? 'Deleting...' : 'Delete'}
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleExportJson(run.runId)}
+                              className="text-gruvbox-bright-green hover:text-gruvbox-green text-xs"
+                            >
+                              Export
+                            </button>
+                            <button
+                              onClick={() => handleDelete(run.runId)}
+                              disabled={deleting === run.runId}
+                              className="text-gruvbox-bright-red hover:text-gruvbox-red disabled:opacity-50 text-xs"
+                            >
+                              {deleting === run.runId ? 'Deleting...' : 'Delete'}
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>

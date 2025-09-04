@@ -1,5 +1,6 @@
 export { SessionStore } from './store.js';
 export { GitOps } from './git.js';
+export { GitAutoInit } from './git-auto-init.js';
 export { AmpAdapter } from './amp.js';
 export { WorktreeManager } from './worktree.js';
 export { Notifier } from './notifier.js';
@@ -16,6 +17,9 @@ export type { BenchmarkConfig, BenchmarkResult, ModelResult, SuiteResult } from 
 
 // Export metrics system
 export * from './metrics/index.js';
+
+// Export telemetry system
+export * from './telemetry/index.js';
 
 // Export thread system
 // Export simple thread utils for sessions

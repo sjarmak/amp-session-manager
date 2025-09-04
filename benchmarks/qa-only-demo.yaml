@@ -1,0 +1,32 @@
+version: 2
+name: "QA Evaluation: Math & Code Understanding"
+description: "Quick QA-only benchmark focusing on reasoning and comprehension tasks"
+
+defaults:
+  parallel: 1
+  timeout_sec: 120
+  json_logs: true
+
+models:
+  default:
+    name: "Amp Default"
+  glm45:
+    name: "GLM-4.5"
+    amp_args: ["--try-glm"]
+  gpt5:
+    name: "GPT-5"
+    amp_args: ["--try-gpt5"]
+
+suites:
+  - id: reasoning_qa
+    description: "Fast reasoning and knowledge tests"
+    cases:
+      - id: math_reasoning
+        kind: qa
+        eval_spec: "evals/math-reasoning.yaml"
+        timeout_sec: 60
+        
+      - id: code_understanding
+        kind: qa  
+        eval_spec: "evals/code-comprehension.yaml"
+        timeout_sec: 90

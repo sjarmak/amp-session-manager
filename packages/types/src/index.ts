@@ -16,13 +16,7 @@ export interface Session {
   notes?: string;
   mode?: 'async' | 'interactive';
   autoCommit?: boolean; // If false, stage changes instead of committing them
-  ampMode?: 'production' | 'local-cli';
-  // SDLC Agent support
-  agentId?: string;           // Selected SDLC agent (planning, testing, devops, compliance, docs, autonomy)
-  agentMode?: 'explicit' | 'auto'; // How agent was selected
-  multiProvider?: boolean;     // Enable multi-provider models
-  alloyMode?: boolean;        // Enable primary + validator collaboration
-  autoRoute?: boolean;        // Enable auto-invocation routing
+  ampMode?: 'production' | 'local-cli' | 'local-server';
 }
 
 export interface IterationRecord {
@@ -74,16 +68,6 @@ export interface AmpTelemetry {
     durationMs?: number;
     timestamp: string;
   }>;
-  // Agent-specific telemetry
-  agentMetrics?: {
-    agentId: string | null;           // Which agent was used
-    agentMode: 'explicit' | 'auto';   // How agent was selected
-    alloyMode: boolean;               // Whether alloy mode was used
-    primaryModel: string | null;      // Primary model used
-    validatorModel: string | null;    // Validator model (if alloy mode)
-    autoRouted: boolean;              // Whether auto-routing occurred
-    routingConfidence: number;        // Confidence score for auto-routing
-  };
 }
 
 export interface SessionCreateOptions {
@@ -96,13 +80,7 @@ export interface SessionCreateOptions {
   threadId?: string;
   mode?: "async" | "interactive";
   autoCommit?: boolean;
-  ampMode?: 'production' | 'local-cli';
-  // SDLC Agent support
-  agentId?: string;           // Selected SDLC agent
-  agentMode?: 'explicit' | 'auto'; // How agent was selected
-  multiProvider?: boolean;     // Enable multi-provider models
-  alloyMode?: boolean;        // Enable primary + validator collaboration
-  autoRoute?: boolean;        // Enable auto-invocation routing
+  ampMode?: 'production' | 'local-cli' | 'local-server';
 }
 
 export interface PreflightResult {
@@ -186,6 +164,7 @@ export interface BatchItem {
   startedAt?: string;
   finishedAt?: string;
   model?: string;
+  matrixIndex?: number;
   iterSha?: string;
   tokensTotal?: number;
   toolCalls?: number;
@@ -251,7 +230,7 @@ export interface NormalizedThread {
   updated_at: string;
   last_sync_at: string | null;
   source: 'web' | 'cache' | 'logs' | 'git' | 'mixed';
-  ampMode?: 'production' | 'local-cli';
+  ampMode?: 'production' | 'local-cli' | 'local-server';
   messages: ThreadMessage[];
   tool_calls: ThreadToolCall[];
   diffs: ThreadDiff[];
@@ -340,7 +319,7 @@ export interface SessionThread {
   updatedAt: string;
   status: 'active' | 'archived' | 'completed';
   messageCount?: number;
-  ampMode?: 'production' | 'local-cli';
+  ampMode?: 'production' | 'local-cli' | 'local-server';
 }
 
 export interface SessionThreadMessage {
@@ -358,6 +337,7 @@ export interface AmpRuntimeConfig {
 }
 
 export interface AmpSettings {
-  mode: 'production' | 'local-cli';
+  mode: 'production' | 'local-cli' | 'local-server';
   localCliPath?: string;
+  serverUrl?: string;
 }

@@ -50,7 +50,7 @@ export interface BatchRunSummary {
 
 export interface BatchItemDetails extends BatchItem {
   duration?: number;
-  ampMode?: 'production' | 'local-cli';
+  ampMode?: 'production' | 'local-cli' | 'local-server';
 }
 
 export interface BatchListItemsOptions {
@@ -175,7 +175,7 @@ export class BatchController extends EventEmitter {
         duration = new Date(item.finishedAt).getTime() - new Date(item.startedAt).getTime();
       }
       
-      let ampMode: 'production' | 'local-cli' | undefined;
+      let ampMode: 'production' | 'local-cli' | 'local-server' | undefined;
       if (item.sessionId) {
         const session = this.store.getSession(item.sessionId);
         ampMode = session?.ampMode;
