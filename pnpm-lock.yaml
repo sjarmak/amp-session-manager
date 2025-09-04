@@ -187,6 +187,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@ampsm/bench-core':
+        specifier: workspace:*
+        version: link:../bench-core
       '@ampsm/types':
         specifier: workspace:*
         version: link:../types

@@ -14,6 +14,7 @@ const PlanSchema = z.object({
     baseBranch: z.string(),
     scriptCommand: z.string().optional(),
     model: z.string().optional(),
+    ampMode: z.enum(['production', 'local-cli']).optional(),
     jsonLogs: z.boolean().optional(),
     timeoutSec: z.number().positive().optional(),
     retries: z.number().nonnegative().optional(),
@@ -25,6 +26,7 @@ const PlanSchema = z.object({
     baseBranch: z.string().optional(),
     scriptCommand: z.string().optional(),
     model: z.string().optional(),
+    ampMode: z.enum(['production', 'local-cli']).optional(),
     timeoutSec: z.number().positive().optional(),
     mergeOnPass: z.boolean().optional(),
   })).min(1),
@@ -203,8 +205,10 @@ export class BatchRunner {
       
       // Create session
       const worktreeManager = new WorktreeManager(this.store, this.dbPath, this.metricsEventBus, undefined, this.runtimeConfig, this.ampSettings);
-      const ampMode = this.ampSettings?.mode || 'production';
-      console.log(`🔧 Creating batch session with ampMode: ${ampMode}, ampSettings: ${JSON.stringify(this.ampSettings)}`);
+      // Determine amp mode: item-level > defaults > runtime settings > 'production'
+      const configAmpMode = planItem.ampMode || plan.defaults.ampMode;
+      const ampMode = configAmpMode || this.ampSettings?.mode || 'production';
+      console.log(`🔧 Creating batch session with ampMode: ${ampMode} (config: ${configAmpMode}, runtime: ${this.ampSettings?.mode}), ampSettings: ${JSON.stringify(this.ampSettings)}`);
       
       const modelOverride = planItem.model || plan.defaults.model;
       console.log(`🔧 [BATCH] Creating session for item ${item.id}: model='${planItem.model}', defaults.model='${plan.defaults.model}', final modelOverride='${modelOverride}'`);

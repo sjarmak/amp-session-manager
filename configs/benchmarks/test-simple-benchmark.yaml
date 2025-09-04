@@ -8,7 +8,7 @@ defaults:
 
 models:
   default:
-    name: "Amp Default"
+    name: "Claude Sonnet 4"
 
 suites:
   - id: simple_test

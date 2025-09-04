@@ -138,6 +138,7 @@ export interface Plan {
     baseBranch: string;
     scriptCommand?: string;
     model?: string;
+    ampMode?: 'production' | 'local-cli';
     jsonLogs?: boolean;
     timeoutSec?: number;
     retries?: number;
@@ -152,6 +153,7 @@ export interface PlanItem {
   baseBranch?: string;
   scriptCommand?: string;
   model?: string;
+  ampMode?: 'production' | 'local-cli';
   timeoutSec?: number;
   mergeOnPass?: boolean;
 }

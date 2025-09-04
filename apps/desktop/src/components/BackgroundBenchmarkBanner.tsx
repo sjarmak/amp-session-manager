@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 
 interface RunningBenchmark {
   runId: string;
+  name: string;
   status: string;
-  totalCases?: number;
+  totalCases: number;
   completedCases?: number;
+  passedCases?: number;
+  failedCases?: number;
 }
 
 export function BackgroundBenchmarkBanner() {
@@ -12,29 +15,15 @@ export function BackgroundBenchmarkBanner() {
   const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-    let eventHandler: any = null;
-
     const loadRunningBenchmarks = async () => {
       try {
         const runs = await window.electronAPI.benchmarks.listRuns();
-        console.log('🔍 BackgroundBenchmarkBanner: All runs:', runs);
         const running = runs.filter((run: any) => run.status === 'running');
-        console.log('🔍 BackgroundBenchmarkBanner: Running benchmarks:', running);
         setRunningBenchmarks(running);
         
         // Reset dismissed state when new benchmarks start
         if (running.length > 0) {
-          console.log('🔍 BackgroundBenchmarkBanner: Found running benchmarks, resetting dismissed state');
           setIsDismissed(false);
-        }
-
-        // Only start polling if we have running benchmarks, stop if none
-        if (running.length > 0 && !interval) {
-          interval = setInterval(loadRunningBenchmarks, 5000);
-        } else if (running.length === 0 && interval) {
-          clearInterval(interval);
-          interval = null;
         }
       } catch (error) {
         console.error('Failed to load running benchmarks:', error);
@@ -43,14 +32,14 @@ export function BackgroundBenchmarkBanner() {
 
     loadRunningBenchmarks();
 
+    // Poll for updates as fallback
+    const interval = setInterval(loadRunningBenchmarks, 5000);
+
     const handleBenchmarkEvent = (event: any) => {
-      console.log('🔄 BackgroundBenchmarkBanner: Got benchmark event:', event);
       if (event.type === 'run-started') {
         loadRunningBenchmarks();
       } else if (event.type === 'run-finished' || event.type === 'run-aborted') {
         setRunningBenchmarks(prev => prev.filter(benchmark => benchmark.runId !== event.runId));
-        // Re-check and potentially stop polling
-        loadRunningBenchmarks();
       } else if (event.type === 'run-updated' && event.run) {
         setRunningBenchmarks(prev => 
           prev.map(benchmark => 
@@ -60,10 +49,14 @@ export function BackgroundBenchmarkBanner() {
       }
     };
 
-    eventHandler = window.electronAPI.benchmarks.onEvent(handleBenchmarkEvent);
+    let eventHandler: any = null;
+    if (window.electronAPI?.benchmarks?.onEvent) {
+      eventHandler = window.electronAPI.benchmarks.onEvent(handleBenchmarkEvent);
+    }
+
     return () => {
-      if (interval) clearInterval(interval);
-      if (eventHandler) {
+      clearInterval(interval);
+      if (eventHandler && window.electronAPI?.benchmarks?.offEvent) {
         window.electronAPI.benchmarks.offEvent(eventHandler);
       }
     };
@@ -76,10 +69,13 @@ export function BackgroundBenchmarkBanner() {
 
   const totalBenchmarks = runningBenchmarks.length;
   const totalCases = runningBenchmarks.reduce((sum, benchmark) => sum + (benchmark.totalCases || 0), 0);
-  const completedCases = runningBenchmarks.reduce((sum, benchmark) => sum + (benchmark.completedCases || 0), 0);
+  const completedCases = runningBenchmarks.reduce((sum, benchmark) => {
+    const completed = (benchmark.completedCases || 0);
+    return sum + completed;
+  }, 0);
 
   return (
-    <div className="fixed top-[2.5rem] left-0 right-0 bg-gradient-to-r from-gruvbox-purple/80 to-gruvbox-bright-purple/80 backdrop-blur-sm text-gruvbox-bg0 px-4 py-2 shadow-lg border-b border-gruvbox-bright-purple/30 z-[60]">
+    <div className="fixed top-0 left-0 right-0 bg-gradient-to-r from-gruvbox-purple/80 to-gruvbox-bright-purple/80 backdrop-blur-sm text-gruvbox-bg0 px-4 py-2 shadow-lg border-b border-gruvbox-bright-purple/30 z-[61]">
       <div className="flex items-center justify-between max-w-6xl mx-auto">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
@@ -92,7 +88,7 @@ export function BackgroundBenchmarkBanner() {
           <div className="h-4 w-px bg-gruvbox-bg0/30"></div>
           
           <div className="text-xs opacity-90">
-            {completedCases}/{totalCases} completed
+            {completedCases}/{totalCases} cases completed
           </div>
         </div>
         

@@ -3,8 +3,7 @@ import { SessionStore } from './store.js';
 import { MetricsEventBus } from './metrics/index.js';
 import type { AmpSettings } from '@ampsm/types';
 import { randomUUID } from 'crypto';
-// Use dynamic import to avoid dependency issues
-// import { BenchmarkRunner } from '@ampsm/bench-core';
+import { BenchmarkRunner } from '@ampsm/bench-core';
 
 export interface BenchmarkRunSummary {
   runId: string;
@@ -34,7 +33,7 @@ export interface BenchmarkStartOptions {
 }
 
 export class BenchmarkController extends EventEmitter {
-  private activeRuns = new Map<string, { runner: any; abortController: AbortController }>();
+  private activeRuns = new Map<string, { runner: BenchmarkRunner | any; abortController: AbortController }>();
 
   constructor(
     private store: SessionStore, 
@@ -52,7 +51,18 @@ export class BenchmarkController extends EventEmitter {
     this.emit('run-started', { runId, type: options.type });
     
     // Execute the benchmark in the background without blocking
-    this.executeBenchmarkAsync(runId, options, abortController);
+    // Use setImmediate to push execution to the next event loop iteration
+    setImmediate(() => {
+      this.executeBenchmarkAsync(runId, options, abortController).catch(error => {
+        console.error('Background benchmark execution failed:', error);
+        this.activeRuns.delete(runId);
+        this.emit('run-finished', { 
+          runId, 
+          type: 'error', 
+          error: error instanceof Error ? error.message : String(error) 
+        });
+      });
+    });
     
     return runId;
   }
@@ -68,9 +78,8 @@ export class BenchmarkController extends EventEmitter {
           throw new Error('YAML config path is required');
         }
 
-        const { BenchmarkRunner } = require('@ampsm/bench-core');
         const benchmarkRunner = new BenchmarkRunner({
-          workingDir: process.cwd(),
+          workingDir: this.findProjectRoot(),
           outputDir: this.dbPath ? require('path').join(this.dbPath, '..', 'benchmark-results') : './benchmark-results',
           parallel: options.parallel || 1,
           models: options.models,
@@ -207,7 +216,6 @@ export class BenchmarkController extends EventEmitter {
 
     try {
       // Get YAML benchmark runs from files
-      const { BenchmarkRunner } = require('@ampsm/bench-core');
       const benchmarkRunner = new BenchmarkRunner({
         outputDir: this.dbPath ? require('path').join(this.dbPath, '..', 'benchmark-results') : './benchmark-results'
       });
@@ -219,7 +227,7 @@ export class BenchmarkController extends EventEmitter {
         name: run.benchmark_name,
         type: 'yaml' as const,
         createdAt: run.started,
-        status: run.ended ? 'completed' : 'running',
+        status: run.ended ? 'completed' as const : 'running' as const,
         totalCases: run.summary?.total_cases || 0,
         completedCases: run.summary?.total_cases || 0,
         passedCases: run.summary?.passed_cases || 0,
@@ -246,7 +254,6 @@ export class BenchmarkController extends EventEmitter {
     
     try {
       // Try YAML benchmark deletion first
-      const { BenchmarkRunner } = require('@ampsm/bench-core');
       const benchmarkRunner = new BenchmarkRunner({
         outputDir: this.dbPath ? require('path').join(this.dbPath, '..', 'benchmark-results') : './benchmark-results'
       });
@@ -275,7 +282,6 @@ export class BenchmarkController extends EventEmitter {
   async getBenchmarkResult(runId: string): Promise<any> {
     try {
       // Try YAML benchmark first
-      const { BenchmarkRunner } = require('@ampsm/bench-core');
       const benchmarkRunner = new BenchmarkRunner({
         outputDir: this.dbPath ? require('path').join(this.dbPath, '..', 'benchmark-results') : './benchmark-results'
       });
@@ -291,6 +297,23 @@ export class BenchmarkController extends EventEmitter {
 
   updateAmpSettings(ampSettings: AmpSettings) {
     this.ampSettings = ampSettings;
+  }
+
+  private findProjectRoot(): string {
+    const { existsSync } = require('fs');
+    const path = require('path');
+    
+    // Try to find project root by looking for package.json
+    let dir = process.cwd();
+    while (dir !== path.dirname(dir)) {
+      if (existsSync(path.join(dir, 'package.json')) && 
+          existsSync(path.join(dir, 'configs'))) {
+        return dir;
+      }
+      dir = path.dirname(dir);
+    }
+    
+    return process.cwd();
   }
 
   private async monitorRun(runId: string) {

@@ -9,7 +9,7 @@ defaults:
 
 models:
   default:
-    name: "Amp Default"
+    name: "Claude Sonnet 4"
   glm45:
     name: "GLM-4.5"
     amp_args: ["--try-glm"]

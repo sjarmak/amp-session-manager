@@ -312,12 +312,12 @@ export class BenchmarkRunner extends EventEmitter {
     if (this.config.sessionStore) {
       try {
         const session = this.config.sessionStore.createSession({
-          kind: kind as any,
-          source: 'benchmark',
-          benchmarkCaseId: caseSpec.id,
-          model: model.name,
+          name: `Benchmark: ${caseSpec.id}`,
+          ampPrompt: `Benchmark evaluation case: ${caseSpec.id}`,
           repoRoot: this.config.workingDir || process.cwd(),
-          notes: `Benchmark case: ${caseSpec.id}`
+          source: 'benchmark',
+          notes: `Benchmark case: ${caseSpec.id}`,
+          modelOverride: model.name
         })
         sessionId = session.id
       } catch (error) {

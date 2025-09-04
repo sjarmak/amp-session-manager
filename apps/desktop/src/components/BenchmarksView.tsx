@@ -48,6 +48,7 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [aborting, setAborting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hasRunningBenchmarks, setHasRunningBenchmarks] = useState(false);
 
   useEffect(() => {
     loadRuns();
@@ -91,6 +92,10 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
       const benchmarkRuns = await window.electronAPI.benchmarks.listRuns();
       console.log('🔍 BenchmarksView: Got response:', benchmarkRuns);
       setRuns(benchmarkRuns || []);
+      
+      // Update running benchmarks state
+      const running = (benchmarkRuns || []).filter((run: any) => run.status === 'running');
+      setHasRunningBenchmarks(running.length > 0);
     } catch (error) {
       console.error('❌ BenchmarksView: Failed to load benchmark runs:', error);
       setError(error instanceof Error ? error.message : 'Failed to load benchmark runs');
@@ -189,7 +194,17 @@ export function BenchmarksView({ onRunSelect, onNewRun }: BenchmarksViewProps) {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gruvbox-fg0">Benchmark Evaluations</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold text-gruvbox-fg0">Benchmark Evaluations</h2>
+          {hasRunningBenchmarks && (
+            <div className="flex items-center gap-2 bg-gruvbox-purple/20 border border-gruvbox-purple/30 px-3 py-1 rounded-full">
+              <div className="w-2 h-2 bg-gruvbox-bright-purple rounded-full animate-pulse"></div>
+              <span className="text-sm text-gruvbox-bright-purple font-medium">
+                Running in background
+              </span>
+            </div>
+          )}
+        </div>
         <button
           onClick={onNewRun}
           className="bg-gruvbox-bright-blue text-gruvbox-bg0 px-4 py-2 rounded-lg hover:bg-gruvbox-blue transition-colors"

@@ -352,7 +352,7 @@ export class SessionStore {
   createSession(options: SessionCreateOptions): Session {
     const id = randomUUID();
     const timestamp = createTimestampId();
-    const slug = options.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    const slug = (options.name || 'session').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
     
     const session: Session = {
       id,
