@@ -1,145 +1,319 @@
 import React, { useState } from 'react';
+import { BenchmarkStartOptions } from '../types/benchmark';
 
 export interface NewBenchmarkModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onBenchmarkCreated: () => void;
+  onStart: (options: BenchmarkStartOptions) => void;
 }
 
-export function NewBenchmarkModal({ isOpen, onClose, onBenchmarkCreated }: NewBenchmarkModalProps) {
+export default function NewBenchmarkModal({ isOpen, onClose, onStart }: NewBenchmarkModalProps) {
+  const [benchmarkType, setBenchmarkType] = useState<'swebench' | 'yaml'>('yaml');
+  const [name, setName] = useState('');
   const [yamlConfigPath, setYamlConfigPath] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [casesDir, setCasesDir] = useState('');
+  const [parallel, setParallel] = useState(1);
+  const [maxIterations, setMaxIterations] = useState(10);
+  const [timeoutSec, setTimeoutSec] = useState(300);
+  const [models, setModels] = useState<string[]>([]);
+  const [modelInput, setModelInput] = useState('');
+  const [dryRun, setDryRun] = useState(false);
 
+  if (!isOpen) return null;
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const options: BenchmarkStartOptions = {
+      type: benchmarkType,
+      name: name || undefined,
+      dryRun
+    };
 
-  const handleSelectYamlFile = async () => {
+    if (benchmarkType === 'yaml') {
+      options.yamlConfigPath = yamlConfigPath;
+      options.models = models.length > 0 ? models : undefined;
+    } else if (benchmarkType === 'swebench') {
+      options.casesDir = casesDir;
+      options.parallel = parallel;
+      options.maxIterations = maxIterations;
+      options.timeoutSec = timeoutSec;
+    }
+
+    onStart(options);
+    onClose();
+  };
+
+  const handleAddModel = () => {
+    if (modelInput.trim() && !models.includes(modelInput.trim())) {
+      setModels([...models, modelInput.trim()]);
+      setModelInput('');
+    }
+  };
+
+  const handleRemoveModel = (model: string) => {
+    setModels(models.filter(m => m !== model));
+  };
+
+  const selectYamlFile = async () => {
     try {
-      if (!window.electronAPI?.dialog?.selectFile) {
-        alert('File selection not available');
-        return;
-      }
-      const result = await window.electronAPI.dialog.selectFile();
-      if (!result.canceled && result.filePaths.length > 0) {
+      const result = await window.electronAPI.openFileDialog({
+        title: 'Select Benchmark YAML File',
+        filters: [
+          { name: 'YAML Files', extensions: ['yaml', 'yml'] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      });
+      
+      if (result && !result.canceled && result.filePaths.length > 0) {
         setYamlConfigPath(result.filePaths[0]);
       }
     } catch (error) {
       console.error('Failed to select file:', error);
-      alert('Failed to select file');
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!yamlConfigPath.trim()) {
-      alert('Please select a YAML config file');
-      return;
-    }
-
+  const selectCasesDir = async () => {
     try {
-      setLoading(true);
-      
-      if (!window.electronAPI?.benchmarks?.start) {
-        alert('Benchmark API not available');
-        return;
-      }
-
-      const result = await window.electronAPI.benchmarks.start({
-        type: 'yaml',
-        yamlConfigPath: yamlConfigPath.trim()
+      const result = await window.electronAPI.openDirectoryDialog({
+        title: 'Select SWE-bench Cases Directory'
       });
-
-      if (result.success) {
-        onBenchmarkCreated();
-        onClose();
-        setYamlConfigPath('');
-      } else {
-        alert(`Failed to start benchmark: ${result.error}`);
+      
+      if (result && !result.canceled && result.filePaths.length > 0) {
+        setCasesDir(result.filePaths[0]);
       }
     } catch (error) {
-      console.error('Failed to create benchmark:', error);
-      alert('Failed to create benchmark. Check console for details.');
-    } finally {
-      setLoading(false);
+      console.error('Failed to select directory:', error);
     }
   };
 
-
-
-  if (!isOpen) return null;
-
   return (
-    <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      onClick={() => {
-        if (!loading) {
-          setYamlConfigPath('');
-          onClose();
-        }
-      }}
-    >
-      <div 
-        className="bg-gruvbox-bg0 rounded-lg p-6 w-full max-w-md mx-4 border border-gruvbox-bg3 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gruvbox-fg0">New Benchmark Run</h3>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-gruvbox-bg0 border border-gruvbox-bg3 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold text-gruvbox-fg0">New Benchmark Run</h2>
           <button
-            onClick={() => {
-              setYamlConfigPath('');
-              onClose();
-            }}
-            className="p-1 hover:bg-gruvbox-bg2 rounded transition-colors"
-            title="Close"
+            onClick={onClose}
+            className="text-gruvbox-fg2 hover:text-gruvbox-fg0 text-xl"
           >
-            <svg className="w-5 h-5 text-gruvbox-fg2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            ✕
           </button>
         </div>
-        
-        <form onSubmit={handleSubmit}>
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gruvbox-fg1 mb-2">
-              YAML Config File
-            </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={yamlConfigPath}
-                  onChange={(e) => setYamlConfigPath(e.target.value)}
-                  placeholder="Select YAML benchmark configuration file"
-                  className="flex-1 px-3 py-2 bg-gruvbox-bg1 border border-gruvbox-bg3 text-gruvbox-fg0 rounded-md focus:outline-none focus:ring-2 focus:ring-gruvbox-blue placeholder-gruvbox-fg2"
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  onClick={handleSelectYamlFile}
-                  disabled={loading}
-                  className="px-4 py-2 bg-gruvbox-bg2 text-gruvbox-fg1 rounded-md hover:bg-gruvbox-bg3 transition-colors disabled:opacity-50"
-                >
-                  Browse
-                </button>
-              </div>
-            </div>
 
-          <div className="flex justify-end gap-3">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Benchmark Type Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gruvbox-fg0 mb-2">
+              Benchmark Type
+            </label>
+            <div className="flex gap-4">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  value="yaml"
+                  checked={benchmarkType === 'yaml'}
+                  onChange={(e) => setBenchmarkType(e.target.value as 'yaml')}
+                  className="mr-2"
+                />
+                <span className="text-gruvbox-fg1">YAML Benchmark (v2)</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  value="swebench"
+                  checked={benchmarkType === 'swebench'}
+                  onChange={(e) => setBenchmarkType(e.target.value as 'swebench')}
+                  className="mr-2"
+                />
+                <span className="text-gruvbox-fg1">SWE-bench</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Common Fields */}
+          <div>
+            <label className="block text-sm font-medium text-gruvbox-fg0 mb-2">
+              Run Name (optional)
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full p-2 bg-gruvbox-bg1 border border-gruvbox-bg3 rounded text-gruvbox-fg0 focus:border-gruvbox-bright-blue focus:outline-none"
+              placeholder="e.g., Model Comparison Run"
+            />
+          </div>
+
+          {/* YAML Benchmark Fields */}
+          {benchmarkType === 'yaml' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gruvbox-fg0 mb-2">
+                  YAML Config File *
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={yamlConfigPath}
+                    onChange={(e) => setYamlConfigPath(e.target.value)}
+                    className="flex-1 p-2 bg-gruvbox-bg1 border border-gruvbox-bg3 rounded text-gruvbox-fg0 focus:border-gruvbox-bright-blue focus:outline-none"
+                    placeholder="/path/to/benchmark.yaml"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={selectYamlFile}
+                    className="px-4 py-2 bg-gruvbox-bg2 border border-gruvbox-bg3 rounded text-gruvbox-fg1 hover:bg-gruvbox-bg3"
+                  >
+                    Browse
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gruvbox-fg0 mb-2">
+                  Models (optional - leave empty to use all from spec)
+                </label>
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={modelInput}
+                      onChange={(e) => setModelInput(e.target.value)}
+                      className="flex-1 p-2 bg-gruvbox-bg1 border border-gruvbox-bg3 rounded text-gruvbox-fg0 focus:border-gruvbox-bright-blue focus:outline-none"
+                      placeholder="e.g., gpt-5, alloy"
+                      onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddModel())}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddModel}
+                      className="px-4 py-2 bg-gruvbox-bright-blue text-gruvbox-bg0 rounded hover:bg-gruvbox-blue"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {models.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {models.map((model) => (
+                        <span
+                          key={model}
+                          className="bg-gruvbox-bg2 text-gruvbox-fg1 px-2 py-1 rounded text-sm flex items-center gap-1"
+                        >
+                          {model}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveModel(model)}
+                            className="text-gruvbox-bright-red hover:text-gruvbox-red ml-1"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* SWE-bench Fields */}
+          {benchmarkType === 'swebench' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gruvbox-fg0 mb-2">
+                  Cases Directory *
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={casesDir}
+                    onChange={(e) => setCasesDir(e.target.value)}
+                    className="flex-1 p-2 bg-gruvbox-bg1 border border-gruvbox-bg3 rounded text-gruvbox-fg0 focus:border-gruvbox-bright-blue focus:outline-none"
+                    placeholder="/path/to/swebench/cases"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={selectCasesDir}
+                    className="px-4 py-2 bg-gruvbox-bg2 border border-gruvbox-bg3 rounded text-gruvbox-fg1 hover:bg-gruvbox-bg3"
+                  >
+                    Browse
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gruvbox-fg0 mb-2">
+                    Parallel
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="8"
+                    value={parallel}
+                    onChange={(e) => setParallel(parseInt(e.target.value))}
+                    className="w-full p-2 bg-gruvbox-bg1 border border-gruvbox-bg3 rounded text-gruvbox-fg0 focus:border-gruvbox-bright-blue focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gruvbox-fg0 mb-2">
+                    Max Iterations
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={maxIterations}
+                    onChange={(e) => setMaxIterations(parseInt(e.target.value))}
+                    className="w-full p-2 bg-gruvbox-bg1 border border-gruvbox-bg3 rounded text-gruvbox-fg0 focus:border-gruvbox-bright-blue focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gruvbox-fg0 mb-2">
+                    Timeout (sec)
+                  </label>
+                  <input
+                    type="number"
+                    min="60"
+                    max="3600"
+                    value={timeoutSec}
+                    onChange={(e) => setTimeoutSec(parseInt(e.target.value))}
+                    className="w-full p-2 bg-gruvbox-bg1 border border-gruvbox-bg3 rounded text-gruvbox-fg0 focus:border-gruvbox-bright-blue focus:outline-none"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Dry Run Option */}
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="dryRun"
+              checked={dryRun}
+              onChange={(e) => setDryRun(e.target.checked)}
+              className="mr-2"
+            />
+            <label htmlFor="dryRun" className="text-sm text-gruvbox-fg1">
+              Dry run (validate without executing)
+            </label>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3 pt-4 border-t border-gruvbox-bg3">
             <button
               type="button"
-              onClick={() => {
-                setYamlConfigPath('');
-                onClose();
-              }}
-              className="px-4 py-2 text-gruvbox-fg2 hover:text-gruvbox-fg0 transition-colors"
+              onClick={onClose}
+              className="px-4 py-2 bg-gruvbox-bg2 text-gruvbox-fg1 rounded hover:bg-gruvbox-bg3"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={loading || !yamlConfigPath.trim()}
-              className="px-4 py-2 bg-gruvbox-blue text-gruvbox-bg0 rounded-lg hover:bg-gruvbox-bright-blue transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-gruvbox-bright-blue text-gruvbox-bg0 rounded hover:bg-gruvbox-blue"
             >
-              {loading ? 'Starting...' : 'Start Benchmark'}
+              {dryRun ? 'Validate' : 'Start Benchmark'}
             </button>
           </div>
         </form>

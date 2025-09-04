@@ -1,0 +1,17 @@
+repo: amp-workflow-manager-v2
+rev: main
+questions:
+  - input: "What is 15 + 27?"
+    expectedOutput: "42"
+    
+  - input: "Calculate the square root of 144"
+    expectedOutput: "12"
+    
+  - input: "What are the first 5 prime numbers?"
+    expectedOutput: ["2", "3", "5", "7", "11"]
+    
+  - input: "Convert 32 degrees Fahrenheit to Celsius"
+    expectedOutput: "0"
+    
+  - input: "What is 8 factorial (8!)?"
+    expectedOutput: "40320"

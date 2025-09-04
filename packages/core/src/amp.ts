@@ -24,6 +24,29 @@ function redactSecrets(text: string, env?: Record<string, string>): string {
   return redacted;
 }
 
+/**
+ * Sanitizes environment variables for Amp production mode
+ */
+function sanitizeEnvironment(env: Record<string, string | undefined>, ampSettings?: { mode?: string }): Record<string, string> {
+  // Filter out undefined values and convert to proper string record
+  const cleanEnv: Record<string, string> = {};
+  Object.entries(env).forEach(([key, value]) => {
+    if (value !== undefined) {
+      cleanEnv[key] = value;
+    }
+  });
+  
+  // Sanity check: warn if AMP_URL is set in production mode
+  if (ampSettings?.mode === 'production' && cleanEnv.AMP_URL) {
+    console.warn('🚨 AMP_URL is set but mode is production. Removing stale localhost URL.');
+    const sanitized = { ...cleanEnv };
+    delete sanitized.AMP_URL;
+    delete sanitized.NODE_TLS_REJECT_UNAUTHORIZED;
+    return sanitized;
+  }
+  return cleanEnv;
+}
+
 export interface AmpAdapterConfig {
   ampPath?: string;
   ampArgs?: string[];
@@ -31,6 +54,7 @@ export interface AmpAdapterConfig {
   env?: Record<string, string>;
   extraArgs?: string[];
   runtimeConfig?: AmpRuntimeConfig;
+  ampSettings?: { mode?: string };
 }
 
 export interface AmpIterationResult {
@@ -76,11 +100,14 @@ export class AmpAdapter extends EventEmitter {
       enableJSONLogs: config.enableJSONLogs !== false, // Default to true for streaming
       env: config.env,
       extraArgs: [...(config.extraArgs || []), ...getAmpExtraArgs(config.runtimeConfig || {})],
-      runtimeConfig: config.runtimeConfig
+      runtimeConfig: config.runtimeConfig,
+      ampSettings: config.ampSettings
     };
     this.store = store;
     this.metricsEventBus = metricsEventBus;
   }
+
+
 
   private async hasExistingThread(sessionId: string): Promise<boolean> {
     if (!this.store) return false;
@@ -338,11 +365,11 @@ export class AmpAdapter extends EventEmitter {
       this.lastUsedArgs = args;
       
       // Use environment variables for authentication
-      const env = { 
+      const env = sanitizeEnvironment({ 
         ...process.env, 
         ...(this.config.env || {}),
-        ...getAmpEnvironment(this.config.runtimeConfig || {})
-      };
+        ...getAmpEnvironment(this.config.runtimeConfig || {}, this.config.ampSettings)
+      }, this.config.ampSettings);
       
       // Ensure AMP_API_KEY is available - check shell environment if missing
       if (!env.AMP_API_KEY && process.env.SHELL) {
@@ -585,11 +612,11 @@ export class AmpAdapter extends EventEmitter {
         args.push('--stream-json');
       }
       
-      const env = { 
+      const env = sanitizeEnvironment({ 
         ...process.env, 
         ...(this.config.env || {}),
-        ...getAmpEnvironment(this.config.runtimeConfig || {})
-      };
+        ...getAmpEnvironment(this.config.runtimeConfig || {}, this.config.ampSettings)
+      }, this.config.ampSettings);
       
       // Ensure AMP_API_KEY is available - check shell environment if missing
       if (!env.AMP_API_KEY && process.env.SHELL) {
@@ -759,16 +786,15 @@ Please provide a thorough analysis and actionable recommendations.`;
   }> {
     return new Promise(async (resolve) => {
       const testPrompt = 'echo "auth test"';
-      const env = { 
+      const env = sanitizeEnvironment({ 
         ...process.env, 
         ...(this.config.env || {}),
-        ...getAmpEnvironment(this.config.runtimeConfig || {})
-      };
+        ...getAmpEnvironment(this.config.runtimeConfig || {}, this.config.ampSettings)
+      }, this.config.ampSettings);
       
       // Ensure AMP_API_KEY is available - check shell environment if missing
       if (!env.AMP_API_KEY && process.env.SHELL) {
         try {
-
           const result = await new Promise<string>((resolve) => {
             const shell = spawn(process.env.SHELL!, ['-c', 'source ~/.zshrc && echo $AMP_API_KEY'], { 
               stdio: ['pipe', 'pipe', 'pipe'] 
@@ -786,7 +812,6 @@ Please provide a thorough analysis and actionable recommendations.`;
           // Failed to source AMP_API_KEY from shell for auth validation
         }
       }
-      
       const child = spawn(this.config.ampPath!, ['-x'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         env
@@ -805,6 +830,8 @@ Please provide a thorough analysis and actionable recommendations.`;
       
       child.on('close', (exitCode) => {
         const fullOutput = output + stderr;
+        
+
         
         if (fullOutput.includes('Not logged in') || fullOutput.includes('Unauthorized')) {
           resolve({
@@ -1363,11 +1390,11 @@ Please provide a thorough analysis and actionable recommendations.`;
    */
   async checkAuthentication(): Promise<boolean> {
     return new Promise((resolve) => {
-      const env = { 
+      const env = sanitizeEnvironment({ 
         ...process.env, 
         ...(this.config.env || {}),
-        ...getAmpEnvironment(this.config.runtimeConfig || {})
-      };
+        ...getAmpEnvironment(this.config.runtimeConfig || {}, this.config.ampSettings)
+      }, this.config.ampSettings);
       
       const child = spawn(this.config.ampPath!, ['threads', 'list'], {
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -1391,11 +1418,11 @@ Please provide a thorough analysis and actionable recommendations.`;
 
   async validateThreadExists(threadId: string): Promise<boolean> {
     return new Promise((resolve) => {
-      const env = { 
+      const env = sanitizeEnvironment({ 
         ...process.env, 
         ...(this.config.env || {}),
-        ...getAmpEnvironment(this.config.runtimeConfig || {})
-      };
+        ...getAmpEnvironment(this.config.runtimeConfig || {}, this.config.ampSettings)
+      }, this.config.ampSettings);
       
       const child = spawn(this.config.ampPath!, ['threads', 'list'], {
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -1614,11 +1641,11 @@ class InteractiveHandleImpl extends EventEmitter implements InteractiveHandle {
       }
 
       // Set up environment
-      const env = { 
+      const env = sanitizeEnvironment({ 
         ...process.env, 
         ...config.env, 
-        ...getAmpEnvironment(this.config.runtimeConfig || {})
-      };
+        ...getAmpEnvironment(this.config.runtimeConfig || {}, this.config.ampSettings)
+      }, this.config.ampSettings);
 
       console.log('Starting interactive amp process:', this.config.ampPath, args);
       console.log('Working directory:', workingDir);

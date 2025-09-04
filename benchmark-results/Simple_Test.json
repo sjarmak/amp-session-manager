@@ -1,0 +1,52 @@
+{
+  "benchmark_name": "Simple Test",
+  "started": "2025-09-03T19:10:08.082Z",
+  "ended": "2025-09-03T19:10:13.775Z",
+  "total_duration_sec": 5.693,
+  "cases": [
+    {
+      "id": "math_reasoning",
+      "model": "Amp Default",
+      "kind": "qa",
+      "started": "2025-09-03T19:10:08.083Z",
+      "ended": "2025-09-03T19:10:13.775Z",
+      "duration_sec": 5.692,
+      "passed": false,
+      "metrics": {
+        "total_questions": 4,
+        "questions_with_output": 0,
+        "questions_graded": 0,
+        "pass_rate": 0,
+        "avg_latency_ms": 1408,
+        "total_points": 0,
+        "passed_points": 0
+      },
+      "artifacts": [
+        "benchmark-results/2025-09-03/math_reasoning_Amp Default_526512b7/result.1756926608085.json",
+        "benchmark-results/2025-09-03/math_reasoning_Amp Default_526512b7/result.1756926608085-graded.json"
+      ]
+    }
+  ],
+  "summary": {
+    "total_cases": 1,
+    "passed_cases": 0,
+    "success_rate": 0,
+    "by_model": {
+      "Amp Default": {
+        "total_cases": 1,
+        "passed_cases": 0,
+        "success_rate": 0,
+        "avg_duration_sec": 5.692,
+        "metrics": {
+          "success_rate": 0,
+          "avg_iterations": 0,
+          "total_runtime_sec": 5.692,
+          "avg_latency_ms": 1408,
+          "total_tokens": 0,
+          "pass_rate": 0,
+          "total_cost": 0
+        }
+      }
+    }
+  }
+}

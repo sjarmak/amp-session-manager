@@ -1,0 +1,98 @@
+{
+  "questions": [
+    {
+      "input": "What is the result of 15 + 27?",
+      "expectedOutput": "42",
+      "output": "42",
+      "durationMs": 5336,
+      "outputCmd": "/Users/sjarmak/amp/cli/dist/main.js -x",
+      "grade": {
+        "score": "1/1",
+        "passed": 1,
+        "total": 1,
+        "reasoning": "The actual output exactly matches the expected point of 42, which is the correct result of 15 + 27."
+      }
+    },
+    {
+      "input": "If a rectangle has length 8 and width 5, what is its area?",
+      "expectedOutput": "40",
+      "output": "40",
+      "durationMs": 4133,
+      "outputCmd": "/Users/sjarmak/amp/cli/dist/main.js -x",
+      "grade": {
+        "score": "1/1",
+        "passed": 1,
+        "total": 1,
+        "reasoning": "The actual output is exactly 40, which precisely matches the expected point. This is the correct area calculation for a rectangle with length 8 and width 5 (8 × 5 = 40)."
+      }
+    },
+    {
+      "input": "Solve for x: 2x + 5 = 13",
+      "expectedOutput": [
+        "x = 4",
+        "4",
+        "x equals 4"
+      ],
+      "output": "x = 4",
+      "durationMs": 4740,
+      "outputCmd": "/Users/sjarmak/amp/cli/dist/main.js -x",
+      "grade": {
+        "score": "3/3",
+        "passed": 3,
+        "total": 3,
+        "reasoning": "3 out of 3 expected points covered",
+        "itemResults": [
+          {
+            "expectedItem": "x = 4",
+            "passed": true,
+            "reasoning": "The actual output exactly matches the expected solution of x = 4. This is a direct and correct solution to the equation 2x + 5 = 13, demonstrating that the solver subtracted 5 from both sides (2x = 8) and then divided by 2 to get x = 4."
+          },
+          {
+            "expectedItem": "4",
+            "passed": true,
+            "reasoning": "The actual output directly provides the correct solution x = 4, which exactly matches the expected point. The solution solves the equation 2x + 5 = 13 by subtracting 5 from both sides (2x = 8) and then dividing by 2 to isolate x, resulting in x = 4."
+          },
+          {
+            "expectedItem": "x equals 4",
+            "passed": true,
+            "reasoning": "The actual output exactly matches the expected point. The solution 'x = 4' directly and precisely answers the equation 2x + 5 = 13 by showing that x is equal to 4."
+          }
+        ]
+      }
+    },
+    {
+      "input": "What is 25% of 80?",
+      "expectedOutput": [
+        "20",
+        "25% of 80 is 20",
+        "The answer is 20"
+      ],
+      "output": "20",
+      "durationMs": 4042,
+      "outputCmd": "/Users/sjarmak/amp/cli/dist/main.js -x",
+      "grade": {
+        "score": "3/3",
+        "passed": 3,
+        "total": 3,
+        "reasoning": "3 out of 3 expected points covered",
+        "itemResults": [
+          {
+            "expectedItem": "20",
+            "passed": true,
+            "reasoning": "The actual output is exactly 20, which precisely matches the expected point. 25% of 80 is calculated by multiplying 80 by 0.25, which equals 20."
+          },
+          {
+            "expectedItem": "25% of 80 is 20",
+            "passed": true,
+            "reasoning": "The actual output '20' directly matches the expected point that 25% of 80 is 20. The calculation is correct and the answer is precise."
+          },
+          {
+            "expectedItem": "The answer is 20",
+            "passed": true,
+            "reasoning": "The actual output is exactly 20, which precisely matches the expected point. The calculation of 25% of 80 is correct and directly stated."
+          }
+        ]
+      }
+    }
+  ]
+}

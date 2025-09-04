@@ -1,0 +1,35 @@
+version: 1
+name: "Model Output Format Testing"
+description: Test different model output formats for token and tool usage parsing
+
+defaults:
+  base_branch: main
+  parallel: 1
+  max_iterations: 1
+  timeout_sec: 60
+  json_logs: true
+  merge_on_pass: false
+
+models:
+  gpt5:
+    name: "gpt-5"
+  glm45:
+    name: "glm-4.5"
+  claude:
+    name: "claude-3-5-sonnet-20241022"
+
+metrics:
+  - success_rate
+  - avg_total_tokens
+  - tool_usage_count
+
+suites:
+  - id: parsing_test
+    description: "Simple test to examine model output formats"
+    cases:
+      - id: simple_task
+        repo: /Users/sjarmak/test-project
+        prompt: |
+          Create a simple test file called model_test.py that prints "Testing model output parsing". 
+          Then use the Read tool to verify the file contents.
+        script_command: "test -f model_test.py"

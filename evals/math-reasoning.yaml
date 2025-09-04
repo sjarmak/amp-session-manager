@@ -1,0 +1,22 @@
+version: 1
+name: "Math Reasoning"
+description: "Test mathematical reasoning capabilities"
+
+questions:
+  - input: "What is the result of 15 + 27?"
+    expectedOutput: "42"
+  
+  - input: "If a rectangle has length 8 and width 5, what is its area?"
+    expectedOutput: "40"
+  
+  - input: "Solve for x: 2x + 5 = 13"
+    expectedOutput: 
+      - "x = 4"
+      - "4"
+      - "x equals 4"
+  
+  - input: "What is 25% of 80?"
+    expectedOutput:
+      - "20"
+      - "25% of 80 is 20"
+      - "The answer is 20"

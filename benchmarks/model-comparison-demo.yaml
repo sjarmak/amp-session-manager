@@ -1,0 +1,231 @@
+version: 2
+name: "Model Comparison: Default vs GLM-4.5 vs GPT-5"
+description: >
+  Comprehensive evaluation comparing three models across different task types:
+  Q&A reasoning, code generation, and interactive debugging scenarios.
+
+###############################################################################
+# GLOBAL SETTINGS
+###############################################################################
+defaults:
+  parallel: 1               # Run 1 model at once (reduce resource usage)
+  max_iterations: 3         # Limit session iterations (reduce complexity)
+  timeout_sec: 180          # 3 min per case (prevent hangs)
+  json_logs: true           # Enable telemetry
+  merge_on_pass: false      # Don't merge - just evaluate
+
+###############################################################################
+# MODEL CONFIGURATIONS
+###############################################################################
+models:
+  default:
+    name: "Amp Default"
+    # No args - uses whatever amp default is
+    
+  glm45:
+    name: "GLM-4.5"
+    amp_args: ["--try-glm"]  # Use the correct local CLI flag
+    
+  gpt5:
+    name: "GPT-5"
+    amp_args: ["--try-gpt5"]
+
+###############################################################################
+# METRICS TO TRACK
+###############################################################################
+metrics:
+  - success_rate            # Overall pass rate
+  - avg_iterations          # Session efficiency
+  - total_tokens            # Resource usage
+  - avg_latency_ms          # QA response speed
+  - total_runtime_sec       # Overall performance
+
+###############################################################################
+# EVALUATION SUITES
+###############################################################################
+suites:
+
+  # 1. Quick QA Intelligence Tests
+  - id: reasoning_qa
+    description: "Fast reasoning and knowledge tests"
+    cases:
+      - id: math_reasoning
+        kind: qa
+        eval_spec: "evals/math-reasoning.yaml"
+        timeout_sec: 60
+        
+      - id: code_understanding
+        kind: qa  
+        eval_spec: "evals/code-comprehension.yaml"
+        timeout_sec: 90
+
+  # 2. Code Generation Tasks
+  - id: code_generation
+    description: "Single-turn code creation tasks"
+    cases:
+      - id: api_wrapper
+        kind: session
+        repo: "evals/temp-repos/api_wrapper"
+        setup_script: |
+          # Create a clean Python project structure
+          mkdir -p evals/temp-repos/api_wrapper
+          cd evals/temp-repos/api_wrapper
+          echo "# API Wrapper Project" > README.md
+          echo "requests>=2.28.0" > requirements.txt
+          echo "[tool.mypy]" > pyproject.toml
+          echo "strict = true" >> pyproject.toml
+          touch __init__.py
+        prompt: |
+          Create a Python wrapper for a REST API that:
+          1. Handles authentication with API keys
+          2. Makes GET and POST requests  
+          3. Includes error handling and retries
+          4. Has proper type hints and docstrings
+          Save it as api_client.py
+        script_command: "python -m py_compile api_client.py && python -c 'import api_client; print(\"API client imports successfully\")'"
+        
+      - id: data_processor
+        kind: session
+        repo: "evals/temp-repos/data_processor"
+        setup_script: |
+          # Create data processing project with sample CSV
+          mkdir -p evals/temp-repos/data_processor
+          cd evals/temp-repos/data_processor
+          echo "# Data Processor Project" > README.md
+          echo "pandas>=1.5.0" > requirements.txt
+          echo "pytest>=7.0.0" >> requirements.txt
+          # Create sample test data
+          cat > sample_data.csv << EOF
+          name,age,city,salary
+          Alice,25,New York,75000
+          Bob,30,San Francisco,95000
+          Charlie,invalid_age,Boston,65000
+          Diana,28,Chicago,80000
+          EOF
+          # Create basic test file
+          cat > test_processor.py << EOF
+          def test_processor_exists():
+              try:
+                  import processor
+                  assert hasattr(processor, 'process_csv')
+              except ImportError:
+                  assert False, "processor module not found"
+          EOF
+        prompt: |
+          Build a CSV data processor that:
+          1. Reads the sample_data.csv file efficiently
+          2. Validates data types (age should be numeric, salary positive)
+          3. Generates summary statistics for valid rows
+          4. Exports cleaned data to cleaned_data.json
+          Save the main logic as processor.py
+        script_command: "python processor.py && python -m pytest test_processor.py -v"
+
+  # 3. Interactive Debugging
+  - id: debugging_scenarios  
+    description: "Multi-turn problem-solving tasks"
+    cases:
+      - id: fix_memory_leak
+        kind: session
+        repo: "evals/temp-repos/memory_leak_app"
+        setup_script: |
+          # Create a Flask app with an intentional memory leak
+          mkdir -p evals/temp-repos/memory_leak_app
+          cd evals/temp-repos/memory_leak_app
+          echo "flask>=2.0.0" > requirements.txt
+          echo "pytest>=7.0.0" >> requirements.txt
+          echo "psutil>=5.9.0" >> requirements.txt
+          cat > app.py << EOF
+          from flask import Flask
+          import gc
+          
+          app = Flask(__name__)
+          
+          # Memory leak: growing list that never gets cleaned
+          leaked_data = []
+          
+          @app.route('/')
+          def home():
+              # This creates a memory leak
+              leaked_data.extend([i for i in range(1000)])
+              return f"Hello! Current leak size: {len(leaked_data)}"
+          
+          @app.route('/status')  
+          def status():
+              return {"leak_size": len(leaked_data)}
+              
+          if __name__ == '__main__':
+              app.run(debug=True)
+          EOF
+          cat > test_memory.py << EOF
+          import psutil
+          import requests
+          import time
+          
+          def test_memory_usage():
+              # Basic test - check if memory monitoring exists
+              import psutil
+              process = psutil.Process()
+              initial_memory = process.memory_info().rss
+              print(f"Initial memory: {initial_memory / 1024 / 1024:.2f} MB")
+              assert initial_memory > 0
+          EOF
+        prompt: "This Flask app has a memory leak in app.py. Find and fix the memory leak issue."
+        follow_up_prompts:
+          - "Add memory monitoring to track usage over time"  
+          - "Write tests to prevent this type of regression"
+          - "Document the root cause and solution in a comment"
+        script_command: "python test_memory.py && python -c 'import app; print(\"App imports without errors\")'"
+        
+      - id: performance_optimization
+        kind: session  
+        repo: "evals/temp-repos/slow_algorithm"
+        setup_script: |
+          # Create a project with a slow sorting algorithm
+          mkdir -p evals/temp-repos/slow_algorithm  
+          cd evals/temp-repos/slow_algorithm
+          echo "pytest>=7.0.0" > requirements.txt
+          cat > slow_sort.py << EOF
+          import time
+          import random
+          
+          def bubble_sort(arr):
+              """Intentionally slow O(n^2) bubble sort"""
+              n = len(arr)
+              for i in range(n):
+                  for j in range(0, n - i - 1):
+                      if arr[j] > arr[j + 1]:
+                          arr[j], arr[j + 1] = arr[j + 1], arr[j]
+              return arr
+          
+          def sort_large_dataset(size=5000):
+              """Sort a large random dataset - currently very slow"""
+              data = [random.randint(1, 1000) for _ in range(size)]
+              start_time = time.time()
+              result = bubble_sort(data.copy())
+              end_time = time.time()
+              return result, end_time - start_time
+          
+          if __name__ == '__main__':
+              result, duration = sort_large_dataset()
+              print(f"Sorted {len(result)} items in {duration:.2f} seconds")
+          EOF
+          cat > test_sort.py << EOF
+          from slow_sort import bubble_sort
+          
+          def test_sorting_correctness():
+              test_data = [64, 34, 25, 12, 22, 11, 90]
+              result = bubble_sort(test_data.copy())
+              assert result == sorted(test_data)
+          
+          def test_performance_reasonable():
+              # Test with smaller dataset for reasonable test time
+              import time
+              from slow_sort import sort_large_dataset
+              result, duration = sort_large_dataset(100)  # Smaller for testing
+              assert duration < 10.0  # Should be much faster after optimization
+          EOF
+        prompt: "This bubble sort algorithm in slow_sort.py is too slow for large datasets. Optimize it to handle 5000+ items efficiently."
+        follow_up_prompts:
+          - "Add benchmarking to measure and compare performance improvements"
+          - "Handle edge cases like empty arrays and single elements properly"
+        script_command: "python slow_sort.py && python -m pytest test_sort.py -v"

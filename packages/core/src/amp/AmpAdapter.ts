@@ -28,12 +28,17 @@ export function getAmpExtraArgs(cfg: AmpRuntimeConfig = {}): string[] {
   return [];
 }
 
-export function getAmpEnvironment(cfg: AmpRuntimeConfig = {}): Record<string, string> {
+export function getAmpEnvironment(cfg: AmpRuntimeConfig = {}, ampSettings?: { mode?: string }): Record<string, string> {
   const env: Record<string, string> = {};
   
   // Explicit "production" CLI path should use default production server
   if (cfg.ampCliPath === 'production') {
     // Don't set AMP_URL - let production amp use its default server
+    return env;
+  }
+  
+  // In production mode, don't set any environment overrides
+  if (ampSettings?.mode === 'production') {
     return env;
   }
   
@@ -43,8 +48,8 @@ export function getAmpEnvironment(cfg: AmpRuntimeConfig = {}): Record<string, st
     if (cfg.ampServerUrl.includes('localhost')) {
       env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
     }
-  } else if (cfg.ampCliPath && cfg.ampCliPath.includes('/Users/sjarmak/amp/')) {
-    // Local CLI binary should also use local server settings
+  } else if (cfg.ampCliPath && cfg.ampCliPath.includes('/Users/sjarmak/amp/') && ampSettings?.mode === 'local-cli') {
+    // Only apply local CLI heuristic in local-cli mode
     env.AMP_URL = 'https://localhost:7002';
     env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
   }

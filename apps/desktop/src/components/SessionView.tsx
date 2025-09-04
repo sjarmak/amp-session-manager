@@ -6,6 +6,8 @@ import { JSONMetrics } from "./JSONMetrics";
 import { InteractiveTab } from "./InteractiveTab";
 import { ToolCallDisplay } from "./ToolCallDisplay";
 import { GitActionsTab } from "./GitActionsTab";
+import { CostDashboard } from "./analytics/CostDashboard";
+import { SessionTimeline } from "./analytics/SessionTimeline";
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import { RenderMarkdownContent } from "../utils/renderMarkdown";
 
@@ -17,7 +19,7 @@ interface SessionViewProps {
   onBack: () => void;
   onSessionUpdated: () => void;
   onMergeCompleted?: () => void;
-  initialTab?: "overview" | "interactive" | "git";
+  initialTab?: "overview" | "interactive" | "git" | "analytics" | "timeline";
 }
 
 export function SessionView({
@@ -28,7 +30,7 @@ export function SessionView({
   initialTab,
 }: SessionViewProps) {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "interactive" | "git"
+    "overview" | "interactive" | "git" | "analytics" | "timeline"
   >(initialTab || "overview");
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -39,7 +41,7 @@ export function SessionView({
       setActiveTab(initialTab);
     } else {
       const saved = localStorage.getItem(`sessionTab_${session.id}`);
-      const validTabs = ["overview", "interactive", "git"];
+      const validTabs = ["overview", "interactive", "git", "analytics", "timeline"];
       if (saved && validTabs.includes(saved)) {
         setActiveTab(saved as any);
       }
@@ -273,7 +275,7 @@ export function SessionView({
       )}
 
       <div className="flex space-x-1 border-b border-gruvbox-bg4">
-        {["overview", "interactive", "git"].map((tab) => (
+        {["overview", "interactive", "git", "analytics", "timeline"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as any)}
@@ -731,6 +733,18 @@ export function SessionView({
       {activeTab === "git" && (
         <div className="bg-gruvbox-bg1 rounded-lg border border-gruvbox-bg3">
           <GitActionsTab session={session} onSessionUpdate={onSessionUpdated} />
+        </div>
+      )}
+
+      {activeTab === "analytics" && (
+        <div className="bg-gruvbox-bg1 rounded-lg border border-gruvbox-bg3">
+          <CostDashboard sessionId={session.id} />
+        </div>
+      )}
+
+      {activeTab === "timeline" && (
+        <div className="bg-gruvbox-bg1 rounded-lg border border-gruvbox-bg3">
+          <SessionTimeline sessionId={session.id} />
         </div>
       )}
 

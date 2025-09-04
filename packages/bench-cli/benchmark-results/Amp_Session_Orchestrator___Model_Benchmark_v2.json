@@ -1,0 +1,276 @@
+{
+  "benchmark_name": "Amp Session Orchestrator – Model Benchmark v2",
+  "started": "2025-09-03T17:14:19.273Z",
+  "ended": "2025-09-03T17:14:19.274Z",
+  "total_duration_sec": 0.001,
+  "cases": [
+    {
+      "id": "basic_math",
+      "model": "default",
+      "kind": "qa",
+      "started": "2025-09-03T17:14:19.273Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    },
+    {
+      "id": "basic_math",
+      "model": "gpt-5",
+      "kind": "qa",
+      "started": "2025-09-03T17:14:19.274Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    },
+    {
+      "id": "basic_math",
+      "model": "alloy",
+      "kind": "qa",
+      "started": "2025-09-03T17:14:19.274Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    },
+    {
+      "id": "code_generation",
+      "model": "default",
+      "kind": "qa",
+      "started": "2025-09-03T17:14:19.274Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    },
+    {
+      "id": "code_generation",
+      "model": "gpt-5",
+      "kind": "qa",
+      "started": "2025-09-03T17:14:19.274Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    },
+    {
+      "id": "code_generation",
+      "model": "alloy",
+      "kind": "qa",
+      "started": "2025-09-03T17:14:19.274Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    },
+    {
+      "id": "hello_readme",
+      "model": "default",
+      "kind": "session",
+      "started": "2025-09-03T17:14:19.274Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    },
+    {
+      "id": "hello_readme",
+      "model": "gpt-5",
+      "kind": "session",
+      "started": "2025-09-03T17:14:19.274Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    },
+    {
+      "id": "hello_readme",
+      "model": "alloy",
+      "kind": "session",
+      "started": "2025-09-03T17:14:19.274Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    },
+    {
+      "id": "add_function",
+      "model": "default",
+      "kind": "session",
+      "started": "2025-09-03T17:14:19.274Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    },
+    {
+      "id": "add_function",
+      "model": "gpt-5",
+      "kind": "session",
+      "started": "2025-09-03T17:14:19.274Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    },
+    {
+      "id": "add_function",
+      "model": "alloy",
+      "kind": "session",
+      "started": "2025-09-03T17:14:19.274Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    },
+    {
+      "id": "refactor_requests_json",
+      "model": "default",
+      "kind": "session",
+      "started": "2025-09-03T17:14:19.274Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    },
+    {
+      "id": "refactor_requests_json",
+      "model": "gpt-5",
+      "kind": "session",
+      "started": "2025-09-03T17:14:19.274Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    },
+    {
+      "id": "refactor_requests_json",
+      "model": "alloy",
+      "kind": "session",
+      "started": "2025-09-03T17:14:19.274Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    },
+    {
+      "id": "typing_fastapi_example",
+      "model": "default",
+      "kind": "session",
+      "started": "2025-09-03T17:14:19.274Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    },
+    {
+      "id": "typing_fastapi_example",
+      "model": "gpt-5",
+      "kind": "session",
+      "started": "2025-09-03T17:14:19.274Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    },
+    {
+      "id": "typing_fastapi_example",
+      "model": "alloy",
+      "kind": "session",
+      "started": "2025-09-03T17:14:19.274Z",
+      "ended": "2025-09-03T17:14:19.274Z",
+      "duration_sec": 0,
+      "passed": true,
+      "metrics": {
+        "dry_run": 1
+      }
+    }
+  ],
+  "summary": {
+    "total_cases": 18,
+    "passed_cases": 18,
+    "success_rate": 1,
+    "by_model": {
+      "default": {
+        "total_cases": 6,
+        "passed_cases": 6,
+        "success_rate": 1,
+        "avg_duration_sec": 0,
+        "metrics": {
+          "success_rate": 1,
+          "avg_iterations": 0,
+          "total_runtime_sec": 0,
+          "avg_latency_ms": 0,
+          "total_tokens": 0,
+          "pass_rate": 0,
+          "total_cost": 0
+        }
+      },
+      "gpt-5": {
+        "total_cases": 6,
+        "passed_cases": 6,
+        "success_rate": 1,
+        "avg_duration_sec": 0,
+        "metrics": {
+          "success_rate": 1,
+          "avg_iterations": 0,
+          "total_runtime_sec": 0,
+          "avg_latency_ms": 0,
+          "total_tokens": 0,
+          "pass_rate": 0,
+          "total_cost": 0
+        }
+      },
+      "alloy": {
+        "total_cases": 6,
+        "passed_cases": 6,
+        "success_rate": 1,
+        "avg_duration_sec": 0,
+        "metrics": {
+          "success_rate": 1,
+          "avg_iterations": 0,
+          "total_runtime_sec": 0,
+          "avg_latency_ms": 0,
+          "total_tokens": 0,
+          "pass_rate": 0,
+          "total_cost": 0
+        }
+      }
+    }
+  }
+}

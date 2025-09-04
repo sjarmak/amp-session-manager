@@ -99,6 +99,10 @@ export class GitOps {
     await this.exec(['init']);
   }
 
+  async initWithMainBranch(): Promise<void> {
+    await this.exec(['init', '-b', 'main']);
+  }
+
   async isRepo(): Promise<boolean> {
     const result = await this.exec(['rev-parse', '--is-inside-work-tree']);
     return result.exitCode === 0;

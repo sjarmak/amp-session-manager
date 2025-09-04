@@ -1,0 +1,36 @@
+repo: amp-workflow-manager-v2  
+rev: main
+questions:
+  - input: "Write a Python function to check if a number is prime"
+    expectedOutput: 
+      - "def is_prime"
+      - "return"
+      - "for"
+      - "if n <= 1"
+      
+  - input: "Create a JavaScript function that reverses a string"
+    expectedOutput:
+      - "function"
+      - "reverse"
+      - "split"
+      - "reverse"
+      - "join"
+      
+  - input: "Write a SQL query to find all users with age greater than 25"
+    expectedOutput:
+      - "SELECT"
+      - "FROM users"
+      - "WHERE age > 25"
+      
+  - input: "Create a Python list comprehension that filters even numbers from 1-20"
+    expectedOutput:
+      - "["
+      - "for"
+      - "in range"
+      - "if"
+      - "% 2 == 0"
+      
+  - input: "Write a bash command to find all .py files in current directory"
+    expectedOutput:
+      - "find"
+      - "*.py"

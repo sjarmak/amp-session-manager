@@ -6,7 +6,7 @@ import { SessionView } from './SessionView';
 import { BatchesView } from './BatchesView';
 import { BatchRunDetail } from './BatchRunDetail';
 import { BenchmarksView } from './BenchmarksView';
-import { BenchmarkRunDetail } from './BenchmarkRunDetail';
+import BenchmarkRunDetail from './BenchmarkRunDetail';
 
 interface MainContentProps {
   currentView: View;
@@ -83,7 +83,6 @@ export function MainContent({
           runId={selectedBenchmarkRun.runId}
           type={selectedBenchmarkRun.type}
           onBack={onBackToBenchmarks}
-          onSessionSelect={onSessionSelect}
         />
       ) : currentView === 'session' && selectedSession ? (
         <SessionView

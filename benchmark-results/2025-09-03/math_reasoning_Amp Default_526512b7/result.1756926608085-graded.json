@@ -1,0 +1,40 @@
+{
+  "questions": [
+    {
+      "input": "What is the result of 15 + 27?",
+      "expectedOutput": "42",
+      "error": "Command failed: amp -x What is the result of 15 + 27?",
+      "durationMs": 1564,
+      "outputCmd": "amp  -x"
+    },
+    {
+      "input": "If a rectangle has length 8 and width 5, what is its area?",
+      "expectedOutput": "40",
+      "error": "Command failed: amp -x If a rectangle has length 8 and width 5, what is its area?",
+      "durationMs": 1386,
+      "outputCmd": "amp  -x"
+    },
+    {
+      "input": "Solve for x: 2x + 5 = 13",
+      "expectedOutput": [
+        "x = 4",
+        "4",
+        "x equals 4"
+      ],
+      "error": "Command failed: amp -x Solve for x: 2x + 5 = 13",
+      "durationMs": 1304,
+      "outputCmd": "amp  -x"
+    },
+    {
+      "input": "What is 25% of 80?",
+      "expectedOutput": [
+        "20",
+        "25% of 80 is 20",
+        "The answer is 20"
+      ],
+      "error": "Command failed: amp -x What is 25% of 80?",
+      "durationMs": 1378,
+      "outputCmd": "amp  -x"
+    }
+  ]
+}

@@ -8,6 +8,7 @@ import type { Session, SweBenchCase, AmpRuntimeConfig, AmpSettings } from '@amps
 import { SessionStore } from './store.js';
 import { WorktreeManager } from './worktree.js';
 import { SweBenchRunner } from './swebench-runner.js';
+import { GitAutoInit } from './git-auto-init.js';
 
 export interface BenchmarkConfig {
   version: number;
@@ -105,12 +106,15 @@ export class BenchmarkRunner extends EventEmitter {
     
     console.log(`🚀 Starting benchmark: ${config.name}`);
     
+    // Calculate total cases asynchronously
+    const totalCases = await this.calculateTotalCasesAsync(config);
+    
     // Create a SweBenchRun entry that the UI can track
     const sweBenchRun = this.store.createSweBenchRun({
       id: benchmarkId,
       name: config.name,
       casesDir: configPath,
-      total: this.calculateTotalCases(config),
+      total: totalCases,
       completed: 0,
       passed: 0,
       failed: 0,
@@ -128,6 +132,18 @@ export class BenchmarkRunner extends EventEmitter {
     this.runningBenchmarks.set(benchmarkId, true);
     this.emit('run-started', sweBenchRun);
 
+    // Start the actual execution in the background
+    this.executeBenchmark(benchmarkId, configPath, config, result).then(() => {
+      console.log(`✅ Benchmark ${benchmarkId} completed successfully`);
+    }).catch((error) => {
+      console.error(`❌ Benchmark ${benchmarkId} failed:`, error);
+    });
+
+    // Return immediately with the result structure
+    return result;
+  }
+
+  private async executeBenchmark(benchmarkId: string, configPath: string, config: BenchmarkConfig, result: BenchmarkResult): Promise<void> {
     try {
       // Run evaluation for each model IN PARALLEL
       const modelPromises = Object.entries(config.models).map(async ([modelKey, modelConfig]) => {
@@ -233,11 +249,10 @@ export class BenchmarkRunner extends EventEmitter {
 
     const finalRun = this.store.getSweBenchRun(benchmarkId);
     this.emit('run-finished', finalRun);
-    return result;
   }
 
   private async loadConfig(configPath: string): Promise<BenchmarkConfig> {
-    const content = fs.readFileSync(configPath, 'utf-8');
+    const content = await fs.promises.readFile(configPath, 'utf-8');
     return parse(content);
   }
 
@@ -384,7 +399,7 @@ export class BenchmarkRunner extends EventEmitter {
       // Create session
       const manager = worktreeManager || this.worktreeManager;
       // Determine ampMode based on runtime config 
-      let ampMode: 'production' | 'local-cli' = 'production';
+      let ampMode: 'production' | 'local-cli' | 'local-server' = 'production';
       const runtimeConfig = manager.getRuntimeConfig();
       if (runtimeConfig?.ampCliPath || runtimeConfig?.ampServerUrl) {
         ampMode = this.ampSettings?.mode || 'local-cli';
@@ -503,9 +518,18 @@ export class BenchmarkRunner extends EventEmitter {
   private async ensureTestRepo(repo: string): Promise<string> {
     // Handle absolute paths directly
     if (path.isAbsolute(repo)) {
-      if (!fs.existsSync(repo)) {
+      try {
+        await fs.promises.access(repo);
+      } catch {
         throw new Error(`Repository path does not exist: ${repo}`);
       }
+      
+      // Auto-initialize git repository if needed
+      const wasInitialized = await GitAutoInit.ensureGitRepo(repo);
+      if (wasInitialized) {
+        console.log(`✅ Auto-initialized git repository at ${repo}`);
+      }
+      
       return repo;
     }
     
@@ -513,10 +537,20 @@ export class BenchmarkRunner extends EventEmitter {
     const repoName = repo.replace('/', '_');
     const repoPath = path.join(process.env.HOME || '~', '.amp-repos', repoName);
     
-    if (!fs.existsSync(repoPath)) {
+    let repoExists = false;
+    try {
+      await fs.promises.access(repoPath);
+      repoExists = true;
+    } catch {
+      repoExists = false;
+    }
+    
+    if (!repoExists) {
       const cacheDir = path.dirname(repoPath);
-      if (!fs.existsSync(cacheDir)) {
-        fs.mkdirSync(cacheDir, { recursive: true });
+      try {
+        await fs.promises.access(cacheDir);
+      } catch {
+        await fs.promises.mkdir(cacheDir, { recursive: true });
       }
       await this.execCommand(`git clone https://github.com/${repo}.git "${repoPath}"`);
     }
@@ -556,6 +590,28 @@ export class BenchmarkRunner extends EventEmitter {
     }
 
     return metrics;
+  }
+
+  private async calculateTotalCasesAsync(config: BenchmarkConfig): Promise<number> {
+    let total = 0;
+    for (const suite of config.suites) {
+      if (suite.cases) {
+        total += suite.cases.length;
+      }
+      if (suite.swebench_cases_dir) {
+        // Count files asynchronously
+        try {
+          const resolvedPath = path.isAbsolute(suite.swebench_cases_dir)
+            ? suite.swebench_cases_dir
+            : path.resolve(process.cwd(), suite.swebench_cases_dir);
+          const files = (await fs.promises.readdir(resolvedPath)).filter((f: string) => f.endsWith('.json'));
+          total += files.length;
+        } catch {
+          total += 10; // Default estimate
+        }
+      }
+    }
+    return total;
   }
 
   private calculateTotalCases(config: BenchmarkConfig): number {
